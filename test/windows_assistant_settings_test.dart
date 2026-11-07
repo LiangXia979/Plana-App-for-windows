@@ -24,15 +24,17 @@ import 'support/desktop_capture.dart';
 void main() {
   late AppStores stores;
   late ProviderContainer c;
+  var botAuthorized = false;
   final capture = GlobalKey();
   setUpAll(loadDesktopCaptureFonts);
   setUp(() async {
+    botAuthorized = false;
     stores = AppStores.ephemeral();
     c = ProviderContainer(
       overrides: [
         appStoresProvider.overrideWithValue(stores),
         desktopModeProvider.overrideWithValue(true),
-        assistantBotAuthorizedProvider.overrideWithValue(false),
+        assistantBotAuthorizedProvider.overrideWith((ref) => botAuthorized),
         assistantEndpointProvider.overrideWithValue(
           const CustomEndpoint(
             id: 'synthetic',
@@ -157,12 +159,19 @@ void main() {
       await tester.pumpAndSettle();
       await tester.tap(find.text('生成'));
       await tester.pumpAndSettle();
-      final dropdown = find.byType(DropdownButton<SectionImport>);
+      final dropdown = find.byKey(const ValueKey('assistant-import-dropdown'));
       await tester.ensureVisible(dropdown);
       await tester.pumpAndSettle();
       await tester.tap(dropdown);
       await tester.pumpAndSettle();
       expect(find.byType(AlertDialog), findsNothing);
+      final field = tester.getRect(dropdown);
+      final firstOption = tester.getRect(find.byType(MenuItemButton).first);
+      expect(field.height, greaterThanOrEqualTo(44));
+      expect(field.width, greaterThan(200));
+      expect(firstOption.top, greaterThanOrEqualTo(field.bottom));
+      expect(firstOption.left, closeTo(field.left, 2));
+      expect(firstOption.width, closeTo(field.width, 2));
       await captureDesktop(tester, capture, 'assistant-import-$name-menu');
       await tester.sendKeyEvent(LogicalKeyboardKey.escape);
       await tester.pumpAndSettle();
@@ -178,12 +187,20 @@ void main() {
       for (final mode in SectionImport.values) {
         await tester.tap(dropdown);
         await tester.pumpAndSettle();
-        await tester.tap(find.text(sectionImportLabel(mode)).last);
+        final option = find.byKey(
+          ValueKey('assistant-import-dropdown-option-$mode'),
+        );
+        await tester.ensureVisible(option);
+        await tester.pumpAndSettle();
+        await tester.tap(option);
         await tester.pumpAndSettle();
         expect(c.read(assistantSettingsProvider).value!.importTo, mode);
         expect(
-          tester.widget<DropdownButton<SectionImport>>(dropdown).value,
-          mode,
+          find.descendant(
+            of: dropdown,
+            matching: find.text(sectionImportLabel(mode)),
+          ),
+          findsOneWidget,
         );
         expect(
           PromptSnapshot.of(c.read(generateProvider)).sameAs(before),
@@ -235,6 +252,118 @@ void main() {
       );
       await finish(tester);
     });
+  }
+
+  for (final (name, scale, size, dark) in [
+    ('normal', 1.0, const Size(1000, 780), false),
+    ('large-dark', 1.4, const Size(880, 540), true),
+    ('narrow', 1.4, const Size(440, 640), false),
+  ]) {
+    testWidgets(
+      'library menu anchors below and preserves authorization: $name',
+      (tester) async {
+        await tester.runAsync(
+          () => c
+              .read(assistantSettingsProvider.notifier)
+              .patch((s) => s.copyWith(libraryScope: LibraryScope.all)),
+        );
+        await mount(
+          tester,
+          Builder(
+            builder: (context) => Scaffold(
+              body: Center(
+                child: FilledButton(
+                  onPressed: () => showAssistantSettings(context),
+                  child: const Text('助手设置'),
+                ),
+              ),
+            ),
+          ),
+          scale,
+          size: size,
+          dark: dark,
+        );
+        await tester.tap(find.text('助手设置'));
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('资料与规则'));
+        await tester.pumpAndSettle();
+        final field = find.byKey(const ValueKey('assistant-library-dropdown'));
+        expect(
+          find.descendant(of: field, matching: find.text('本地库')),
+          findsOneWidget,
+        );
+        await tester.tap(field);
+        await tester.pumpAndSettle();
+        final buttonRect = tester.getRect(field);
+        final first = tester.getRect(find.byType(MenuItemButton).first);
+        expect(first.top, greaterThanOrEqualTo(buttonRect.bottom));
+        expect(first.left, closeTo(buttonRect.left, 2));
+        expect(first.width, closeTo(buttonRect.width, 2));
+        final public = find.byKey(
+          const ValueKey('assistant-library-dropdown-option-LibraryScope.all'),
+        );
+        expect(tester.widget<MenuItemButton>(public).onPressed, isNull);
+        expect(find.text('需要 Bot 授权'), findsOneWidget);
+        await captureDesktop(tester, capture, 'assistant-library-$name-menu');
+        await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+        await tester.pumpAndSettle();
+        expect(
+          c.read(assistantSettingsProvider).value!.libraryScope,
+          LibraryScope.all,
+        );
+
+        botAuthorized = true;
+        c.invalidate(assistantBotAuthorizedProvider);
+        await tester.pumpAndSettle();
+        expect(
+          find.descendant(of: field, matching: find.text('本地库 + 公共库')),
+          findsOneWidget,
+        );
+        await tester.tap(field);
+        await tester.pumpAndSettle();
+        expect(tester.widget<MenuItemButton>(public).onPressed, isNotNull);
+        await tester.tapAt(const Offset(20, 20));
+        await tester.pumpAndSettle();
+        expect(find.byType(MenuItemButton), findsNothing);
+        expect(
+          find.byKey(const ValueKey('desktop-assistant-settings')),
+          findsOneWidget,
+        );
+        expect(
+          c.read(assistantSettingsProvider).value!.libraryScope,
+          LibraryScope.all,
+        );
+
+        // Keyboard selection changes the value only after activation.
+        tester.widget<OutlinedButton>(field).focusNode!.requestFocus();
+        await tester.pump();
+        await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
+        await tester.pumpAndSettle();
+        expect(find.byType(MenuItemButton), findsNWidgets(3));
+        await tester.sendKeyEvent(LogicalKeyboardKey.arrowUp);
+        await tester.pumpAndSettle();
+        expect(
+          c.read(assistantSettingsProvider).value!.libraryScope,
+          LibraryScope.all,
+        );
+        await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+        await tester.pumpAndSettle();
+        expect(
+          c.read(assistantSettingsProvider).value!.libraryScope,
+          LibraryScope.local,
+        );
+        expect(find.byType(MenuItemButton), findsNothing);
+        await tester.tap(find.byTooltip('关闭助手设置'));
+        await tester.pumpAndSettle();
+        c.invalidate(assistantSettingsProvider);
+        await tester.runAsync(() => c.read(assistantSettingsProvider.future));
+        expect(
+          c.read(assistantSettingsProvider).value!.libraryScope,
+          LibraryScope.local,
+        );
+        await finish(tester);
+      },
+    );
   }
 
   for (final scale in [1.0, 1.4]) {
