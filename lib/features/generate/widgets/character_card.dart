@@ -11,7 +11,8 @@ import '../../../core/theme/theme_settings.dart';
 import '../../../core/util/nai_tokenizer.dart';
 import '../../editor/editor_page.dart';
 import '../../editor/editor_state.dart' show editorSessionsProvider;
-import '../../editor/editor_models.dart' show outputOf, draftOf;
+import '../../editor/editor_models.dart' show outputOf, draftOf, pickEditorText;
+import 'collapsed_prompt_preview.dart';
 import '../../inspiration/widgets/char_pick_sheet.dart';
 import '../../inspiration/widgets/tag_card.dart' show TagCardPreview;
 import '../../inspiration/tag_models.dart'
@@ -453,12 +454,17 @@ class _CharacterTileState extends ConsumerState<_CharacterTile> {
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.stretch,
                               children: [
-                                Text(
-                                  char.positive.isEmpty
-                                      ? '点击展开编辑提示词…'
-                                      : char.positive,
+                                CollapsedPromptPreview(
+                                  key: ValueKey(
+                                    'collapsed-character-${char.id}-positive',
+                                  ),
+                                  draft: pickEditorText(
+                                    char.positiveRaw,
+                                    char.positive,
+                                  ),
+                                  emptyText: '点击展开编辑提示词…',
+                                  enabled: enabled,
                                   maxLines: 2,
-                                  overflow: TextOverflow.ellipsis,
                                   style: context.texts.bodyMedium,
                                 ),
                                 if (!ref.watch(
@@ -467,10 +473,16 @@ class _CharacterTileState extends ConsumerState<_CharacterTile> {
                                       ),
                                     ) &&
                                     char.negative.isNotEmpty)
-                                  Text(
-                                    char.negative,
+                                  CollapsedPromptPreview(
+                                    key: ValueKey(
+                                      'collapsed-character-${char.id}-negative',
+                                    ),
+                                    draft: pickEditorText(
+                                      char.negativeRaw,
+                                      char.negative,
+                                    ),
+                                    enabled: enabled,
                                     maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
                                     style: context.texts.bodySmall!.copyWith(
                                       color: scheme.error,
                                     ),
