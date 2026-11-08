@@ -1,8 +1,12 @@
 part of 'desktop_workspace.dart';
 
 class _DesktopControls extends ConsumerStatefulWidget {
-  const _DesktopControls({required this.canvasTabsKey});
+  const _DesktopControls({
+    required this.canvasTabsKey,
+    required this.collapseButton,
+  });
   final GlobalKey<DesktopCanvasTabsState> canvasTabsKey;
+  final Widget collapseButton;
 
   @override
   ConsumerState<_DesktopControls> createState() => _DesktopControlsState();
@@ -60,7 +64,10 @@ class _DesktopControlsState extends ConsumerState<_DesktopControls> {
       color: context.scheme.surfaceContainerLow,
       child: Column(
         children: [
-          DesktopCanvasTabs(key: widget.canvasTabsKey),
+          DesktopCanvasTabs(
+            key: widget.canvasTabsKey,
+            trailing: widget.collapseButton,
+          ),
           const GenerateTopBar(),
           Expanded(
             child: Scrollbar(
