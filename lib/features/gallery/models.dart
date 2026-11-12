@@ -7,10 +7,12 @@ import 'dart:ui' show Color;
 
 import '../../core/theme/app_theme.dart' show FixedSemantic;
 import '../generate/models.dart' show GenerateState;
+import 'image_operation.dart';
+export 'image_operation.dart';
 
 /// 结果图的处理标记 —— 决定缩略图角标与画布顶部标签。
 // Keep `upscaled` for older 4× records; new fixed 2× results use their own tag.
-enum ResultBadge { none, upscaled, inpaint, censored, upscaled2x }
+enum ResultBadge { none, upscaled, inpaint, censored, upscaled2x, director }
 
 extension ResultBadgeX on ResultBadge {
   /// 角标短文案;none 无角标。
@@ -19,6 +21,7 @@ extension ResultBadgeX on ResultBadge {
     ResultBadge.upscaled2x => '2x',
     ResultBadge.inpaint => '重绘',
     ResultBadge.censored => '打码',
+    ResultBadge.director => '导演',
     ResultBadge.none => null,
   };
 
@@ -28,6 +31,7 @@ extension ResultBadgeX on ResultBadge {
     ResultBadge.upscaled || ResultBadge.upscaled2x => FixedSemantic.ok,
     ResultBadge.inpaint => FixedSemantic.inpaint,
     ResultBadge.censored => FixedSemantic.censor,
+    ResultBadge.director => FixedSemantic.inpaint,
     ResultBadge.none => const Color(0x00000000),
   };
 }
@@ -72,6 +76,7 @@ class ResultImage {
     this.batchIndex = -1,
     this.bytes,
     this.input,
+    this.operation,
     this.inpaintFrom,
     this.inpaintHistoryCleared = false,
     this.favorite = false,
@@ -117,6 +122,7 @@ class ResultImage {
 
   /// 生成时的输入快照(prompt/角色/参考/参数);供「重新生成」按本图参数复现。
   final GenerateState? input;
+  final ImageOperation? operation;
 
   /// 本图有参数快照可用(内存或盘上)。
   final bool hasInput;
@@ -138,6 +144,7 @@ class ResultImage {
           inpaintHistoryCleared: inpaintHistoryCleared,
           favorite: favorite,
           hasInput: hasInput,
+          operation: operation,
         );
 
   /// 回填生成时刻的副本(索引迁移用,其余字段原样)。
@@ -148,6 +155,7 @@ class ResultImage {
     seed: seed,
     badge: badge,
     createdAt: t,
+    operation: operation,
     batchIndex: batchIndex,
     inpaintFrom: inpaintFrom,
     inpaintHistoryCleared: inpaintHistoryCleared,
@@ -167,6 +175,7 @@ class ResultImage {
     batchIndex: batchIndex,
     bytes: bytes,
     input: input?.copyWith(inpaint: null),
+    operation: operation,
     hasInput: hasInput,
     inpaintHistoryCleared: true,
     favorite: favorite,
@@ -186,5 +195,6 @@ class ResultImage {
     inpaintFrom: inpaintFrom,
     inpaintHistoryCleared: inpaintHistoryCleared,
     favorite: value,
+    operation: operation,
   );
 }

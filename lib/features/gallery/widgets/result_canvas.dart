@@ -15,6 +15,7 @@ import 'package:gal/gal.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/ui/param_help.dart';
 import '../../desktop/desktop_canvas_state.dart';
+import '../../director/director_page.dart';
 import '../../generate/generate_state.dart';
 import '../../generate/canvas_state.dart';
 import '../../generate/gen_modules.dart';
@@ -187,25 +188,26 @@ class ResultChrome extends StatelessWidget {
                         ),
                       ),
                       const SizedBox(width: 8),
-                      Expanded(
-                        child: Align(
-                          alignment: Alignment.bottomRight,
-                          child: FittedBox(
-                            fit: BoxFit.scaleDown,
-                            child: _SeedChip(
-                              key: const ValueKey('canvas-seed'),
-                              seed: result.seed,
-                              enabled: enabled,
+                      if (result.operation == null)
+                        Expanded(
+                          child: Align(
+                            alignment: Alignment.bottomRight,
+                            child: FittedBox(
+                              fit: BoxFit.scaleDown,
+                              child: _SeedChip(
+                                key: const ValueKey('canvas-seed'),
+                                seed: result.seed,
+                                enabled: enabled,
+                              ),
                             ),
                           ),
                         ),
-                      ),
                     ],
                   ),
                 ],
               ),
             )
-          else
+          else if (result.operation == null)
             Positioned(
               left: 12,
               bottom: 16,
@@ -739,13 +741,13 @@ class _ActionRailState extends ConsumerState<ResultActions> {
                       label: const Text('导入'),
                     ),
                     TextButton.icon(
-                      key: const ValueKey('canvas-copy-image'),
+                      key: const ValueKey('canvas-director-tools'),
                       style: style,
                       onPressed: canAct
-                          ? () => copyResultToClipboard(context, ref, result)
+                          ? () => openDirectorTools(context, ref, result)
                           : null,
-                      icon: const Icon(Icons.content_copy, size: 18),
-                      label: const Text('复制图片'),
+                      icon: const Icon(Icons.movie_filter_outlined, size: 18),
+                      label: const Text('导演工具'),
                     ),
                     _baseImageButton(style: style, enabled: canAct),
                   ],
@@ -753,52 +755,76 @@ class _ActionRailState extends ConsumerState<ResultActions> {
               )
             : Row(
                 children: [
-                  Tooltip(
-                    message: '保存到选定文件夹；右键或长按打开保存设置',
-                    child: GestureDetector(
-                      onSecondaryTap: canAct
-                          ? () => _openSaveSheet(context, ref)
-                          : null,
-                      onLongPress: canAct
-                          ? () => _openSaveSheet(context, ref)
-                          : null,
-                      child: OutlinedButton.icon(
-                        key: const ValueKey('canvas-save'),
-                        style: capsuleStyle,
-                        onPressed: canAct && !_saving && !_choosingDirectory
-                            ? () => _saveInDirectory(context)
-                            : null,
-                        icon: const Icon(Icons.download_outlined, size: 18),
-                        label: Text(_saving ? '保存中' : '保存'),
-                      ),
+                  Expanded(
+                    child: Wrap(
+                      spacing: 4,
+                      runSpacing: 4,
+                      crossAxisAlignment: WrapCrossAlignment.center,
+                      children: [
+                        Tooltip(
+                          message: '保存到选定文件夹；右键或长按打开保存设置',
+                          child: GestureDetector(
+                            onSecondaryTap: canAct
+                                ? () => _openSaveSheet(context, ref)
+                                : null,
+                            onLongPress: canAct
+                                ? () => _openSaveSheet(context, ref)
+                                : null,
+                            child: OutlinedButton.icon(
+                              key: const ValueKey('canvas-save'),
+                              style: capsuleStyle,
+                              onPressed:
+                                  canAct && !_saving && !_choosingDirectory
+                                  ? () => _saveInDirectory(context)
+                                  : null,
+                              icon: const Icon(
+                                Icons.download_outlined,
+                                size: 18,
+                              ),
+                              label: Text(_saving ? '保存中' : '保存'),
+                            ),
+                          ),
+                        ),
+                        Tooltip(
+                          message: directory == null
+                              ? '选择保存文件夹'
+                              : '保存到：$directory\n点击更换文件夹',
+                          child: TextButton.icon(
+                            key: const ValueKey('canvas-save-folder'),
+                            style: capsuleStyle,
+                            onPressed: _saving || _choosingDirectory
+                                ? null
+                                : () => _chooseDirectory(),
+                            icon: Icon(
+                              directory == null
+                                  ? Icons.folder_open_outlined
+                                  : Icons.folder_outlined,
+                              size: 18,
+                            ),
+                            label: const Text('文件夹'),
+                          ),
+                        ),
+                        TextButton.icon(
+                          key: const ValueKey('canvas-copy-image'),
+                          style: capsuleStyle,
+                          onPressed: canAct
+                              ? () =>
+                                    copyResultToClipboard(context, ref, result)
+                              : null,
+                          icon: const Icon(Icons.content_copy, size: 18),
+                          label: const Text('复制图片'),
+                        ),
+                      ],
                     ),
                   ),
-                  const SizedBox(width: 4),
-                  Tooltip(
-                    message: directory == null
-                        ? '选择保存文件夹'
-                        : '保存到：$directory\n点击更换文件夹',
-                    child: TextButton.icon(
-                      key: const ValueKey('canvas-save-folder'),
-                      style: capsuleStyle,
-                      onPressed: _saving || _choosingDirectory
-                          ? null
-                          : () => _chooseDirectory(),
-                      icon: Icon(
-                        directory == null
-                            ? Icons.folder_open_outlined
-                            : Icons.folder_outlined,
-                        size: 18,
-                      ),
-                      label: const Text('文件夹'),
-                    ),
-                  ),
-                  const Spacer(),
+                  const SizedBox(width: 8),
                   FilledButton.icon(
                     key: const ValueKey('canvas-regenerate'),
                     onPressed: canAct ? () => _regenerate(context, ref) : null,
                     icon: const Icon(Icons.refresh, size: 18),
-                    label: const Text('重新生成'),
+                    label: Text(
+                      widget.result?.operation != null ? '继续处理' : '重新生成',
+                    ),
                   ),
                 ],
               ),
@@ -1428,6 +1454,10 @@ class _ActionRailState extends ConsumerState<ResultActions> {
 
   /// 按本图参数、换随机种子出一张新图(不改用户当前编辑器状态)。
   Future<void> _regenerate(BuildContext context, WidgetRef ref) async {
+    if (result.operation != null || result.badge == ResultBadge.director) {
+      await openDirectorTools(context, ref, result);
+      return;
+    }
     final galleryTarget = ref.read(gallerySaveTargetProvider);
     final input = await _inputOf(ref);
     if (!context.mounted) return;
@@ -1466,8 +1496,12 @@ Future<void> openResultImport(
       ImportImagePanel(
         origin: origin,
         bytes: bytes,
-        fileName: 'plana_${result.seed}.png',
-        displayName: 'plana_${result.seed}',
+        fileName: result.operation == null
+            ? 'plana_${result.seed}.png'
+            : '导演结果_${result.id}.png',
+        displayName: result.operation == null
+            ? 'plana_${result.seed}'
+            : '导演结果_${result.id}',
       ),
     ),
   );
