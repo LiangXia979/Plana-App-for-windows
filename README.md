@@ -13,20 +13,31 @@
 [![Status](https://img.shields.io/badge/状态-桌面版测试中-6A5ACD)](#项目状态)
 [![Flutter](https://img.shields.io/badge/built%20with-Flutter-02569B?logo=flutter&logoColor=white)](https://flutter.dev)
 
-[本次更新](#本次更新windows60) · [界面预览](#界面预览) · [桌面版亮点](#桌面版亮点) · [贡献者](#贡献者) · [问题反馈](https://github.com/LingXia979/Plana-App-for-windows/issues) · [上游项目](https://github.com/mc5024/Plana-App)
+[本次更新](#本次更新windows61) · [界面预览](#界面预览) · [桌面版亮点](#桌面版亮点) · [贡献者](#贡献者) · [问题反馈](https://github.com/LingXia979/Plana-App-for-windows/issues) · [上游项目](https://github.com/mc5024/Plana-App)
 
 </div>
 
 ## 项目状态
 
 本项目基于 [Plana App](https://github.com/mc5024/Plana-App) 开发 Windows 桌面适配，并选择性同步 [shenghuo2/Plana-App-Desktop](https://github.com/shenghuo2/Plana-App-Desktop) 的桌面功能与修复。
-当前版本为 **1.2.3-windows.60（构建 79）**。本次汇总上游 1.2.3 选择性适配、提示词导入、重绘与图库修复，以及跨应用图片复制和拖出，安装包与便携版见 [Releases](https://github.com/LingXia979/Plana-App-for-windows/releases/tag/v1.2.3-windows.60)。
+当前版本为 **1.2.3-windows.61（构建 80）**。本版汇总 windows.60 之后的工作台、助手、法典、导演工具与图库修复，安装包与便携版见 [Releases](https://github.com/LingXia979/Plana-App-for-windows/releases/tag/v1.2.3-windows.61)。
 
 - `main` 与 `Plana-app-for-windows`：Windows 桌面源码；已发布版本对应的源码以 Release 标签为准。
 - [`plana-app-gallery-optimization`](https://github.com/LingXia979/Plana-App-for-windows/tree/plana-app-gallery-optimization)：图库优化分支。
 - Android 原版介绍与下载请前往[上游仓库](https://github.com/mc5024/Plana-App)。
 
-## 本次更新：windows.60
+## 本次更新：windows.61
+
+- 创作工作台：左右侧栏可以折叠并记住宽度；折叠后整列文字和空白处均可点击展开，底部历史栏收起后也支持整行展开。切换图库等独立按钮保留原操作。
+- 法典与灵感：创作侧栏新增法典入口，提供词典、搜索、分类和收藏筛选；分类采用锚定面板与面包屑下钻，收藏直接筛选当前列表。修复新增灵感类别不显示，类别栏支持鼠标按住横移。
+- AI 助手：两处会话支持重命名、置顶和临时聊天；会话统一进入历史，单纯切换不会改变排序。主页面标题显示会话名；消息居中、回到底部按钮和鱼眼刻度目录方便定位长对话。
+- 操作排版：助手导入方式、资料库范围采用下挂面板；增大导入图片的选项字体，对齐类别管理操作，统一主提示词工具按钮。折叠提示词保留权重颜色与完整折叠块。
+- 导演工具：新增源图／结果双预览、待处理图片列表和当前相册历史；支持去背景、线稿、草图、上色、表情与清理杂物的云端协议，以及独立的本机像素对齐。历史拖到输入列表保留原图，结果保存至任务提交时的相册。
+- Bot 与图库修复：补齐手机端使用的重绘有效强度字段；钱包新增点数余额。修复跨多张历史切回原图的闪白，以及作品文件夹打开过程中切页、再进入相册时卡住的问题。
+
+导演云端操作需要支持相关协议的官方或第三方接口；上游明确不向 Bot 授权账户提供导演接口，OpenAI 绘图格式也不支持这些云端转换。本机像素对齐可独立使用。Bot 强度已修复客户端漏发字段，最终成图效果及导演真实服务仍需按实际服务验证；不将模拟请求等同于真实效果验收。详见 [Windows 使用说明](WINDOWS-README.md)。
+
+## 上一轮更新：windows.60
 
 - 跨应用图片操作：主画布、历史缩略图与 AI 助手成图支持原生拖出；图库和预览的复制按钮也支持按住拖出。复制与拖出共用「图库默认保存」的 PNG／JPG 及原始／清除／自定义元数据设置，原始 PNG 保留原字节。
 - 图片提示词导入：可选「完全覆盖／额外添加／替换主体」，默认保留现有分区；额外添加自动建立「图片导入1、2……」。画师串与角色条目重复导入时也建立独立具名分区，保留完整内容。
@@ -39,7 +50,7 @@
 
 本版选择性适配上游 [v1.2.3](https://github.com/mc5024/Plana-App/releases/tag/v1.2.3)，固定参考 [`2e05c07`](https://github.com/mc5024/Plana-App/commit/2e05c0764776ad365fe2931454d8b5d408135678)，并汇总 windows.59 之后的桌面改进。继续保留现有重绘编辑器、Medium／High、分区、快捷键、加密凭据和安装身份。
 
-已知限制：默认 Bot 服务仍有重绘强度不生效的问题，需上游后端修复；本次没有将它标记为已修复。OpenAI 格式中转当前不提供逐步预览、超分或新 Vibe 编码；接收外部图片的软件若自行压缩，也可能清除元数据。详细行为见 [Windows 使用说明](WINDOWS-README.md)。
+windows.60 发布时的 Bot 强度问题已在 windows.61 更正为客户端漏发有效字段，并补齐发送；实际成图继续复测。OpenAI 格式中转当前不提供逐步预览、超分或新 Vibe 编码；接收外部图片的软件若自行压缩，也可能清除元数据。详细行为见 [Windows 使用说明](WINDOWS-README.md)。
 
 ## 上一轮更新：windows.59
 
@@ -96,9 +107,9 @@
 
 ## 下载与安装
 
-- [中文安装包（Windows x64）](https://github.com/LingXia979/Plana-App-for-windows/releases/download/v1.2.3-windows.60/Plana-Windows-1.2.3-windows.60-x64-setup.exe)：按中文向导选择安装目录，支持开始菜单、可选桌面快捷方式及卸载。
-- [便携版 ZIP](https://github.com/LingXia979/Plana-App-for-windows/releases/download/v1.2.3-windows.60/Plana-Windows-1.2.3-windows.60-x64.zip)：完整解压后运行 `plana_app_for_windows.exe`。
-- [SHA-256 校验清单](https://github.com/LingXia979/Plana-App-for-windows/releases/download/v1.2.3-windows.60/Plana-Windows-1.2.3-windows.60-x64-SHA256.txt)。
+- [中文安装包（Windows x64）](https://github.com/LingXia979/Plana-App-for-windows/releases/download/v1.2.3-windows.61/Plana-Windows-1.2.3-windows.61-x64-setup.exe)：按中文向导选择安装目录，支持开始菜单、可选桌面快捷方式及卸载。
+- [便携版 ZIP](https://github.com/LingXia979/Plana-App-for-windows/releases/download/v1.2.3-windows.61/Plana-Windows-1.2.3-windows.61-x64.zip)：完整解压后运行 `plana_app_for_windows.exe`。
+- [SHA-256 校验清单](https://github.com/LingXia979/Plana-App-for-windows/releases/download/v1.2.3-windows.61/Plana-Windows-1.2.3-windows.61-x64-SHA256.txt)。
 
 升级前请关闭旧版。作品自动保存到程序旁的 `output` 文件夹，卸载保留个人数据。发布包不附带个人账号、API/Bot/Web 授权、提示词草稿或私人 tag 库，首次使用请自行配置。当前安装包未进行代码签名。
 
