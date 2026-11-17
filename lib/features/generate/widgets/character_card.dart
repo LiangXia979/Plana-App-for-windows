@@ -270,6 +270,7 @@ class _CharacterTileState extends ConsumerState<_CharacterTile> {
   bool _collapsed = false;
   bool _avatarPreviewOpen = false;
   final _nameKey = GlobalKey();
+  final _editorHeaderKey = GlobalKey();
 
   Future<void> _previewAvatar() async {
     final avatar = char.avatar;
@@ -434,14 +435,17 @@ class _CharacterTileState extends ConsumerState<_CharacterTile> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                _header(
-                  context,
-                  ref,
-                  notifier,
-                  autoPos: autoPos,
-                  isV5: isV5,
-                  compact: compact,
-                  collapsible: collapsible,
+                KeyedSubtree(
+                  key: _editorHeaderKey,
+                  child: _header(
+                    context,
+                    ref,
+                    notifier,
+                    autoPos: autoPos,
+                    isV5: isV5,
+                    compact: compact,
+                    collapsible: collapsible,
+                  ),
                 ),
                 if (compact)
                   Padding(
@@ -524,6 +528,7 @@ class _CharacterTileState extends ConsumerState<_CharacterTile> {
                       ),
                       DesktopPromptCard(
                         key: ValueKey(char.id),
+                        scrollAnchor: _editorHeaderKey,
                         charId: char.id,
                       ),
                     ],
