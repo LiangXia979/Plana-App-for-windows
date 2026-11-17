@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../editor/editor_page.dart';
 import '../../editor/editor_state.dart';
+import '../../editor/widgets/prompt_fullscreen_dialog.dart';
 
 /// A persistent, independent editor session for each sidebar prompt.
 class DesktopPromptCard extends StatefulWidget {
@@ -77,39 +78,21 @@ class PromptFullscreenButton extends ConsumerWidget {
       onPressed: () async {
         final sessions = ref.read(editorSessionsProvider);
         sessions.flushPending();
-        FocusManager.instance.primaryFocus?.unfocus();
-        final container = ProviderScope.containerOf(context);
-        await showDialog<void>(
-          context: context,
-          barrierDismissible: true,
-          builder: (context) {
-            final size = MediaQuery.sizeOf(context);
-            return UncontrolledProviderScope(
-              container: container,
-              child: Dialog(
-                insetPadding: const EdgeInsets.all(24),
-                constraints: const BoxConstraints(),
-                clipBehavior: Clip.antiAlias,
-                child: SizedBox(
-                  width: size.width - 48,
-                  height: size.height - 48,
-                  child: ProviderScope(
-                    overrides: [
-                      editorProvider.overrideWith(
-                        () => EditorNotifier(immediateWriteBack: true),
-                      ),
-                    ],
-                    child: EditorPage(
-                      positive: true,
-                      floatingPanels: true,
-                      charId: charId,
-                      sectionId: sectionId,
-                    ),
-                  ),
-                ),
+        await showPromptFullscreenDialog(
+          context,
+          builder: (_) => ProviderScope(
+            overrides: [
+              editorProvider.overrideWith(
+                () => EditorNotifier(immediateWriteBack: true),
               ),
-            );
-          },
+            ],
+            child: EditorPage(
+              positive: true,
+              floatingPanels: true,
+              charId: charId,
+              sectionId: sectionId,
+            ),
+          ),
         );
       },
     );
