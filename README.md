@@ -20,7 +20,9 @@
 ## 项目状态
 
 本项目基于 [Plana App](https://github.com/mc5024/Plana-App) 开发 Windows 桌面适配，并选择性同步 [shenghuo2/Plana-App-Desktop](https://github.com/shenghuo2/Plana-App-Desktop) 的桌面功能与修复。
-当前版本为 **1.2.3-windows.61（构建 80）**。本版汇总 windows.60 之后的工作台、助手、法典、导演工具与图库修复，安装包与便携版见 [Releases](https://github.com/LingXia979/Plana-App-for-windows/releases/tag/v1.2.3-windows.61)。
+当前源码版本为 **1.2.4-windows.62（构建 81）**，已适配上游 v1.2.4 的助手图像模型、分段规则、Google 云端硬盘备份、Bot 密钥、保存格式和局部重绘。下方下载链接指向已公开发布的 windows.61。
+
+**windows.61 更新记录**　本版汇总 windows.60 之后的工作台、助手、法典、导演工具与图库修复，安装包与便携版见 [Releases](https://github.com/LingXia979/Plana-App-for-windows/releases/tag/v1.2.3-windows.61)。
 
 - `main` 与 `Plana-app-for-windows`：Windows 桌面源码；已发布版本对应的源码以 Release 标签为准。
 - [`plana-app-gallery-optimization`](https://github.com/LingXia979/Plana-App-for-windows/tree/plana-app-gallery-optimization)：图库优化分支。

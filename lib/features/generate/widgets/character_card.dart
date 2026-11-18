@@ -1,3 +1,4 @@
+import '../display_names.dart';
 import '../../../l10n/l10n.dart';
 import 'dart:io';
 
@@ -103,14 +104,14 @@ class CharacterCard extends ConsumerWidget {
           RoundIconBtn(
             Icons.delete_sweep_outlined,
             size: actionSize,
-            tooltip: '清空全部角色',
+            tooltip: context.l10n.clearAllCharacters,
             color: scheme.onSurfaceVariant,
             onTap: () => _confirmClear(context, notifier),
           ),
         RoundIconBtn(
           Icons.grid_view,
           size: actionSize,
-          tooltip: '角色库',
+          tooltip: context.l10n.characterLibrary,
           color: canAdd ? scheme.onSurfaceVariant : scheme.outline,
           onTap: canAdd ? () => _addFromLibrary(context, ref) : null,
         ),
@@ -198,6 +199,7 @@ class CharacterCard extends ConsumerWidget {
           CharacterPrompt(
             id: gen.allocateItemId(),
             name: pick.entry.name,
+            source: pick.entry.id,
             positive: positive,
             negative: negative,
             positiveRaw: draftOf(draft.positiveDraft, positive),
@@ -225,12 +227,12 @@ class CharacterCard extends ConsumerWidget {
     final ok = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('清空全部角色?'),
-        content: const Text('将移除所有角色及其配置,此操作不可撤销。'),
+        title: Text(context.l10n.clearAllCharactersQ),
+        content: Text(context.l10n.clearAllCharactersBody),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: const Text('取消'),
+            child: Text(context.l10n.cancel),
           ),
           FilledButton(
             onPressed: () => Navigator.pop(context, true),
@@ -238,7 +240,7 @@ class CharacterCard extends ConsumerWidget {
               backgroundColor: context.scheme.error,
               foregroundColor: context.scheme.onError,
             ),
-            child: const Text('清空'),
+            child: Text(context.l10n.clear),
           ),
         ],
       ),
@@ -299,35 +301,39 @@ class _CharacterTileState extends ConsumerState<_CharacterTile> {
   /// 名字只在 app 内显示:载荷里没有这一项,导入也读不回来,所以改名不影响出图,
   /// 也不必跟着图走。
   Future<void> _rename(BuildContext context, GenerateNotifier notifier) async {
+    final l = context.l10n;
     final fallback = '角色 ${index + 1}';
-    final ctrl = TextEditingController(text: char.name);
+    final shown = characterDisplayName(l, char.name);
+    final ctrl = TextEditingController(text: shown);
     final name = await showDialog<String>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('重命名'),
+        title: Text(l.rename),
         content: TextField(
           controller: ctrl,
           autofocus: true,
           decoration: InputDecoration(
             isDense: true,
-            hintText: fallback, // 留空就按默认编号显示
+            // 留空就按默认编号显示
+            hintText: characterDisplayName(l, fallback),
           ),
           onSubmitted: (v) => Navigator.pop(context, v),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text('取消'),
+            child: Text(context.l10n.cancel),
           ),
           FilledButton(
             onPressed: () => Navigator.pop(context, ctrl.text),
-            child: const Text('保存'),
+            child: Text(context.l10n.save),
           ),
         ],
       ),
     );
     if (name == null) return; // 取消
     final trimmed = name.trim();
+    if (trimmed.isNotEmpty && trimmed == shown) return;
     notifier.updateCharacter(
       char.id,
       name: trimmed.isEmpty ? fallback : trimmed,
@@ -379,6 +385,7 @@ class _CharacterTileState extends ConsumerState<_CharacterTile> {
                 negativeRaw: draftOf(draft.negativeDraft, negative),
                 foldLinks: draft.links,
                 avatar: chosen.preview,
+                source: chosen.entry.id,
               )
             else
               c,
@@ -660,7 +667,7 @@ class _CharacterTileState extends ConsumerState<_CharacterTile> {
                 // 就从尾巴开始吃 —— 屏幕上只剩「已禁用 ·…」。
                 IgnorePointer(
                   child: Text(
-                    '已禁用',
+                    l10nNow.desktopDisabled,
                     style: context.texts.labelSmall!.copyWith(
                       color: scheme.outline,
                     ),
@@ -732,7 +739,7 @@ class _CharacterTileState extends ConsumerState<_CharacterTile> {
               size: 20,
               color: scheme.error.withValues(alpha: .85),
             ),
-            tooltip: '删除角色',
+            tooltip: l10nNow.deleteCharacter,
             padding: EdgeInsets.zero,
             visualDensity: VisualDensity.compact,
           ),
@@ -797,9 +804,11 @@ class _CharacterTileState extends ConsumerState<_CharacterTile> {
     ref.read(generateProvider.notifier).removeCharacter(removed.id);
     hintSnack(
       context,
-      '已删除「${removed.name}」',
+      context.l10n.deletedNamed(
+        characterDisplayName(context.l10n, removed.name),
+      ),
       icon: Icons.delete_outline,
-      actionLabel: '撤销',
+      actionLabel: context.l10n.undo,
       onAction: () => canvases.updatePrompts(
         canvasId,
         (p) => p.characters.any((c) => c.id == removed.id)
@@ -857,7 +866,7 @@ class _CharacterTileState extends ConsumerState<_CharacterTile> {
       child: Padding(
         padding: const EdgeInsets.symmetric(vertical: 3),
         child: Text(
-          char.name,
+          characterDisplayName(context.l10n, char.name),
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
           style: context.texts.bodyLarge!.copyWith(
@@ -872,17 +881,17 @@ class _CharacterTileState extends ConsumerState<_CharacterTile> {
       size: controlSize,
       color: enabled ? scheme.primary : scheme.outline,
       onTap: () => notifier.updateCharacter(char.id, enabled: !enabled),
-      tooltip: enabled ? '停用(保留配置)' : '启用',
+      tooltip: enabled ? context.l10n.disableKeepConfig : context.l10n.enable,
     );
     final deleteBtn = RoundIconBtn(
       Icons.delete_outline,
       size: controlSize,
       color: scheme.error,
       onTap: () => _remove(context, ref),
-      tooltip: '删除角色',
+      tooltip: context.l10n.deleteCharacter,
     );
     void openPosition() => showPositionGridDialog(context, char.id);
-    final positionTip = '设置角色位置：$positionLabel';
+    final positionTip = context.l10n.setCharPosition(positionLabel);
     final positive = Row(
       crossAxisAlignment: compact
           ? CrossAxisAlignment.center
@@ -900,7 +909,9 @@ class _CharacterTileState extends ConsumerState<_CharacterTile> {
         ],
         Expanded(
           child: Text(
-            char.positive.isEmpty ? '点击编辑提示词…' : char.positive,
+            char.positive.isEmpty
+                ? context.l10n.tapToEditPrompt
+                : char.positive,
             maxLines: compact || hasNeg ? 1 : 2,
             overflow: TextOverflow.ellipsis,
             style: promptStyle.copyWith(
@@ -1013,7 +1024,7 @@ class _CharacterTileState extends ConsumerState<_CharacterTile> {
                   children: [
                     _Avatar(
                       url: char.avatar,
-                      name: char.name,
+                      name: characterDisplayName(context.l10n, char.name),
                       enabled: enabled,
                       onTap: () => _pickFromLibrary(context, ref),
                     ),
@@ -1186,7 +1197,9 @@ class _Avatar extends StatelessWidget {
       );
     }
     return Tooltip(
-      message: url == null ? '从角色库选' : '换角色',
+      message: url == null
+          ? context.l10n.pickFromCharLibrary
+          : context.l10n.swapCharacter,
       child: GestureDetector(
         onTap: onTap,
         behavior: HitTestBehavior.opaque,

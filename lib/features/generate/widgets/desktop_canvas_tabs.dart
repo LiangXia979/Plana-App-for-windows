@@ -1,3 +1,4 @@
+import '../../../l10n/l10n.dart';
 import 'canvas_history_sheet.dart';
 import 'package:flutter/foundation.dart' show listEquals;
 import 'package:flutter/gestures.dart';
@@ -117,7 +118,7 @@ class DesktopCanvasTabsState extends ConsumerState<DesktopCanvasTabs> {
     final ok = await confirmDialog(
       context,
       title: '删除「${canvas.name}」？',
-      message: '移除这张画布的提示词和参数，已生成的图片会保留。',
+      message: l10nNow.desktopRemoveThisCanvasAndItsSettingsGeneratedImages,
       confirmLabel: '删除',
     );
     _confirmingDelete = false;
@@ -129,7 +130,7 @@ class DesktopCanvasTabsState extends ConsumerState<DesktopCanvasTabs> {
     if (removed == null) return;
     hintSnack(
       context,
-      '已删除画布',
+      l10nNow.desktopCanvasDeleted,
       actionLabel: '撤销',
       onAction: () => canvases.restore(
         removed.canvas,
@@ -151,14 +152,14 @@ class DesktopCanvasTabsState extends ConsumerState<DesktopCanvasTabs> {
     showDialog<void>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('画布与参考图'),
-        content: const Text(
-          '每张画布分别保存提示词、角色、预设和采样参数。\n\nVibe、角色参考、图生图、重绘和 LoRA 在画布之间共享。',
+        title: Text(l10nNow.desktopCanvasesAndReferences),
+        content: Text(
+          l10nNow.desktopEachCanvasKeepsItsOwnPromptsCharactersPresets,
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text('知道了'),
+            child: Text(l10nNow.desktopGotIt),
           ),
         ],
       ),
@@ -316,18 +317,18 @@ class DesktopCanvasTabsState extends ConsumerState<DesktopCanvasTabs> {
                 control: true,
                 shift: true,
               ),
-              child: const Text('新建画布'),
+              child: Text(l10nNow.newCanvas),
             ),
             MenuItemButton(
               onPressed: () => createCanvas(duplicate: true),
-              child: const Text('复制当前画布'),
+              child: Text(l10nNow.desktopDuplicateCurrentCanvas),
             ),
             MenuItemButton(
               onPressed: workspace.activeId == workspace.defaultId
                   ? null
                   : renameActiveCanvas,
               shortcut: const SingleActivator(LogicalKeyboardKey.f2),
-              child: const Text('重命名'),
+              child: Text(l10nNow.rename),
             ),
             MenuItemButton(
               onPressed: workspace.activeId == workspace.defaultId
@@ -337,17 +338,17 @@ class DesktopCanvasTabsState extends ConsumerState<DesktopCanvasTabs> {
                 LogicalKeyboardKey.keyD,
                 control: true,
               ),
-              child: const Text('删除当前画布'),
+              child: Text(l10nNow.desktopDeleteCurrentCanvas),
             ),
             const Divider(height: 8),
             MenuItemButton(
               onPressed: () => showCanvasHistory(context, workspace.active),
               leadingIcon: const Icon(Icons.history),
-              child: const Text('画布历史'),
+              child: Text(l10nNow.desktopCanvasHistory),
             ),
             MenuItemButton(
               onPressed: _showSharedInfo,
-              child: const Text('画布与参考图'),
+              child: Text(l10nNow.desktopCanvasesAndReferences),
             ),
           ],
           child: SizedBox(
@@ -440,7 +441,7 @@ class DesktopCanvasTabsState extends ConsumerState<DesktopCanvasTabs> {
                     width: 36,
                     child: PopupMenuButton<String>(
                       key: const ValueKey('desktop-canvas-picker'),
-                      tooltip: '切换画布',
+                      tooltip: l10nNow.switchCanvas,
                       padding: EdgeInsets.zero,
                       icon: const Icon(Icons.expand_more, size: 20),
                       initialValue: workspace.activeId,
@@ -463,7 +464,7 @@ class DesktopCanvasTabsState extends ConsumerState<DesktopCanvasTabs> {
                   width: 36,
                   child: IconButton(
                     key: const ValueKey('desktop-canvas-new'),
-                    tooltip: '新建画布 (Ctrl+Shift+N)',
+                    tooltip: l10nNow.desktopNewCanvasCtrlShiftN,
                     padding: EdgeInsets.zero,
                     icon: const Icon(Icons.add, size: 20),
                     onPressed: createCanvas,

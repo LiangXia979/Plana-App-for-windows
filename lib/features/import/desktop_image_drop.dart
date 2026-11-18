@@ -1,3 +1,4 @@
+import '../../l10n/l10n.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -118,7 +119,7 @@ class _GalleryImageTransferOverlayState
                         key: ValueKey(
                           'gallery-image-transfer-${widget.result.id}',
                         ),
-                        tooltip: '点击复制图片；按住拖到其他应用',
+                        tooltip: l10nNow.desktopClickToCopyOrDragToAnotherApp,
                         icon: const Icon(Icons.copy_outlined, size: 17),
                         padding: const EdgeInsets.all(6),
                         constraints: const BoxConstraints.tightFor(
@@ -157,7 +158,7 @@ class DesktopImportRegion extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) => ImageDropRegion(
-    label: '导入图片',
+    label: l10nNow.importImage,
     acceptInternal: acceptInternal,
     pasteFallback: pasteFallback,
     accept: (payload) => !canvas || payload.source != 'canvas',

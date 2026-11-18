@@ -1,3 +1,4 @@
+import '../../../l10n/l10n.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 
@@ -99,7 +100,7 @@ class _ReferenceImagePreviewState extends State<_ReferenceImagePreview> {
                   ),
                 ),
                 IconButton(
-                  tooltip: '适应窗口',
+                  tooltip: l10nNow.desktopFitToWindow,
                   onPressed: _reset,
                   icon: const Icon(Icons.fit_screen),
                 ),
@@ -109,7 +110,7 @@ class _ReferenceImagePreviewState extends State<_ReferenceImagePreview> {
                   else if (widget.image case final FileImage image)
                     ImageTransferButton(load: () => image.file.readAsBytes()),
                 IconButton(
-                  tooltip: '关闭预览',
+                  tooltip: l10nNow.desktopClosePreview,
                   onPressed: () => Navigator.pop(context),
                   icon: const Icon(Icons.close),
                 ),
@@ -139,7 +140,7 @@ class _ReferenceImagePreviewState extends State<_ReferenceImagePreview> {
                           frameBuilder: (_, child, frame, synchronous) =>
                               synchronous || frame != null
                               ? child
-                              : const Center(child: Text('正在加载图片…')),
+                              : Center(child: Text(l10nNow.desktopLoadingImage)),
                           errorBuilder: (_, _, _) =>
                               Center(child: Text(widget.errorMessage)),
                         ),
@@ -153,7 +154,7 @@ class _ReferenceImagePreviewState extends State<_ReferenceImagePreview> {
           Padding(
             padding: const EdgeInsets.all(12),
             child: Text(
-              '滚轮缩放 · 拖动查看 · 双击还原或放大 · Esc 关闭',
+              l10nNow.desktopScrollToZoomDragToPanDoubleClick,
               textAlign: TextAlign.center,
               style: context.texts.bodySmall!.copyWith(
                 color: context.scheme.onSurfaceVariant,

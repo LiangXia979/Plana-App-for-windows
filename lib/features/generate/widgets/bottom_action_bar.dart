@@ -338,7 +338,7 @@ class _BottomActionBarState extends ConsumerState<BottomActionBar> {
                 const SizedBox(width: 9),
                 // 循环伴钮:进循环面板(选张数并开始);运行中高亮,面板里可停
                 Tooltip(
-                  message: '循环生成',
+                  message: l10nNow.loopGenerate,
                   child: AnimatedContainer(
                     duration: Motion.fast,
                     width: 52,
@@ -463,7 +463,7 @@ void _hintDisabledVibes(BuildContext context, WidgetRef ref) {
   if (n > 0) {
     hintSnack(
       context,
-      '$n 个 Vibe 缺当前模型编码,已停用',
+      context.l10n.vibesDisabledNoEncoding(n),
       icon: Icons.visibility_off_outlined,
     );
   }
@@ -574,8 +574,8 @@ class _GenerateButton extends StatelessWidget {
               ),
               Tooltip(
                 message: runningCount > 1
-                    ? '取消当前跟随的这条($runningCount 条在跑)'
-                    : '取消生成',
+                    ? context.l10n.cancelTrackedJob(runningCount)
+                    : context.l10n.cancelGeneration,
                 child: InkWell(
                   onTap: onStop,
                   child: SizedBox(
@@ -674,7 +674,7 @@ class GenerationCostPill extends ConsumerWidget {
         ? '中转未启用'
         : '¥${price.toStringAsFixed(2)}/张';
     return Tooltip(
-      message: '中转按每张计费，实际扣款以钱包流水为准；可在顶部余额中设置。',
+      message: l10nNow.desktopTheRelayChargesPerImageCheckWalletTransactions,
       child: CostPill(cost: cost, relayLabel: label),
     );
   }
@@ -779,7 +779,7 @@ class CostPill extends StatelessWidget {
                       ),
                     ]
                   : !paid
-                  ? [Text('免费', maxLines: 1, softWrap: false, style: style)]
+                  ? [Text(l10nNow.free, maxLines: 1, softWrap: false, style: style)]
                   : [
                       Icon(Icons.toll, size: _icon, color: fg),
                       const SizedBox(width: _gap),
@@ -863,8 +863,7 @@ class _BatchChip extends ConsumerWidget {
         if (locked) {
           hintSnack(
             context,
-            '重绘放大开着时只能出 1 张:二段采样要按放大后的尺寸再跑一遍,'
-            '显存吃不下一批。',
+            context.l10n.batchLockedHires,
             icon: Icons.info_outline,
           );
           return;
@@ -1167,15 +1166,23 @@ class _ReadoutChip extends StatelessWidget {
   final bool animateValue;
   final VoidCallback? onTap;
 
+  static const _captionSize = 10.0;
+
+  static TextStyle _valueStyle(BuildContext context, bool muted) => muted
+      ? context.texts.bodyMedium!.copyWith(
+          color: context.scheme.onSurfaceVariant,
+        )
+      : mono(context, size: 13);
+
+
+
   @override
   Widget build(BuildContext context) {
     final scheme = context.scheme;
     final text = Text(
       value,
       key: ValueKey(value),
-      style: valueMuted
-          ? context.texts.bodyMedium!.copyWith(color: scheme.onSurfaceVariant)
-          : mono(context, size: 13),
+      style: _valueStyle(context, valueMuted),
     );
     return Material(
       color: scheme.surfaceContainerHighest,
@@ -1201,16 +1208,21 @@ class _ReadoutChip extends StatelessWidget {
             children: [
               if (icon != null) ...[
                 Icon(icon, size: 17, color: scheme.onSurfaceVariant),
-                const SizedBox(width: 5),
+                if (value.isNotEmpty) const SizedBox(width: 5),
               ],
               if (caption != null) ...[
                 Text(
                   caption!,
-                  style: TextStyle(fontSize: 10, color: scheme.outline),
+                  style: TextStyle(
+                    fontSize: _captionSize,
+                    color: scheme.outline,
+                  ),
                 ),
                 const SizedBox(width: 5),
               ],
-              if (animateValue)
+              if (value.isEmpty)
+                const SizedBox.shrink()
+              else if (animateValue)
                 AnimatedSwitcher(duration: Motion.fast, child: text)
               else
                 text,
