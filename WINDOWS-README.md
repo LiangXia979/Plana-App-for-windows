@@ -429,6 +429,6 @@ Windows 加密凭据、100% 默认字号、安装身份和作品目录继续保�
 
 ## Google 云端硬盘登录
 
-打开「我的 → 备份与导入 → Google 云端硬盘」，点「使用 Google 账号登录」，在系统浏览器中选择账号并同意存取应用备份。Windows 版与上游 Android 版使用同一个 Google Cloud 项目，各自使用为其平台登记的 OAuth 客户端。备份仅使用 `drive.appdata` 权限。换到上游项目后首次需要重新选择账号，同一 Google 账号下，旧个人项目的备份仍属于原项目。[Google Drive 应用数据说明](https://developers.google.com/workspace/drive/api/guides/appdata)
+公开版首次设置时，打开「我的 → 备份与导入 → Google 云端硬盘 → 高级设置」，选择「导入桌面 OAuth 客户端配置」。然后点击「使用 Google 账号登录」，在系统浏览器选择账号并同意存取应用备份。备份使用 `drive.appdata` 权限。恢复已有备份时请使用原来的 Google 账号和 Cloud 项目。要与上游 Android 版共用备份，Windows 客户端须登记在相同的项目中。[Google Drive 应用数据说明](https://developers.google.com/workspace/drive/api/guides/appdata)
 
-发行维护者把该项目的「桌面应用」客户端 JSON 放在源码目录的 `tool/local/google-drive-desktop.json`，使用 `tool/start_windows.ps1 -BuildOnly` 构建。启动器在配置变更后会重建。发布包的可执行程序使用构建时的客户端，配套源码包会排除本机配置目录。独立构建也可通过「高级设置」选择个人客户端。[Google 桌面应用授权说明](https://developers.google.com/identity/protocols/oauth2/native-app)
+本机开发版可将「桌面应用」客户端 JSON 放在 `tool/local/google-drive-desktop.json`，运行 `tool/start_windows.ps1 -BuildOnly` 后即可直接登录。公开打包脚本会跳过本机客户端配置，再生成安装包、便携包及配套源码。[Google 桌面应用授权说明](https://developers.google.com/identity/protocols/oauth2/native-app)
