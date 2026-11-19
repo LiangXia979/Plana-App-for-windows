@@ -426,3 +426,9 @@ Vibe 编码请求、生成参数和导出文件使用数字 `1`、`0.7`，不使
 | Vibe／参考文案 | 保留桌面参考入口与单击选择、双击预览交互 |
 
 Windows 加密凭据、100% 默认字号、安装身份和作品目录继续保留。
+
+## 配置 Google 云端硬盘登录
+
+发行维护者在 Google Cloud 项目中启用 Google Drive API，在 Google Auth Platform 配置应用名称、支持邮箱和受众。测试期间将自己的账号加入测试用户，再创建类型为「桌面应用」的 OAuth 客户端。下载客户端 JSON，放在源码目录的 `tool/local/google-drive-desktop.json`，然后运行 `tool/start_windows.ps1 -BuildOnly`。启动器会在配置发生变化时重建，普通用户打开「我的 → 备份与导入」即可点「使用 Google 账号登录」。[Google 桌面应用配置说明](https://developers.google.com/identity/protocols/oauth2/native-app)
+
+应用通过系统浏览器授权，仅申请 `drive.appdata` 存取自己的备份。个人客户端可在「高级设置」中导入，已有连接可继续使用。[Google Drive 权限说明](https://developers.google.com/workspace/drive/api/guides/api-specific-auth)

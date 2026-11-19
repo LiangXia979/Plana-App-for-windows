@@ -186,7 +186,7 @@ class _SaveSheetState extends ConsumerState<_SaveSheet> {
     final name = desktop
         ? desktopImageName(widget.image)
         : phoneGalleryImageName(widget.image);
-    final ext = _s.format == SaveFormat.jpg ? 'jpg' : 'png';
+    final ext = _s.format.name;
     return SafeArea(
       child: Padding(
         padding: EdgeInsets.fromLTRB(
@@ -251,6 +251,10 @@ class _SaveSheetState extends ConsumerState<_SaveSheet> {
                   ButtonSegment(
                     value: SaveFormat.jpg,
                     label: Text(context.l10n.jpgLossy),
+                  ),
+                  const ButtonSegment(
+                    value: SaveFormat.webp,
+                    label: Text('WebP'),
                   ),
                 ],
                 selected: {_s.format},
