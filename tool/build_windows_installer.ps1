@@ -32,7 +32,7 @@ $manifest = Get-Content -LiteralPath $manifestPath -Raw -Encoding UTF8 | Convert
 $versionMatch = [regex]::Match($manifest.Version, '^(\d+)\.(\d+)\.(\d+)-windows\.(\d+)\+(\d+)$')
 if (!$versionMatch.Success -or $manifest.Architecture -ne 'x64') { throw 'Invalid Windows package version or architecture.' }
 $fileVersion = '{0}.{1}.{2}.{3}' -f $versionMatch.Groups[1].Value, $versionMatch.Groups[2].Value, $versionMatch.Groups[3].Value, $versionMatch.Groups[5].Value
-$packageName = 'Plana-Windows-' + $manifest.Version.Split('+')[0] + '-x64'
+$packageName = 'Plana-Windows-' + $manifest.Version.Split('+')[0] + '-x64-build' + $versionMatch.Groups[5].Value
 $files = @{}
 foreach ($entry in $manifest.Files) {
     $relative = [string]$entry.Path

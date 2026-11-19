@@ -1,12 +1,12 @@
 # Plana app for windows
 
-版本 **1.2.4-windows.62（构建 81）**。基于 Flutter 和原版浅蓝主题，提供 Windows 桌面工作台与图库优化。
+版本 **1.2.4-windows.62（构建 82）**。基于 Flutter 和原版浅蓝主题，提供 Windows 桌面工作台与图库优化。
 
 ## 上游 v1.2.4 桌面适配
 
 在助手顶栏可管理自定义接口并选择图像模型，按模型设置分辨率、宽高比和张数。在助手设置中可创建规则预设、逐段编辑、导入 SillyTavern 预设并调整失败重试次数。
 
-在「我的 → 备份与导入」导入自己的 Google 桌面 OAuth 客户端 JSON，通过系统浏览器授权后，可备份或逐项恢复灵感库和 Vibe 库。Google Drive 使用该应用的专用数据空间，恢复时请连接同一账号和客户端。整库备份也可导出到本地文件。
+在「我的 → 备份与导入」点击「使用 Google 账号登录」，通过系统浏览器授权后，可备份或逐项恢复灵感库和 Vibe 库。Google Drive 使用应用的专用数据空间，恢复时请连接原来的 Google 账号和 Cloud 项目。整库备份也可导出到本地文件。
 
 创作设置可选择保存 PNG 或保留服务返回的无损 WebP。局部重绘按所选框生成并合回原图。在图库总览拖动相册可以调整顺序。
 
@@ -429,6 +429,6 @@ Windows 加密凭据、100% 默认字号、安装身份和作品目录继续保�
 
 ## Google 云端硬盘登录
 
-公开版首次设置时，打开「我的 → 备份与导入 → Google 云端硬盘 → 高级设置」，选择「导入桌面 OAuth 客户端配置」。然后点击「使用 Google 账号登录」，在系统浏览器选择账号并同意存取应用备份。备份使用 `drive.appdata` 权限。恢复已有备份时请使用原来的 Google 账号和 Cloud 项目。要与上游 Android 版共用备份，Windows 客户端须登记在相同的项目中。[Google Drive 应用数据说明](https://developers.google.com/workspace/drive/api/guides/appdata)
+构建 82 的安装版和便携版使用上游 Google Cloud 项目登记的 Windows 桌面客户端。打开「我的 → 备份与导入 → Google 云端硬盘」，点击「使用 Google 账号登录」，在浏览器选择账号并授权即可。Plana 仅申请 `drive.appdata` 备份权限。自己的桌面客户端仍可在「高级设置」中导入，旧备份需连接原来的账号和 Cloud 项目。[Google Drive 应用数据说明](https://developers.google.com/workspace/drive/api/guides/appdata)
 
-本机开发版可将「桌面应用」客户端 JSON 放在 `tool/local/google-drive-desktop.json`，运行 `tool/start_windows.ps1 -BuildOnly` 后即可直接登录。公开打包脚本会跳过本机客户端配置，再生成安装包、便携包及配套源码。[Google 桌面应用授权说明](https://developers.google.com/identity/protocols/oauth2/native-app)
+开发时可将桌面客户端配置保存在 `tool/local/google-drive-desktop.json`。发行者可用 `tool/package_windows.ps1 -GoogleDriveDesktopClientFile <文件路径>` 明确选择随包分发的桌面客户端。构建脚本只向 Dart 编译器传入客户端 ID 和客户端密钥。这两个值可从编译产物中提取。原始 JSON 留在构建机，用户的刷新令牌在完成授权后由 Windows 加密存储。省略该参数时，构建出的应用支持从高级设置导入客户端。[Google 桌面应用授权说明](https://developers.google.com/identity/protocols/oauth2/native-app)

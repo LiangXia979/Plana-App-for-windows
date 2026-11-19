@@ -20,7 +20,7 @@
 ## 项目状态
 
 本项目基于 [Plana App](https://github.com/mc5024/Plana-App) 开发 Windows 桌面适配，并选择性同步 [shenghuo2/Plana-App-Desktop](https://github.com/shenghuo2/Plana-App-Desktop) 的桌面功能与修复。
-当前 Windows 版本为 **1.2.4-windows.62（构建 81）**。中文安装包、便携版及校验清单见[本版发布页](https://github.com/LingXia979/Plana-App-for-windows/releases/tag/v1.2.4-windows.62)。
+当前 Windows 版本为 **1.2.4-windows.62（构建 82）**。中文安装包、便携版及校验清单见[本版发布页](https://github.com/LingXia979/Plana-App-for-windows/releases/tag/v1.2.4-windows.62)。
 
 - `main` 与 `Plana-app-for-windows`：Windows 桌面源码；已发布版本对应的源码以 Release 标签为准。
 - [`plana-app-gallery-optimization`](https://github.com/LingXia979/Plana-App-for-windows/tree/plana-app-gallery-optimization)：图库优化分支。
@@ -31,7 +31,7 @@
 - 单击提示词块可查看和修改词条、权重，也可打开大屏编辑。双击拆块，切换文本或标签视图时保留块，并定位到当前分区或角色。
 - 法典卡片支持悬停预览、复制和导入。随机灵感按词典、分类和收藏筛选，抽取结果可在创作侧栏和灵感页回看。
 - AI 助手增加图像编辑、分段规则预设和自定义接口管理。Plana 模型与个人接口分组显示，分辨率、比例和张数在对应按钮上方选择。
-- 灵感库和 Vibe 可备份到 Google 云端硬盘，整库备份也可导出到本地并选择条目恢复。公开版首次使用云备份，请在「高级设置」导入自己的桌面 OAuth 配置，再点击「使用 Google 账号登录」。
+- 灵感库和 Vibe 可备份到 Google 云端硬盘，也可导出到本地并选择条目恢复。构建 82 首次使用云备份时，在「我的 → 备份与导入」点击「使用 Google 账号登录」即可。已有自定义客户端配置可继续使用。
 - 图库统一提供 PNG、JPG、WebP，拖动相册时显示封面、名称和作品数。修复了局部重绘的遮罩接缝和预览位置、带 Vibe 的重绘，以及新建空白画布时残留的提示词分区。
 
 ## 上一轮更新：windows.61
@@ -116,9 +116,9 @@ windows.60 发布时的 Bot 强度问题已在 windows.61 更正为客户端漏�
 
 ## 下载与安装
 
-- [中文安装包（Windows x64）](https://github.com/LingXia979/Plana-App-for-windows/releases/download/v1.2.4-windows.62/Plana-Windows-1.2.4-windows.62-x64-setup.exe)：按中文向导选择安装目录，支持开始菜单、可选桌面快捷方式及卸载。
-- [便携版 ZIP](https://github.com/LingXia979/Plana-App-for-windows/releases/download/v1.2.4-windows.62/Plana-Windows-1.2.4-windows.62-x64.zip)：完整解压后运行 `plana_app_for_windows.exe`。
-- [SHA-256 校验清单](https://github.com/LingXia979/Plana-App-for-windows/releases/download/v1.2.4-windows.62/Plana-Windows-1.2.4-windows.62-x64-SHA256.txt)。
+- [中文安装包（Windows x64，构建 82）](https://github.com/LingXia979/Plana-App-for-windows/releases/download/v1.2.4-windows.62/Plana-Windows-1.2.4-windows.62-x64-build82-setup.exe)
+- [便携版 ZIP（构建 82）](https://github.com/LingXia979/Plana-App-for-windows/releases/download/v1.2.4-windows.62/Plana-Windows-1.2.4-windows.62-x64-build82.zip)
+- [SHA-256 校验清单（构建 82）](https://github.com/LingXia979/Plana-App-for-windows/releases/download/v1.2.4-windows.62/Plana-Windows-1.2.4-windows.62-x64-build82-SHA256.txt)
 
 升级前请关闭旧版。作品自动保存到程序旁的 `output` 文件夹，卸载保留个人数据。发布包不附带个人账号、API/Bot/Web 授权、提示词草稿或私人 tag 库，首次使用请自行配置。当前安装包未进行代码签名。
 

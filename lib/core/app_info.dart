@@ -11,7 +11,7 @@ import '../l10n/l10n.dart';
 const kAppName = 'Plana app for windows';
 const kAppTagline = 'NovelAI 桌面创作端';
 const kAppVersion = '1.2.4-windows.62';
-const kAppBuild = '81';
+const kAppBuild = '82';
 
 /// 预发布版(版号带 `-`):关于页加内测标,免得测试反馈回来分不清版本。
 bool get kIsPrerelease => kAppVersion.contains('-');
