@@ -1,3 +1,4 @@
+import '../bot_image_price.dart';
 import 'dart:math';
 
 import 'package:flutter/material.dart';
@@ -653,7 +654,7 @@ class _RelayRowState extends ConsumerState<_RelayRow> {
   Widget build(BuildContext context) {
     final scheme = context.scheme;
     final q = widget.quota;
-    String yuan(double v) => '¥${v.toStringAsFixed(2)}';
+
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(4, 5, 4, 11),
@@ -693,10 +694,9 @@ class _RelayRowState extends ConsumerState<_RelayRow> {
           ),
           if (q.relayAvailable)
             Text(
-              q.relayPrice == q.relayPriceLegacy
-                  ? '每张从钱包扣 ${yuan(q.relayPrice)}'
-                  : '每张从钱包扣 V5 ${yuan(q.relayPrice)} · '
-                        'V4.5 及更早 ${yuan(q.relayPriceLegacy)}',
+              '每张 · V5 ${formatRelayPrice(q.relayPrice)} · '
+              'V4.5${q.relayPrice45 == q.relayPriceLegacy ? ' 及更早' : ''} ${formatRelayPrice(q.relayPrice45)}'
+              '${q.relayPrice45 == q.relayPriceLegacy ? '' : ' · 更早 ${formatRelayPrice(q.relayPriceLegacy)}'}',
               style: context.texts.labelSmall!.copyWith(color: scheme.outline),
             ),
         ],

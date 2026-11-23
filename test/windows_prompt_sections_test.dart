@@ -221,16 +221,16 @@ void main() {
       final a = c.read(canvasWorkspaceProvider).activeId;
       final before = PromptSnapshot.of(c.read(generateProvider));
       final preview = assistant.previewSendState('reply')!;
-      expect(preview.prompt, 'new scene, watercolor, soft light');
+      expect(preview.prompt, 'forest, watercolor, soft light, new scene');
       expect(preview.sections, isEmpty);
       expect(assistant.applyProposal('reply'), isTrue);
       expect(
         composeSections(c.read(generateProvider)).prompt,
-        'new scene, watercolor, soft light',
+        'forest, watercolor, soft light, new scene',
       );
       expect(
         composeSections(c.read(generateProvider)).negativePrompt,
-        'hard shadows',
+        'lowres, hard shadows',
       );
       c
           .read(generateProvider.notifier)

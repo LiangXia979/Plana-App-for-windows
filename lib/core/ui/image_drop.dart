@@ -10,6 +10,7 @@ import 'package:flutter/services.dart';
 import 'package:path/path.dart' as p;
 
 import '../util/image_ops.dart';
+import '../../l10n/l10n.dart';
 import '../util/image_pick.dart';
 
 /// One drag has one payload and one recipient. Bytes are read only on drop.
@@ -131,7 +132,7 @@ class ImageDropRegion extends StatefulWidget {
   const ImageDropRegion({
     super.key,
     required this.label,
-    required this.onDrop,
+    required ImageDropCallback this.onDrop,
     required this.child,
     this.multiple = false,
     this.enabled = true,
@@ -139,10 +140,24 @@ class ImageDropRegion extends StatefulWidget {
     this.accept,
     this.pasteDefault = false,
     this.pasteFallback = false,
-  });
+  }) : onFiles = null;
+
+  const ImageDropRegion.files({
+    super.key,
+    required this.label,
+    required Future<void> Function(List<String>) this.onFiles,
+    required this.child,
+    this.enabled = true,
+  }) : onDrop = null,
+       multiple = true,
+       acceptInternal = false,
+       accept = null,
+       pasteDefault = false,
+       pasteFallback = false;
 
   final String label;
-  final ImageDropCallback onDrop;
+  final ImageDropCallback? onDrop;
+  final Future<void> Function(List<String>)? onFiles;
   final Widget child;
   final bool multiple;
   final bool enabled;
@@ -166,6 +181,8 @@ class _ImageDropRegionState extends State<ImageDropRegion> {
   bool get _enabled => widget.enabled && !_busy;
   bool _accepts(ImageDropPayload payload) =>
       _enabled &&
+      (widget.onFiles == null ||
+          (payload.source == null && payload.paths.isNotEmpty)) &&
       (widget.acceptInternal ||
           payload.paths.isNotEmpty ||
           payload.source == 'clipboard') &&
@@ -201,12 +218,16 @@ class _ImageDropRegionState extends State<ImageDropRegion> {
     if (!_accepts(payload)) return;
     setState(() => _busy = true);
     try {
+      if (widget.onFiles case final receiveFiles?) {
+        await receiveFiles(payload.paths);
+        return;
+      }
       if (!widget.multiple && payload.count > 1) {
         throw const FormatException('此处一次接收一张图片，请选择单张图片');
       }
       final images = await payload.read();
       if (mounted && widget.enabled && (stillVisible?.call() ?? true)) {
-        await widget.onDrop(images, payload);
+        await widget.onDrop!(images, payload);
       }
     } catch (error) {
       if (mounted && (stillVisible?.call() ?? true)) {
@@ -259,7 +280,9 @@ class _ImageDropRegionState extends State<ImageDropRegion> {
                             horizontal: 12,
                             vertical: 6,
                           ),
-                          child: Text('松开以${widget.label}'),
+                          child: Text(
+                            context.l10n.releaseToAction(widget.label),
+                          ),
                         ),
                       ),
                     ),

@@ -269,7 +269,9 @@ class _CharacterTile extends ConsumerStatefulWidget {
 class _CharacterTileState extends ConsumerState<_CharacterTile> {
   CharacterPrompt get char => widget.char;
   int get index => widget.index;
-  bool _collapsed = false;
+  String get _cardKey => 'character/${char.id}';
+  void _toggleCard() =>
+      ref.read(canvasWorkspaceProvider.notifier).togglePromptCard(_cardKey);
   bool _avatarPreviewOpen = false;
   final _nameKey = GlobalKey();
   final _editorHeaderKey = GlobalKey();
@@ -404,7 +406,8 @@ class _CharacterTileState extends ConsumerState<_CharacterTile> {
     final collapsible = ref.watch(
       themeSettingsProvider.select((t) => t.collapsiblePromptCards),
     );
-    final compact = collapsible && _collapsed;
+    final compact =
+        collapsible && ref.watch(promptCardCollapsedProvider(_cardKey));
     // 只有站位徽章的写法跟模型走(见下),select 一下别让整张卡跟着全局状态重建。
     final isV5 = ref.watch(
       generateProvider.select((s) => isNai5Model(s.params.model)),
@@ -415,9 +418,8 @@ class _CharacterTileState extends ConsumerState<_CharacterTile> {
       generateProvider.select((s) => !s.params.useCoords),
     );
 
-    return AnimatedOpacity(
-      duration: Motion.fast,
-      opacity: enabled ? 1 : .5,
+    return Opacity(
+      opacity: promptCardOpacity(enabled),
       child: Material(
         color: desktop ? scheme.surface : scheme.surfaceContainerHigh,
         shape: RoundedRectangleBorder(
@@ -458,7 +460,7 @@ class _CharacterTileState extends ConsumerState<_CharacterTile> {
                   Padding(
                     padding: const EdgeInsets.only(top: 8),
                     child: InkWell(
-                      onTap: () => setState(() => _collapsed = false),
+                      onTap: _toggleCard,
                       child: Row(
                         children: [
                           Expanded(
@@ -466,6 +468,7 @@ class _CharacterTileState extends ConsumerState<_CharacterTile> {
                               crossAxisAlignment: CrossAxisAlignment.stretch,
                               children: [
                                 CollapsedPromptPreview(
+                                  links: char.foldLinks,
                                   key: ValueKey(
                                     'collapsed-character-${char.id}-positive',
                                   ),
@@ -485,6 +488,7 @@ class _CharacterTileState extends ConsumerState<_CharacterTile> {
                                     ) &&
                                     char.negative.isNotEmpty)
                                   CollapsedPromptPreview(
+                                    links: char.foldLinks,
                                     key: ValueKey(
                                       'collapsed-character-${char.id}-negative',
                                     ),
@@ -763,7 +767,7 @@ class _CharacterTileState extends ConsumerState<_CharacterTile> {
                 onTap: collapsible
                     ? () {
                         ref.read(editorSessionsProvider).flushPending();
-                        setState(() => _collapsed = !compact);
+                        _toggleCard();
                       }
                     : null,
               ),

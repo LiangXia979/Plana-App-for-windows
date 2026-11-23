@@ -11,8 +11,9 @@ import 'collapsed_prompt_preview.dart';
 import 'prompt_token_counts.dart';
 import '../../../core/util/nai_tokenizer.dart';
 import '../../editor/editor_models.dart'
-    show outputOf, parseFolds, pickEditorText;
+    show PromptFoldLink, foldBodyDisabled, outputOf, parseFolds, pickEditorText;
 import '../../editor/editor_page.dart';
+import '../../editor/widgets/fold_icon.dart';
 import '../../editor/editor_state.dart' show editorSessionsProvider;
 import '../../inspiration/codex/codex_favorites.dart' show CodexFavorite;
 import '../../inspiration/codex/codex_models.dart' show CodexMeta, CodexType;
@@ -23,7 +24,8 @@ import '../../inspiration/widgets/char_pick_sheet.dart'
     show showLibraryPickSheet;
 import '../canvas_state.dart';
 import '../generate_state.dart';
-import '../models.dart' show PromptSection, maxCharactersOf, tokenLimitOf;
+import '../models.dart'
+    show kMainSectionId, PromptSection, maxCharactersOf, tokenLimitOf;
 import '../prompt_presets.dart';
 import '../prompt_sections.dart';
 import '../style_recipes.dart';
@@ -49,7 +51,7 @@ class PromptCard extends ConsumerStatefulWidget {
 }
 
 class _PromptCardState extends ConsumerState<PromptCard> {
-  bool _mainCollapsed = false;
+  static const _mainCardKey = 'section/$kMainSectionId';
 
   /// 多选态(长按一格进,点卡头的退出或做完一次合并 / 删除 / 存就退)。
   bool _selecting = false;
@@ -87,7 +89,13 @@ class _PromptCardState extends ConsumerState<PromptCard> {
     final collapsible = ref.watch(
       themeSettingsProvider.select((t) => t.collapsiblePromptCards),
     );
-    final mainCollapsed = collapsible && _mainCollapsed;
+    final mainCollapsed =
+        desktop &&
+        collapsible &&
+        ref.watch(promptCardCollapsedProvider(_mainCardKey));
+    void toggleMain() => ref
+        .read(canvasWorkspaceProvider.notifier)
+        .togglePromptCard(_mainCardKey);
     // 切了画布就退出多选:勾的是那张画布的格子
     ref.listen(
       canvasWorkspaceProvider.select((w) => w.activeId),
@@ -187,9 +195,7 @@ class _PromptCardState extends ConsumerState<PromptCard> {
                                   ref
                                       .read(editorSessionsProvider)
                                       .flushPending();
-                                  setState(
-                                    () => _mainCollapsed = !mainCollapsed,
-                                  );
+                                  toggleMain();
                                 }
                               : null,
                           child: Row(
@@ -309,13 +315,14 @@ class _PromptCardState extends ConsumerState<PromptCard> {
                       ),
                       if (mainCollapsed)
                         InkWell(
-                          onTap: () => setState(() => _mainCollapsed = false),
+                          onTap: toggleMain,
                           child: Padding(
                             padding: const EdgeInsets.all(12),
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.stretch,
                               children: [
                                 CollapsedPromptPreview(
+                                  links: state.promptFoldLinks,
                                   key: const ValueKey(
                                     'collapsed-main-positive',
                                   ),
@@ -330,6 +337,7 @@ class _PromptCardState extends ConsumerState<PromptCard> {
                                 if (!state.params.isNaiMedium &&
                                     state.negativePrompt.isNotEmpty)
                                   CollapsedPromptPreview(
+                                    links: state.promptFoldLinks,
                                     key: const ValueKey(
                                       'collapsed-main-negative',
                                     ),
@@ -894,7 +902,6 @@ class _SectionRow extends ConsumerStatefulWidget {
 
 class _SectionRowState extends ConsumerState<_SectionRow> {
   final _editorHeaderKey = GlobalKey();
-  bool _collapsed = false;
   int get index => widget.index;
   PromptSection get section => widget.section;
   String get fallbackName => widget.fallbackName;
@@ -911,219 +918,221 @@ class _SectionRowState extends ConsumerState<_SectionRow> {
     final notifier = ref.read(generateProvider.notifier);
     final scheme = context.scheme;
     final s = section;
+    final links = s.isMain
+        ? ref.watch(generateProvider.select((g) => g.promptFoldLinks))
+        : s.foldLinks;
     final collapsible = ref.watch(
       themeSettingsProvider.select((t) => t.collapsiblePromptCards),
     );
-    final collapsed = collapsible && _collapsed;
     if (ref.watch(desktopModeProvider)) {
+      final cardKey = 'section/${s.id}';
+      final collapsed =
+          collapsible && ref.watch(promptCardCollapsedProvider(cardKey));
       final canvasId = ref.watch(
         canvasWorkspaceProvider.select((w) => w.activeId),
       );
       final canvases = ref.read(canvasWorkspaceProvider.notifier);
       return Padding(
         padding: const EdgeInsets.fromLTRB(8, 0, 8, 8),
-        child: Material(
-          color: scheme.surface,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(10),
-            side: BorderSide(
-              color: selecting && picked
-                  ? scheme.primary
-                  : scheme.outlineVariant,
+        child: Opacity(
+          opacity: promptCardOpacity(s.enabled),
+          child: Material(
+            color: scheme.surface,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(10),
+              side: BorderSide(
+                color: selecting && picked
+                    ? scheme.primary
+                    : scheme.outlineVariant,
+              ),
             ),
-          ),
-          clipBehavior: Clip.antiAlias,
-          child: InkWell(
-            // Feedback belongs to the controls, not the whole embedded editor.
-            // Selection remains visible through the checkbox and card border.
-            overlayColor: const WidgetStatePropertyAll(Colors.transparent),
-            splashFactory: NoSplash.splashFactory,
-            canRequestFocus: false,
-            onTap: selecting ? onToggle : null,
-            child: Column(
-              children: [
-                Padding(
-                  key: _editorHeaderKey,
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 8,
-                    vertical: 4,
-                  ),
-                  child: Row(
-                    children: [
-                      if (selecting)
-                        Checkbox(
-                          key: ValueKey('prompt-section-pick-${s.id}'),
-                          value: picked,
-                          onChanged: (_) => onToggle?.call(),
-                          visualDensity: VisualDensity.compact,
-                        ),
-                      Expanded(
-                        child: ConstrainedBox(
-                          constraints: const BoxConstraints(minHeight: 40),
-                          child: Stack(
-                            alignment: Alignment.centerLeft,
-                            children: [
-                              Positioned.fill(
-                                child: PromptHeaderTarget(
-                                  identifier: 'prompt-section-header-${s.id}',
-                                  label: selecting
-                                      ? '选择分区'
-                                      : !collapsible
-                                      ? '分区提示词'
-                                      : collapsed
-                                      ? '展开分区提示词'
-                                      : '收起分区提示词',
-                                  reorderIndex: index,
-                                  onTap: selecting
-                                      ? onToggle
-                                      : collapsible
-                                      ? () {
-                                          ref
-                                              .read(editorSessionsProvider)
-                                              .flushPending();
-                                          setState(
-                                            () => _collapsed = !collapsed,
-                                          );
-                                        }
-                                      : null,
-                                ),
-                              ),
-                              Padding(
-                                padding: const EdgeInsets.only(right: 36),
-                                child: Align(
-                                  alignment: Alignment.centerLeft,
-                                  heightFactor: 1,
-                                  child: PromptInlineName(
-                                    identifier: 'prompt-section-name-${s.id}',
-                                    identity: (canvasId, s.id),
+            clipBehavior: Clip.antiAlias,
+            child: InkWell(
+              // Feedback belongs to the controls, not the whole embedded editor.
+              // Selection remains visible through the checkbox and card border.
+              overlayColor: const WidgetStatePropertyAll(Colors.transparent),
+              splashFactory: NoSplash.splashFactory,
+              canRequestFocus: false,
+              onTap: selecting ? onToggle : null,
+              child: Column(
+                children: [
+                  Padding(
+                    key: _editorHeaderKey,
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 4,
+                    ),
+                    child: Row(
+                      children: [
+                        if (selecting)
+                          Checkbox(
+                            key: ValueKey('prompt-section-pick-${s.id}'),
+                            value: picked,
+                            onChanged: (_) => onToggle?.call(),
+                            visualDensity: VisualDensity.compact,
+                          ),
+                        Expanded(
+                          child: ConstrainedBox(
+                            constraints: const BoxConstraints(minHeight: 40),
+                            child: Stack(
+                              alignment: Alignment.centerLeft,
+                              children: [
+                                Positioned.fill(
+                                  child: PromptHeaderTarget(
+                                    identifier: 'prompt-section-header-${s.id}',
+                                    label: selecting
+                                        ? '选择分区'
+                                        : !collapsible
+                                        ? '分区提示词'
+                                        : collapsed
+                                        ? '展开分区提示词'
+                                        : '收起分区提示词',
                                     reorderIndex: index,
-                                    name: s.name,
-                                    fallbackName: fallbackName,
-                                    onSelect: selecting ? onToggle : null,
-                                    labelMaxWidth: 120,
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 10,
-                                      vertical: 5,
-                                    ),
-                                    style: context.texts.labelMedium!.copyWith(
-                                      fontSize: 16,
-                                      fontWeight: FontWeight.w700,
-                                      color: s.enabled
-                                          ? scheme.onSurface
-                                          : scheme.outline,
-                                    ),
-                                    onRename: (name) =>
-                                        canvases.updatePrompts(canvasId, (p) {
-                                          final rows = withMainRow(
-                                            p.sections,
-                                            p.prompt,
-                                          );
-                                          if (!rows.any(
-                                            (row) => row.id == s.id,
-                                          )) {
-                                            return p;
+                                    onTap: selecting
+                                        ? onToggle
+                                        : collapsible
+                                        ? () {
+                                            ref
+                                                .read(editorSessionsProvider)
+                                                .flushPending();
+                                            canvases.togglePromptCard(cardKey);
                                           }
-                                          return p.copyWith(
-                                            sections: normalizeSections([
-                                              for (final row in rows)
-                                                if (row.id == s.id)
-                                                  row.copyWith(name: name)
-                                                else
-                                                  row,
-                                            ]),
-                                          );
-                                        }),
+                                        : null,
                                   ),
                                 ),
-                              ),
-                            ],
+                                Padding(
+                                  padding: const EdgeInsets.only(right: 36),
+                                  child: Align(
+                                    alignment: Alignment.centerLeft,
+                                    heightFactor: 1,
+                                    child: PromptInlineName(
+                                      identifier: 'prompt-section-name-${s.id}',
+                                      identity: (canvasId, s.id),
+                                      reorderIndex: index,
+                                      name: s.name,
+                                      fallbackName: fallbackName,
+                                      onSelect: selecting ? onToggle : null,
+                                      labelMaxWidth: 120,
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 10,
+                                        vertical: 5,
+                                      ),
+                                      style: context.texts.labelMedium!
+                                          .copyWith(
+                                            fontSize: 16,
+                                            fontWeight: FontWeight.w700,
+                                            color: s.enabled
+                                                ? scheme.onSurface
+                                                : scheme.outline,
+                                          ),
+                                      onRename: (name) =>
+                                          canvases.updatePrompts(canvasId, (p) {
+                                            final rows = withMainRow(
+                                              p.sections,
+                                              p.prompt,
+                                            );
+                                            if (!rows.any(
+                                              (row) => row.id == s.id,
+                                            )) {
+                                              return p;
+                                            }
+                                            return p.copyWith(
+                                              sections: normalizeSections([
+                                                for (final row in rows)
+                                                  if (row.id == s.id)
+                                                    row.copyWith(name: name)
+                                                  else
+                                                    row,
+                                              ]),
+                                            );
+                                          }),
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
                           ),
                         ),
-                      ),
-                      if (!selecting) ...[
-                        PromptFullscreenButton(
-                          key: ValueKey('prompt-fullscreen-${s.id}'),
-                          sectionId: s.isMain ? null : s.id,
-                        ),
-                        IconButton(
-                          tooltip: s.enabled ? '停用分区' : '启用分区',
-                          onPressed: () {
-                            ref.read(editorSessionsProvider).flushPending();
-                            notifier.updateSection(s.id, enabled: !s.enabled);
-                          },
-                          icon: Icon(
-                            Icons.power_settings_new,
-                            size: 18,
-                            color: s.enabled ? scheme.primary : scheme.outline,
+                        if (!s.enabled) const _SectionDisabledBadge(),
+                        if (!selecting) ...[
+                          PromptFullscreenButton(
+                            key: ValueKey('prompt-fullscreen-${s.id}'),
+                            sectionId: s.isMain ? null : s.id,
                           ),
-                        ),
-                        IconButton(
-                          tooltip: l10nNow.deleteSection,
-                          onPressed: () => _remove(context, ref),
-                          icon: Icon(
-                            Icons.delete_outline,
-                            size: 18,
-                            color: scheme.error,
+                          IconButton(
+                            tooltip: s.enabled ? '停用分区' : '启用分区',
+                            onPressed: () {
+                              ref.read(editorSessionsProvider).flushPending();
+                              notifier.updateSection(s.id, enabled: !s.enabled);
+                            },
+                            icon: Icon(
+                              Icons.power_settings_new,
+                              size: 18,
+                              color: s.enabled
+                                  ? scheme.primary
+                                  : scheme.outline,
+                            ),
                           ),
-                        ),
-                      ],
-                    ],
-                  ),
-                ),
-                Visibility(
-                  visible: !selecting && !collapsed,
-                  maintainState: true,
-                  child: Padding(
-                    padding: const EdgeInsets.fromLTRB(10, 0, 10, 8),
-                    child: Column(
-                      children: [
-                        Divider(
-                          height: 1,
-                          color: scheme.outlineVariant.withValues(alpha: .6),
-                        ),
-                        DesktopPromptCard(
-                          key: ValueKey('desktop-section-editor-${s.id}'),
-                          scrollAnchor: _editorHeaderKey,
-                          sectionId: s.isMain ? null : s.id,
-                          framed: false,
-                        ),
+                          IconButton(
+                            tooltip: l10nNow.deleteSection,
+                            onPressed: () => _remove(context, ref),
+                            icon: Icon(
+                              Icons.delete_outline,
+                              size: 18,
+                              color: scheme.error,
+                            ),
+                          ),
+                        ],
                       ],
                     ),
                   ),
-                ),
-                if (selecting || collapsed)
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
-                    child: Row(
-                      children: [
-                        if (!s.enabled) ...[
-                          Text(
-                            l10nNow.desktopDisabledLabel,
-                            style: context.texts.bodySmall!.copyWith(
-                              color: scheme.outline,
+                  Visibility(
+                    visible: !selecting && !collapsed,
+                    maintainState: true,
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(10, 0, 10, 8),
+                      child: Column(
+                        children: [
+                          Divider(
+                            height: 1,
+                            color: scheme.outlineVariant.withValues(alpha: .6),
+                          ),
+                          DesktopPromptCard(
+                            key: ValueKey('desktop-section-editor-${s.id}'),
+                            scrollAnchor: _editorHeaderKey,
+                            sectionId: s.isMain ? null : s.id,
+                            framed: false,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  if (selecting || collapsed)
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: CollapsedPromptPreview(
+                              links: links,
+                              key: ValueKey('collapsed-section-${s.id}'),
+                              draft: draft,
+                              enabled: s.enabled,
+                              style: context.texts.bodyMedium!.copyWith(
+                                color: scheme.onSurfaceVariant,
+                              ),
                             ),
                           ),
                           const SizedBox(width: 8),
-                        ],
-                        Expanded(
-                          child: CollapsedPromptPreview(
-                            key: ValueKey('collapsed-section-${s.id}'),
-                            draft: draft,
-                            enabled: s.enabled,
-                            style: context.texts.bodyMedium!.copyWith(
-                              color: scheme.onSurfaceVariant,
-                            ),
+                          PromptTokenCounts(
+                            positive: tokens,
+                            negative: negTokens,
                           ),
-                        ),
-                        const SizedBox(width: 8),
-                        PromptTokenCounts(
-                          positive: tokens,
-                          negative: negTokens,
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
-                  ),
-              ],
+                ],
+              ),
             ),
           ),
         ),
@@ -1164,14 +1173,22 @@ class _SectionRowState extends ConsumerState<_SectionRow> {
                   ),
                 ),
               ),
-            _NameChip(
-              name: sectionDisplayName(context.l10n, s.name),
-              enabled: on,
-              onTap: selecting ? onToggle! : () => _rename(context, notifier),
+            Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                _NameChip(
+                  name: sectionDisplayName(context.l10n, s.name),
+                  enabled: on,
+                  onTap: selecting
+                      ? onToggle!
+                      : () => _rename(context, notifier),
+                ),
+                if (!on) const _SectionDisabledBadge(),
+              ],
             ),
             const SizedBox(width: 8),
             Expanded(
-              child: _Preview(draft: draft, enabled: on),
+              child: _Preview(draft: draft, enabled: on, links: links),
             ),
             const SizedBox(width: 8),
             PromptTokenCounts(positive: tokens, negative: negTokens),
@@ -1310,6 +1327,28 @@ class _PickDot extends StatelessWidget {
 }
 
 /// 分区名:桌面为无底色标题,移动端保留填色小签;停用时弱化。点它改名。
+class _SectionDisabledBadge extends StatelessWidget {
+  const _SectionDisabledBadge();
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = context.scheme;
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: scheme.onSurface.withValues(alpha: .10),
+        borderRadius: BorderRadius.circular(5),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+        child: Text(
+          context.l10n.desktopDisabledLabel,
+          style: context.texts.labelSmall?.copyWith(color: scheme.onSurface),
+        ),
+      ),
+    );
+  }
+}
+
 class _NameChip extends StatelessWidget {
   const _NameChip({
     required this.name,
@@ -1357,7 +1396,13 @@ class _NameChip extends StatelessWidget {
 
 /// 一行预览:折叠(画师串等)显示成它的名字,其余照定稿写法。
 class _Preview extends StatelessWidget {
-  const _Preview({required this.draft, required this.enabled});
+  const _Preview({
+    required this.draft,
+    required this.enabled,
+    required this.links,
+  });
+
+  final List<PromptFoldLink> links;
 
   final String draft;
   final bool enabled;
@@ -1371,7 +1416,9 @@ class _Preview extends StatelessWidget {
       decoration: enabled ? null : TextDecoration.lineThrough,
       decorationColor: scheme.outline,
     );
-    final pieces = previewPieces(draft);
+    final disabledFolds = <String>{};
+    final pieces = previewPieces(draft, disabledFolds: disabledFolds);
+    final icons = foldIconsOf(links);
     if (pieces.isEmpty) {
       return Text(
         context.l10n.tapToEdit,
@@ -1400,11 +1447,15 @@ class _Preview extends StatelessWidget {
                     color: scheme.surfaceContainerHighest,
                     borderRadius: BorderRadius.circular(6),
                   ),
-                  child: Text(
-                    p.text,
+                  child: Text.rich(
+                    foldLabelSpan(p.text, icons[p.text]),
                     style: context.texts.labelMedium!.copyWith(
-                      color: style.color,
-                      decoration: style.decoration,
+                      color: disabledFolds.contains(p.text)
+                          ? scheme.outline
+                          : style.color,
+                      decoration: disabledFolds.contains(p.text)
+                          ? TextDecoration.lineThrough
+                          : style.decoration,
                       decorationColor: style.decorationColor,
                     ),
                   ),
@@ -1423,12 +1474,19 @@ class _Preview extends StatelessWidget {
 }
 
 /// 预览片段:折叠只取名字,折叠之间的文字取定稿(禁用词剔掉)。
-List<({String text, bool fold})> previewPieces(String draft) {
+List<({String text, bool fold})> previewPieces(
+  String draft, {
+  Set<String>? disabledFolds,
+}) {
   String clean(String s) =>
       outputOf(s).replaceAll(RegExp(r'^[,，\s]+|[,，\s]+$'), '');
   final out = <({String text, bool fold})>[];
   var at = 0;
   for (final f in parseFolds(draft)) {
+    if (disabledFolds != null &&
+        foldBodyDisabled(draft.substring(f.bodyStart, f.bodyEnd))) {
+      disabledFolds.add(f.name.trim());
+    }
     final before = clean(draft.substring(at, f.start));
     if (before.isNotEmpty) out.add((text: before, fold: false));
     if (f.name.trim().isNotEmpty) out.add((text: f.name.trim(), fold: true));

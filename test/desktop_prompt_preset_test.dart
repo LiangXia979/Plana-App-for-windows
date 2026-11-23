@@ -121,6 +121,7 @@ class _MemoryPresets extends PromptPresetsNotifier {
   Future<int> importPresets(
     List<PromptPreset> incoming, {
     String? activeId,
+    bool requirePersistence = false,
   }) async {
     imports++;
     state = AsyncData(
@@ -151,7 +152,8 @@ class _Picker extends FilePicker {
     calls++;
     expect(type, FileType.custom);
     expect(allowedExtensions, ['json']);
-    expect(withData, isTrue);
+    expect(withData, isFalse);
+    expect(allowMultiple, isTrue);
     if (text == null) return null;
     final bytes = Uint8List.fromList(utf8.encode(text!));
     return FilePickerResult([

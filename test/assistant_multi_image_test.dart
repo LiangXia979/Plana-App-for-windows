@@ -649,13 +649,17 @@ void main() {
       expect(reply.draw?.positive, 'assistant proposal');
       expect(reply.change?.canvasId, a);
       expect(
-        c.read(canvasWorkspaceProvider).find(a)!.prompts.prompt,
+        c.read(canvasWorkspaceProvider).find(a)!.prompts.sections.last.positive,
         'assistant proposal',
       );
       expect(c.read(generateProvider).prompt, 'draft B');
       canvases.select(a);
       expect(assistant.applyProposal(reply.id), isTrue);
-      expect(c.read(generateProvider).prompt, 'assistant proposal');
+      expect(
+        c.read(generateProvider).sections.last.positive,
+        'assistant proposal',
+      );
+      expect(c.read(generateProvider).prompt, 'draft A');
       canvases.select(b);
       expect(assistant.undo(reply.id), isTrue);
       expect(c.read(generateProvider).prompt, 'draft B');

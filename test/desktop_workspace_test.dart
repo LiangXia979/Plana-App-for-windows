@@ -25,6 +25,8 @@ import 'package:plana_app/features/assistant/assistant_state.dart';
 import 'package:plana_app/features/assistant/custom_endpoint.dart';
 import 'package:plana_app/features/gallery/albums/album_state.dart';
 import 'package:plana_app/features/gallery/gallery_state.dart';
+import 'package:plana_app/features/gallery/save_settings.dart';
+import 'package:plana_app/features/tools/metadata_tool_link.dart';
 import 'package:plana_app/features/generate/generate_state.dart';
 import 'package:plana_app/features/generate/canvas_state.dart';
 import 'package:plana_app/features/generate/models.dart';
@@ -705,7 +707,10 @@ void main() {
     await tester.tap(key('desktop-inspiration-tab'));
     await tester.pumpAndSettle();
     expect(find.text('公共库'), findsOneWidget);
-    expect(find.text('我的 · 0'), findsOneWidget);
+    expect(
+      find.descendant(of: key('sidebar-scope-0'), matching: find.text('我的')),
+      findsOneWidget,
+    );
     await screenshot(tester, 'inspiration');
     for (final size in [
       const Size(1280, 800),
@@ -1016,6 +1021,63 @@ void main() {
     await tester.pump(const Duration(seconds: 1));
     await drainWrites(tester);
   });
+  for (final topLevel in [true, false]) {
+    testWidgets(
+      'gallery metadata link opens the retained single editor (top navigation $topLevel)',
+      (tester) async {
+        c
+            .read(themeSettingsProvider.notifier)
+            .patch((s) => s.copyWith(showTools: topLevel));
+        await pumpUntilComplete(
+          tester,
+          c
+              .read(saveSettingsProvider.notifier)
+              .patch((s) => s.copyWith(meta: SaveMeta.custom)),
+        );
+        await mount(tester, const Size(1440, 900));
+        Future<void> tap(Finder finder) async {
+          await tester.ensureVisible(finder);
+          await tester.pumpAndSettle();
+          await tester.tap(finder);
+          await tester.pumpAndSettle();
+        }
+
+        final profile = key('desktop-nav-$kTabProfile');
+        final link = find.byType(MetadataToolLink);
+        await tap(profile);
+        await tap(key('profile-section-generation'));
+        await tap(link);
+        final prompt = key('metadata-field-prompt');
+        expect(prompt, findsOneWidget);
+        await tester.enterText(prompt, 'toolbox draft');
+        await tap(find.text('批量处理'));
+        await tap(find.text('权重转换'));
+        // A previously opened tool detail route may still cover the retained tabs.
+        final nav = Navigator.of(tester.element(key('weight-convert-input')));
+        unawaited(
+          nav.push<void>(
+            MaterialPageRoute(
+              builder: (_) => const Scaffold(body: Text('tool detail')),
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+        await tap(profile);
+        await tap(key('profile-section-generation'));
+        await tap(link);
+        expect(find.text('tool detail'), findsNothing);
+        expect(
+          tester.widget<TextField>(prompt).controller!.text,
+          'toolbox draft',
+        );
+        expect(c.read(shellIndexProvider), topLevel ? kTabTools : kTabProfile);
+        await tester.pumpWidget(const SizedBox());
+        await tester.pump(const Duration(seconds: 1));
+        await drainWrites(tester);
+      },
+    );
+  }
+
   testWidgets(
     '工具箱默认在我的前面，入口互斥切换保留草稿、结果和工具页签',
     (tester) async {

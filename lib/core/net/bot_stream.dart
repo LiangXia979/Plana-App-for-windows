@@ -93,7 +93,7 @@ Future<List<Uint8List>> streamBotTask({
 
   void fail(Object e) {
     if (!completer.isCompleted) {
-      logi('[bot] $taskId fail: $e');
+      logi('[bot] $taskId fail: $e', diagnosticEvent: 'bot-task-failed');
       completer.completeError(
         e is BackendException ? e : BackendException('$e'),
       );
@@ -134,6 +134,7 @@ Future<List<Uint8List>> streamBotTask({
       logi(
         '[bot] $taskId done$via: ${out.length} 张 / '
         '${raw.fold<int>(0, (a, b) => a + b.length)}B',
+        diagnosticEvent: 'bot-result-ready',
       );
       if (!completer.isCompleted) completer.complete(out);
     } catch (e) {

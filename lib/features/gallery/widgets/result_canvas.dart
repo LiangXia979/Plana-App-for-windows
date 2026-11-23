@@ -1,3 +1,4 @@
+import '../../generate/bot_image_price.dart';
 import '../albums/album_state.dart';
 import '../albums/album_models.dart';
 import '../albums/album_ui.dart';
@@ -2096,7 +2097,11 @@ class _UpscalePanelState extends ConsumerState<_UpscalePanel> {
   /// tertiaryContainer 的浅粉(角色计数、灵感「随机」徽章同款),
   /// 免费或算不出时才是中性半透明。
   Widget _cta(ColorScheme scheme, ({int w, int h}) t, int? cost) {
-    final paid = cost != null && cost > 0;
+    final input = widget.redrawInput;
+    final quote = _isRedraw && input != null && cost != null
+        ? ref.watch(botImagePriceProvider(input.params.model))
+        : null;
+    final paid = quote != null ? !quote.free : cost != null && cost > 0;
     // 底色换了字色就得跟着换到配套那支;中性底那档才走按钮的 onPrimary。
     final fg = paid ? scheme.onTertiaryContainer : scheme.onPrimary;
     return FilledButton(
@@ -2145,9 +2150,11 @@ class _UpscalePanelState extends ConsumerState<_UpscalePanel> {
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Icon(Icons.toll, size: 12, color: fg),
-                  const SizedBox(width: 3),
-                  Text('${cost ?? '—'}', style: _pill(fg)),
+                  if (quote == null) ...[
+                    Icon(Icons.toll, size: 12, color: fg),
+                    const SizedBox(width: 3),
+                  ],
+                  Text(quote?.label ?? '${cost ?? '—'}', style: _pill(fg)),
                 ],
               ),
             ),

@@ -20,13 +20,21 @@
 ## 项目状态
 
 本项目基于 [Plana App](https://github.com/mc5024/Plana-App) 开发 Windows 桌面适配，并选择性同步 [shenghuo2/Plana-App-Desktop](https://github.com/shenghuo2/Plana-App-Desktop) 的桌面功能与修复。
-当前 Windows 版本为 **1.2.4-windows.62（构建 82）**。中文安装包、便携版及校验清单见[本版发布页](https://github.com/LingXia979/Plana-App-for-windows/releases/tag/v1.2.4-windows.62)。
+当前 Windows 版本为 **1.2.4-windows.63（构建 83）**。中文安装包、便携版及校验清单见[本版发布页](https://github.com/LingXia979/Plana-App-for-windows/releases/tag/v1.2.4-windows.63)。
 
 - `main` 与 `Plana-app-for-windows`：Windows 桌面源码；已发布版本对应的源码以 Release 标签为准。
 - [`plana-app-gallery-optimization`](https://github.com/LingXia979/Plana-App-for-windows/tree/plana-app-gallery-optimization)：图库优化分支。
 - Android 原版介绍与下载请前往[上游仓库](https://github.com/mc5024/Plana-App)。
 
-## 本次更新：windows.62
+## 本次更新 · windows.63
+
+- AI 助手内置六份规则。NAI 4.5 和 NAI 5 可各选普通提示词、语义分块或轻量分块。同一对话可以继续修改已写入画布的分区和提示词块，主负面提示词默认锁定。
+- 「我的接口」可同时启用多个服务，自选请求路径，对话模型和出图模型分别选择。
+- 灵感与法典支持按画风分组、随机抽选和按日期回看历史。法典的三种视图用连续方格切换，刻度旁的卡片可以直接点击。
+- 图库支持实时拖动排序和撤销。工具箱可以恢复上次的元数据编辑，提示词预设支持批量导入。
+- 在「我的 → 关于 Plana」可打开离线使用手册、编辑本机教程，或在排查问题时开启日志诊断。
+
+## 上一轮更新 · windows.62
 
 - 单击提示词块可查看和修改词条、权重，也可打开大屏编辑。双击拆块，切换文本或标签视图时保留块，并定位到当前分区或角色。
 - 法典卡片支持悬停预览、复制和导入。随机灵感按词典、分类和收藏筛选，抽取结果可在创作侧栏和灵感页回看。

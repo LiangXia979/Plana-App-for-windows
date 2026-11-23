@@ -147,12 +147,10 @@ class _DesktopTagFilterBarState extends State<DesktopTagFilterBar> {
     if (_pickerOpen) return;
     _pickerOpen = true;
     try {
-      final picked = await showDesktopPopover<({String? tag})>(
+      final picked = await showDesktopTagPicker(
         anchor,
-        width: 360,
-        maxHeight: 460,
-        builder: (_) =>
-            _TagPicker(tags: widget.tags, selectedTag: widget.selectedTag),
+        tags: widget.tags,
+        selectedTag: widget.selectedTag,
       );
       if (mounted && picked != null) widget.onTagSelected(picked.tag);
     } finally {
@@ -430,6 +428,17 @@ class _DesktopTagFilterBarState extends State<DesktopTagFilterBar> {
     );
   }
 }
+
+Future<({String? tag})?> showDesktopTagPicker(
+  BuildContext anchor, {
+  required List<String> tags,
+  required String? selectedTag,
+}) => showDesktopPopover<({String? tag})>(
+  anchor,
+  width: 360,
+  maxHeight: 460,
+  builder: (_) => _TagPicker(tags: tags, selectedTag: selectedTag),
+);
 
 class _TagPicker extends StatefulWidget {
   const _TagPicker({required this.tags, required this.selectedTag});

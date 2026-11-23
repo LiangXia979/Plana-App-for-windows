@@ -1,6 +1,6 @@
 # Plana app for windows
 
-版本 **1.2.4-windows.62（构建 82）**。基于 Flutter 和原版浅蓝主题，提供 Windows 桌面工作台与图库优化。
+版本 **1.2.4-windows.63（构建 83）**。基于 Flutter 和原版浅蓝主题，提供 Windows 桌面工作台与图库优化。
 
 ## 上游 v1.2.4 桌面适配
 
@@ -184,7 +184,9 @@ windows.49：继续分批同步上游桌面交互。补全列表点击时保持�
 
 windows.48：分批同步 [shenghuo2/Plana-App-Desktop](https://github.com/shenghuo2/Plana-App-Desktop/tree/64559c7b14419b4f13d37fab0579cb22965132c5) 的交互与稳定性修复。重绘／扩图／打码画布支持以鼠标位置为中心的滚轮缩放；助手已发送消息中的附图可单击查看原图。图片尺寸读取避免完整像素解码，裁剪、缩放和重绘在失败时也释放图片资源。修正单次导出的保存目录、无效恢复日志、图片删除后的残留恢复文件，以及相同参考图并发保存的竞争；正常退出会等待编辑器草稿及存储队列完成。保留 windows.47 的 Medium／High 档位、应用名称和自动作品目录；多画布与提示词章节尚未纳入本批。
 
-桌面故障诊断保存在本机 `%LOCALAPPDATA%\Plana app for windows\diagnostics`，包含启动／退出过程、错误日志和原生崩溃小型转储，最多保留最近十次会话。日志对常见凭据格式及 URL 查询信息脱敏，不自动上传；崩溃转储可能包含进程内存信息，分享前请检查内容。
+在「我的 → 关于 Plana → 日志诊断」开启「写入日志文件」后，可以记录启动、退出、页面切换和故障。开关默认关闭，更改立即生效并在重启后保留。「打开」会显示当前用户的 `%LOCALAPPDATA%\Plana app for windows\logs`。按修改时间和进程号可配对 Dart 与 Windows 原生日志，两类文本日志各保留最近十份。反馈时可附上故障时间和「复制诊断信息」生成的版本、系统、显卡与本机服务配置摘要。
+
+开启诊断期间遇到原生崩溃时，Windows 客户端还会尝试将小型转储单独保存到同级 `diagnostics` 目录。转储可能包含进程内存。常规反馈所用的 `logs` 文件夹只含文本日志。工作区根目录的 `logs` 供本地启动和构建脚本使用。
 
 windows.47：V5 Full 增加 Medium／High 生成档位。Medium 按官方设置固定 14 步、Euler Ancestral 和负面预设，AI 设置只保留引导与种子；原有步数、采样器、CFG Rescale 及自定义负面词保留，切回 High 后恢复。档位随工作台和作品快照保存，费用与进度按实际参数计算，图片导入和重新生成保留对应档位，图生图放大使用当前选中的档位。直连和 Bot 请求均使用对应的模型标识；旧存档默认为 High。
 
@@ -429,6 +431,6 @@ Windows 加密凭据、100% 默认字号、安装身份和作品目录继续保�
 
 ## Google 云端硬盘登录
 
-构建 82 的安装版和便携版使用上游 Google Cloud 项目登记的 Windows 桌面客户端。打开「我的 → 备份与导入 → Google 云端硬盘」，点击「使用 Google 账号登录」，在浏览器选择账号并授权即可。Plana 仅申请 `drive.appdata` 备份权限。自己的桌面客户端仍可在「高级设置」中导入，旧备份需连接原来的账号和 Cloud 项目。[Google Drive 应用数据说明](https://developers.google.com/workspace/drive/api/guides/appdata)
+Windows 安装版和便携版沿用上游 Google Cloud 项目登记的 Windows 桌面客户端。打开「我的 → 备份与导入 → Google 云端硬盘」，点击「使用 Google 账号登录」，在浏览器选择账号并授权即可。Plana 仅申请 `drive.appdata` 备份权限。自己的桌面客户端仍可在「高级设置」中导入，旧备份需连接原来的账号和 Cloud 项目。[Google Drive 应用数据说明](https://developers.google.com/workspace/drive/api/guides/appdata)
 
 开发时可将桌面客户端配置保存在 `tool/local/google-drive-desktop.json`。发行者可用 `tool/package_windows.ps1 -GoogleDriveDesktopClientFile <文件路径>` 明确选择随包分发的桌面客户端。构建脚本只向 Dart 编译器传入客户端 ID 和客户端密钥。这两个值可从编译产物中提取。原始 JSON 留在构建机，用户的刷新令牌在完成授权后由 Windows 加密存储。省略该参数时，构建出的应用支持从高级设置导入客户端。[Google 桌面应用授权说明](https://developers.google.com/identity/protocols/oauth2/native-app)

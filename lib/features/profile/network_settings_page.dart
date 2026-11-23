@@ -294,21 +294,41 @@ class _NetworkSettingsPageState extends ConsumerState<NetworkSettingsPage> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Row(
-                      children: [
-                        Expanded(
-                          child: Text(l10nNow.desktopLocalProxy, style: context.texts.titleMedium),
-                        ),
-                        IconButton(
-                          key: const ValueKey('network-proxy-expand'),
-                          tooltip: _expanded ? '收起详细设置' : '展开详细设置',
-                          onPressed: () =>
-                              setState(() => _expanded = !_expanded),
-                          icon: Icon(
-                            _expanded ? Icons.expand_less : Icons.expand_more,
+                    Semantics(
+                      button: true,
+                      expanded: _expanded,
+                      child: InkWell(
+                        key: const ValueKey('network-proxy-expand'),
+                        borderRadius: BorderRadius.circular(10),
+                        onTap: () => setState(() => _expanded = !_expanded),
+                        child: Padding(
+                          padding: const EdgeInsets.only(left: 4),
+                          child: Row(
+                            children: [
+                              Expanded(
+                                child: Text(
+                                  l10nNow.desktopLocalProxy,
+                                  style: context.texts.titleMedium,
+                                ),
+                              ),
+                              Tooltip(
+                                message: _expanded
+                                    ? context.l10n.proxyCollapseDetails
+                                    : context.l10n.proxyExpandDetails,
+                                preferBelow: false,
+                                excludeFromSemantics: true,
+                                child: SizedBox.square(
+                                  dimension: 40,
+                                  child: Icon(
+                                    _expanded ? Icons.expand_less : Icons.expand_more,
+                                    color: context.scheme.onSurfaceVariant,
+                                  ),
+                                ),
+                              ),
+                            ],
                           ),
                         ),
-                      ],
+                      ),
                     ),
                     const SizedBox(height: 6),
                     Text(l10nNow.desktopConnectThroughClashOrAnotherProxyAppStart, style: small),
@@ -502,12 +522,12 @@ class _NetworkSettingsPageState extends ConsumerState<NetworkSettingsPage> {
                   const SizedBox(height: 8),
                   Text(
                     saved.enabled
-                        ? '本机代理：${saved.address}'
+                        ? '已启用本机代理：${saved.address}'
                         : relay
-                        ? '通过 Cloudflare 云端转发访问 NovelAI。'
+                        ? '当前通过 Cloudflare 云端转发访问 NovelAI 官方接口。'
                         : environmentProxy
-                        ? '正在使用运行环境提供的代理。'
-                        : '未启用应用内代理或云端转发。',
+                        ? '当前正使用运行环境提供的系统代理。'
+                        : '当前为直连模式（未启用应用内本机代理与云端转发）。',
                     style: small,
                   ),
                   if (saved.enabled)
@@ -516,10 +536,10 @@ class _NetworkSettingsPageState extends ConsumerState<NetworkSettingsPage> {
                       children: [
                         Text(
                           saved.software != ProxySoftware.auto
-                              ? '软件名称：手动指定'
+                              ? '显示名称：已手动指定'
                               : detected == ProxySoftware.auto
-                              ? '暂不能确定软件名称，显示为「代理软件」'
-                              : '已识别为${proxySoftwareLabel(detected)}',
+                              ? '未识别出具体代理软件，暂显示为「代理软件」'
+                              : '已自动识别为 ${proxySoftwareLabel(detected)}',
                           style: small,
                         ),
                         if (saved.software == ProxySoftware.auto)
