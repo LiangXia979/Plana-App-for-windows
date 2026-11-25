@@ -31,7 +31,7 @@ void main() {
         requests++;
         expect(
           request.url.path,
-          '/repos/LingXia979/Plana-App-for-windows/releases',
+          '/repos/LiangXia979/Plana-App-for-windows/releases',
         );
         return http.Response(status == 200 ? '[]' : '{}', status);
       });

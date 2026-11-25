@@ -20,7 +20,8 @@ void main() {
     () {
       const tag = 'v1.2.4-windows.63',
           name = 'Plana-Windows-1.2.4-windows.63-x64-build83';
-      const base = 'https://github.com/$kGithubRepo/releases/download/$tag';
+      const base =
+          'https://github.com/LiangXia979/Plana-App-for-windows/releases/download/$tag';
       Map<String, String> asset(String file) => {
         'name': file,
         'browser_download_url': '$base/$file',
@@ -169,14 +170,14 @@ void main() {
         expect(request.url.host, 'api.github.com');
         expect(
           request.url.path,
-          '/repos/LingXia979/Plana-App-for-windows/releases',
+          '/repos/LiangXia979/Plana-App-for-windows/releases',
         );
         return http.Response(
           jsonEncode([
             {
               'tag_name': 'v1.2.3-windows.60',
               'html_url':
-                  'https://github.com/LingXia979/Plana-App-for-windows/releases/tag/v1.2.3-windows.60',
+                  'https://github.com/LiangXia979/Plana-App-for-windows/releases/tag/v1.2.3-windows.60',
               'prerelease': false,
               'draft': false,
             },

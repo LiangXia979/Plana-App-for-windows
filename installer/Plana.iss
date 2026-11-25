@@ -29,7 +29,7 @@ AppName={#AppName}
 AppVersion={#AppVersion}
 AppVerName={#AppName} {#AppVersion}
 AppPublisher=LingXia979
-AppPublisherURL=https://github.com/LingXia979/Plana-App-for-windows
+AppPublisherURL=https://github.com/LiangXia979/Plana-App-for-windows
 DefaultDirName={localappdata}\Programs\Plana
 AppendDefaultDirName=no
 ; Accept newly created folders and existing installation directories directly.
