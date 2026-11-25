@@ -1,5 +1,6 @@
 import 'dart:async' show unawaited;
 import 'dart:io';
+import '../inspiration/external/oc_source_page.dart';
 
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
@@ -12,6 +13,8 @@ import '../../core/net/google_drive.dart';
 import '../../core/store/storage_stats.dart' show fmtBytes;
 import '../../core/theme/app_theme.dart';
 import '../../core/ui/import_picker.dart';
+import '../../core/ui/settings_scaffold.dart';
+import '../../core/platform/desktop.dart';
 import '../../core/util/document_save.dart';
 import '../../core/util/file_read.dart';
 import '../generate/widgets/common.dart' show confirmDialog, hintSnack;
@@ -973,11 +976,18 @@ class _BackupPageState extends ConsumerState<BackupPage> {
       }
     });
     final idle = _busy == null && !job.busy;
-    return Scaffold(
-      appBar: AppBar(title: Text(context.l10n.backup)),
+    return SettingsScaffold(
+      appBar: AppBar(
+        title: Text(
+          ref.watch(desktopModeProvider)
+              ? context.l10n.desktopBackupAndImport
+              : context.l10n.backup,
+        ),
+      ),
       body: ListView(
         padding: const EdgeInsets.fromLTRB(14, 8, 14, 24),
         children: [
+          const SettingsPageHeader(),
           if (authed) ...[
             SettingsLabel(context.l10n.cloudBackup),
             SettingsCard(
@@ -1085,6 +1095,24 @@ class _BackupPageState extends ConsumerState<BackupPage> {
                 value: _busyValue('import'),
                 onTap: idle ? _importFile : null,
               ),
+              if (ref.watch(desktopModeProvider))
+                SettingsRowTextTheme(
+                  child: ListTile(
+                    key: const ValueKey('backup-external-oc'),
+                    leading: const Icon(Icons.add_link),
+                    title: Text(context.l10n.externalOcLibraries),
+                    subtitle: Text(context.l10n.externalOcImportHint),
+                    trailing: const Icon(Icons.chevron_right),
+                    onTap: idle
+                        ? () => Navigator.of(context, rootNavigator: true)
+                              .push<void>(
+                                MaterialPageRoute(
+                                  builder: (_) => const OcSourcePage(),
+                                ),
+                              )
+                        : null,
+                  ),
+                ),
             ],
           ),
           if (_result case final r?) ...[

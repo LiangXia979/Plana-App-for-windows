@@ -150,7 +150,10 @@ class GenerateTopBar extends ConsumerWidget {
             const SizedBox(height: 10),
             Row(
               children: [
-                Text(l10nNow.desktopGenerationTier, style: context.texts.labelMedium),
+                Text(
+                  l10nNow.desktopGenerationTier,
+                  style: context.texts.labelMedium,
+                ),
                 const SizedBox(width: 12),
                 Expanded(
                   child: SegmentedButton<m.NaiEffort>(
@@ -174,9 +177,19 @@ class GenerateTopBar extends ConsumerWidget {
                       ),
                     ],
                     selected: {state.params.naiEffort},
-                    onSelectionChanged: (value) => ref
-                        .read(generateProvider.notifier)
-                        .setNaiEffort(value.single),
+                    onSelectionChanged: (value) {
+                      ref
+                          .read(generateProvider.notifier)
+                          .setNaiEffort(value.single);
+                      if (value.single == m.NaiEffort.medium &&
+                          state.enabledCharRefs > 0) {
+                        hintSnack(
+                          context,
+                          context.l10n.mediumPausesPreciseRefs,
+                          icon: Icons.swap_horiz,
+                        );
+                      }
+                    },
                   ),
                 ),
               ],

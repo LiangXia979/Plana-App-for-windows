@@ -1,3 +1,9 @@
+import 'package:http/testing.dart';
+import 'package:http/http.dart' as http;
+import 'dart:convert';
+import 'dart:io';
+import 'dart:typed_data';
+
 import 'package:flutter/foundation.dart' show compute;
 import 'package:flutter_test/flutter_test.dart';
 
@@ -360,5 +366,105 @@ void main() {
       codexImageUrl(d.meta, d.entries.single, CodexMedia.fallback),
       'https://assets.quicktagcloud.com/images/t/e1.jpg?v=r1',
     );
+  });
+
+  test('codexParsePayload:正文源可以是盘上文件或字节', () async {
+    const raw =
+        '{"id":"t","title":"样本","version":"1",'
+        '"entries":[{"id":"e1","title":"标题","tags":"a"}]}';
+    final dir = await Directory.systemTemp.createTemp('codex_src_');
+    addTearDown(() => dir.delete(recursive: true));
+    final f = File('${dir.path}/t@1.json')..writeAsStringSync(raw);
+
+    final fromFile = await compute(codexParsePayload, <Object?>[f, null]);
+    final fromBytes = await compute(codexParsePayload, <Object?>[
+      Uint8List.fromList(utf8.encode(raw)),
+      null,
+    ]);
+
+    expect(fromFile.entries.single.title, '标题');
+    expect(fromBytes.entries.single.title, '标题');
+  });
+
+  // 落盘缓存:半截快照自愈、离线读索引副本、门户页不顶掉好副本。
+  group('CodexService 落盘缓存', () {
+    late Directory dir;
+    setUp(() async => dir = await Directory.systemTemp.createTemp('codex_'));
+    tearDown(() async {
+      try {
+        await dir.delete(recursive: true);
+      } catch (_) {}
+    });
+
+    const index = '[{"id":"t","title":"样本","version":"v1"}]';
+    const body =
+        '{"id":"t","title":"样本","version":"v1",'
+        '"entries":[{"id":"e1","title":"标题","tags":"a"}]}';
+    http.Response ok(String s) => http.Response.bytes(utf8.encode(s), 200);
+    final offline = MockClient((_) async => throw const SocketException('x'));
+
+    test('盘上快照是半截文件:删掉回源,重写完整一份', () async {
+      final f = File('${dir.path}/t@v1.json')
+        ..writeAsStringSync(body.substring(0, 30));
+      final svc = CodexService(
+        cacheDir: dir,
+        client: MockClient((_) async => ok(body)),
+      );
+      final meta = CodexMeta.fromJson(jsonDecode(index)[0]);
+
+      final d = await svc.fetchCodex(meta);
+
+      expect(d.entries.single.title, '标题');
+      expect(f.readAsStringSync(), body);
+    });
+
+    test('离线:索引读上次的副本,正文命中缓存', () async {
+      final online = CodexService(
+        cacheDir: dir,
+        client: MockClient(
+          (req) async =>
+              ok(req.url.path.endsWith('codexes.json') ? index : body),
+        ),
+      );
+      await online.fetchCodex((await online.fetchIndex()).single);
+
+      final svc = CodexService(cacheDir: dir, client: offline);
+      final idx = await svc.fetchIndex();
+      expect(idx.single.version, 'v1');
+      expect((await svc.fetchCodex(idx.single)).entries, hasLength(1));
+    });
+
+    test('回 200 的网页(认证门户)不顶掉索引副本', () async {
+      await CodexService(
+        cacheDir: dir,
+        client: MockClient((_) async => ok(index)),
+      ).fetchIndex();
+      final portal = CodexService(
+        cacheDir: dir,
+        client: MockClient((_) async => ok('<html>login</html>')),
+      );
+
+      expect((await portal.fetchIndex()).single.id, 't');
+      expect(File('${dir.path}/meta/codexes.json').readAsStringSync(), index);
+    });
+
+    test('cachedIndex 只读副本:没联网拿到过就是 null', () async {
+      final svc = CodexService(
+        cacheDir: dir,
+        client: MockClient((_) async => ok(index)),
+      );
+      expect(await svc.cachedIndex(), isNull);
+      await svc.fetchIndex();
+      final copy = await CodexService(
+        cacheDir: dir,
+        client: offline,
+      ).cachedIndex();
+      expect(copy!.single.version, 'v1');
+    });
+
+    test('无网也无副本:索引照常报错', () {
+      final svc = CodexService(cacheDir: dir, client: offline);
+      expect(svc.fetchIndex(), throwsA(isA<SocketException>()));
+    });
   });
 }

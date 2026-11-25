@@ -1,4 +1,3 @@
-import 'dart:async';
 import 'dart:io';
 
 import 'package:archive/archive.dart';
@@ -20,6 +19,8 @@ import 'package:plana_app/features/gallery/gallery_state.dart';
 import 'package:plana_app/features/gallery/gallery_date_filter.dart';
 import 'package:plana_app/features/gallery/models.dart';
 import 'package:plana_app/features/shell/shell_state.dart';
+
+import 'support/pump_until.dart';
 
 class _Gallery extends GalleryNotifier {
   _Gallery(this.images);
@@ -181,20 +182,11 @@ void main() {
     await tester.pumpWidget(const SizedBox());
     await tester.pump(const Duration(seconds: 1));
     stores.flushNow();
-    var done = false;
-    unawaited(
-      Future.wait([
-        stores.gallery.idle,
-        stores.albums.idle,
-      ]).then((_) => done = true),
+    await pumpUntilComplete(
+      tester,
+      Future.wait([stores.gallery.idle, stores.albums.idle]),
+      reason: 'Pending gallery writes must finish',
     );
-    for (var i = 0; i < 100 && !done; i++) {
-      await tester.runAsync(
-        () => Future<void>.delayed(const Duration(milliseconds: 10)),
-      );
-      await tester.pump();
-    }
-    expect(done, isTrue, reason: 'Pending gallery writes must finish');
     expect(tester.takeException(), isNull);
   }
 
@@ -210,22 +202,14 @@ void main() {
       ),
     );
     await tester.pump();
-    for (var i = 0; i < 200; i++) {
-      await tester.runAsync(
-        () => Future<void>.delayed(const Duration(milliseconds: 10)),
-      );
-      await tester.pump(const Duration(milliseconds: 20));
-      if (key('gallery-export-dialog').evaluate().isEmpty &&
+    await pumpUntil(
+      tester,
+      () =>
+          key('gallery-export-dialog').evaluate().isEmpty &&
           tester.widget<FilledButton>(key('gallery-batch-export')).onPressed !=
-              null) {
-        break;
-      }
-    }
-    expect(
-      tester.widget<FilledButton>(key('gallery-batch-export')).onPressed,
-      isNotNull,
+              null,
+      reason: 'The export must finish and release the batch controls',
     );
-    expect(key('gallery-export-dialog'), findsNothing);
     await tester.pumpAndSettle();
   }
 

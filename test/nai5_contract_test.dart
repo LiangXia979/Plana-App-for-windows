@@ -2,12 +2,18 @@
 //
 // 三条都是**静默错**:发错了不崩、不报错,只是元数据写进去是错的、或者字段被
 // 服务端悄悄丢掉。人工点一遍 UI 一个都看不出来 —— 只能靠测试钉住。
+import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:image/image.dart' as img;
+import 'package:plana_app/core/store/blob_store.dart';
+import 'package:plana_app/core/util/image_ops.dart';
+import 'package:plana_app/features/generate/state_codec.dart';
 import 'package:plana_app/features/generate/bot_request.dart';
 import 'package:plana_app/features/generate/char_position.dart';
 import 'package:plana_app/features/generate/models.dart';
+import 'package:plana_app/features/generate/cost.dart';
 import 'package:plana_app/features/generate/nai_request.dart';
 import 'package:plana_app/features/generate/prompt_presets.dart';
 import 'package:plana_app/features/import/image_metadata.dart';
@@ -33,6 +39,164 @@ Map<String, dynamic> _bot(String model, {String presetId = 'heavy'}) =>
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
+
+  test(
+    'V5 uses a transparent aspect-ratio bucket and restores reference settings from a canvas',
+    () async {
+      final input = img.Image(width: 104, height: 152, numChannels: 4);
+      img.fillRect(
+        input,
+        x1: 30,
+        x2: 74,
+        y1: 50,
+        y2: 102,
+        color: img.ColorRgba8(240, 80, 40, 255),
+      );
+      final png = Uint8List.fromList(img.encodePng(input));
+      final processed = img.decodePng(await crResizePng(png, v5: true))!;
+      expect((processed.width, processed.height), (832, 1216));
+      expect(processed.getPixel(0, 0).a, 0);
+      expect(processed.getPixel(416, 608).r, 240);
+
+      final folder = await Directory.systemTemp.createTemp(
+        'plana-precise-ref-',
+      );
+      addTearDown(() => folder.delete(recursive: true));
+      final blobs = BlobStore(folder);
+      final state = _state(nai5Models.first).copyWith(
+        charRefs: [
+          CharRefItem(
+            id: 'one',
+            image: png,
+            strength: 3.25,
+            preferSameOutfit: false,
+          ),
+          CharRefItem(id: 'two', image: png, mode: CharRefMode.outfit),
+        ],
+      );
+      final saved = (await encodeGenerateState(state, blobs)).json;
+      final restored = (await decodeGenerateState(saved, blobs)).charRefs;
+      expect(restored.first.preferSameOutfit, false);
+      expect(restored.first.strength, 3.25);
+      expect(restored.last.mode, CharRefMode.outfit);
+      expect(restored.last.image, png);
+      final cards = saved['charRefs'] as List;
+      (cards.first as Map).remove('preferSameOutfit');
+      expect(
+        (await decodeGenerateState(
+          saved,
+          blobs,
+        )).charRefs.first.preferSameOutfit,
+        true,
+      );
+    },
+  );
+
+  test('V5 precise reference modes, strengths, cost and inpainting gating', () {
+    const v4 = 'NAI 4.5 Full';
+    final ref = const CharRefItem(id: 'ref', strength: 3.5, infoExtracted: .25);
+    final cards = [
+      ref,
+      ref.copyWith(preferSameOutfit: false),
+      ref.copyWith(mode: CharRefMode.character),
+      ref.copyWith(mode: CharRefMode.character, preferSameOutfit: true),
+      ref.copyWith(mode: CharRefMode.style),
+      ref.copyWith(mode: CharRefMode.outfit),
+    ];
+    for (final model in nai5Models) {
+      final state = _state(model).copyWith(charRefs: cards);
+      final refs = [
+        for (final c in cards)
+          (
+            image: 'encoded',
+            mode: c.captionFor(model),
+            strength: c.strengthFor(model),
+            fidelity: c.infoExtracted,
+          ),
+      ];
+      final labels = [
+        'character&style',
+        'character&style_anyoutfit',
+        'character',
+        'character_mainoutfit',
+        'style',
+        'costume',
+      ];
+      final p =
+          buildNaiPayload(
+                state,
+                presetId: 'none',
+                charRefs: refs,
+              ).body['parameters']
+              as Map;
+      expect([
+        for (final c in p['director_reference_descriptions'])
+          c['caption']['base_caption'],
+      ], labels);
+      expect(p['director_reference_strength_values'], List.filled(6, 3.5));
+      expect(
+        p['director_reference_secondary_strength_values'],
+        List.filled(6, 0),
+      );
+      final bot =
+          buildBotParams(
+                state,
+                seed: 1,
+                presetId: 'none',
+                charRefs: refs,
+              )['preciseReferences']
+              as List;
+      expect(bot.map((r) => r['mode']), labels);
+      expect(
+        bot.every(
+          (r) => r['informationExtracted'] == 1 && r['strength'] == 3.5,
+        ),
+        true,
+      );
+      expect(
+        estimateCost(state, isOpus: true) -
+            estimateCost(_state(model), isOpus: true),
+        30,
+      );
+      final bytes = Uint8List(12);
+      final mask = state.copyWith(
+        inpaint: InpaintJob(image: bytes, mask: bytes, strength: .4),
+      );
+      expect(
+        (buildNaiPayload(
+                  mask,
+                  presetId: 'none',
+                  charRefs: refs,
+                ).body['parameters']
+                as Map)
+            .containsKey('director_reference_images'),
+        false,
+      );
+      expect(
+        buildBotParams(
+          mask,
+          seed: 1,
+          presetId: 'none',
+          charRefs: refs,
+        ).containsKey('preciseReferences'),
+        false,
+      );
+      expect(
+        estimateInpaintCost(
+          mask,
+          isOpus: true,
+          sendW: 512,
+          sendH: 512,
+          strength: .4,
+        ),
+        0,
+      );
+    }
+    expect(_state(v4).copyWith(charRefs: cards).usableCharRefs(), hasLength(5));
+    expect(cards[1].captionFor(v4), 'character&style');
+    expect(cards[3].captionFor(v4), 'character');
+    expect(ref.strengthFor(v4), 1);
+  });
 
   // ucPreset 的数值是**档位数组的下标**,直连与 bot 两条线共用同一张官方表。
   // 曾经按线拆成两张(bot 线是一套自造的反向取值 heavy→4 / none→0),web 把
@@ -367,8 +531,18 @@ void main() {
 
       test('发送时照实发,且坐标只认角色自己的(不再按下标代入)', () {
         final chars = [
-          const CharacterPrompt(id: 'a', name: 'a', positive: 'x', position: 'A1'),
-          const CharacterPrompt(id: 'b', name: 'b', positive: 'y', position: 'E5'),
+          const CharacterPrompt(
+            id: 'a',
+            name: 'a',
+            positive: 'x',
+            position: 'A1',
+          ),
+          const CharacterPrompt(
+            id: 'b',
+            name: 'b',
+            positive: 'y',
+            position: 'E5',
+          ),
         ];
         for (final on in [false, true]) {
           final body = buildNaiPayload(

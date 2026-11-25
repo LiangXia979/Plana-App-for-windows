@@ -13,20 +13,28 @@
 [![Status](https://img.shields.io/badge/状态-桌面版测试中-6A5ACD)](#项目状态)
 [![Flutter](https://img.shields.io/badge/built%20with-Flutter-02569B?logo=flutter&logoColor=white)](https://flutter.dev)
 
-[本次更新](#本次更新windows62) · [界面预览](#界面预览) · [桌面版亮点](#桌面版亮点) · [贡献者](#贡献者) · [问题反馈](https://github.com/LingXia979/Plana-App-for-windows/issues) · [上游项目](https://github.com/mc5024/Plana-App)
+[本次更新](#本次更新--windows64) · [界面预览](#界面预览) · [桌面版亮点](#桌面版亮点) · [贡献者](#贡献者) · [问题反馈](https://github.com/LingXia979/Plana-App-for-windows/issues) · [上游项目](https://github.com/mc5024/Plana-App)
 
 </div>
 
 ## 项目状态
 
 本项目基于 [Plana App](https://github.com/mc5024/Plana-App) 开发 Windows 桌面适配，并选择性同步 [shenghuo2/Plana-App-Desktop](https://github.com/shenghuo2/Plana-App-Desktop) 的桌面功能与修复。
-当前 Windows 版本为 **1.2.4-windows.63（构建 83）**。中文安装包、便携版及校验清单见[本版发布页](https://github.com/LingXia979/Plana-App-for-windows/releases/tag/v1.2.4-windows.63)。
+当前 Windows 版本为 **1.2.5-windows.64（构建 84）**。提供中文安装包、便携 ZIP、更新说明和 SHA-256 校验清单。[本版发布页](https://github.com/LingXia979/Plana-App-for-windows/releases/tag/v1.2.5-windows.64)
 
 - `main` 与 `Plana-app-for-windows`：Windows 桌面源码；已发布版本对应的源码以 Release 标签为准。
 - [`plana-app-gallery-optimization`](https://github.com/LingXia979/Plana-App-for-windows/tree/plana-app-gallery-optimization)：图库优化分支。
 - Android 原版介绍与下载请前往[上游仓库](https://github.com/mc5024/Plana-App)。
 
-## 本次更新 · windows.63
+## 本次更新 · windows.64
+
+- 「工具箱 → 图片比对」可以并排查看两张图，分别核对提示词、权重、角色位置和生成参数。
+- NAI 5 Full 和 Curated 支持精确参考，可选择角色、风格、角色与风格或服装。精确参考与 Medium 档互斥。
+- 外部角色库可从网址或本地 JSON 添加。灵感主页和创作侧栏都支持单击勾选、长按查看提示词、编辑本机标签及另存角色形态。
+- 助手可以管理 ChatGPT 订阅工作区、自定义 API 和本地模型。旧版绘图预设原样引用库内画风和角色时保留折叠块与权重，续改负面时也会保留可识别的块及正负关联。
+- 大图库切图、缩略图、备份与法典缓存已优化。离线手册增加图片比对、外部库、灵感筛选与订阅账户教程。
+
+## 上一轮更新 · windows.63
 
 - AI 助手内置六份规则。NAI 4.5 和 NAI 5 可各选普通提示词、语义分块或轻量分块。同一对话可以继续修改已写入画布的分区和提示词块，主负面提示词默认锁定。
 - 「我的接口」可同时启用多个服务，自选请求路径，对话模型和出图模型分别选择。

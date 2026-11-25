@@ -16,6 +16,45 @@ import 'package:plana_app/features/update/update_service.dart';
 void main() {
   final binding = TestWidgetsFlutterBinding.ensureInitialized();
   test(
+    'Windows update chooses the fork installer, then portable, then the release page',
+    () {
+      const tag = 'v1.2.4-windows.63',
+          name = 'Plana-Windows-1.2.4-windows.63-x64-build83';
+      const base = 'https://github.com/$kGithubRepo/releases/download/$tag';
+      Map<String, String> asset(String file) => {
+        'name': file,
+        'browser_download_url': '$base/$file',
+      };
+      GithubRelease release(List<Map<String, String>> assets) =>
+          GithubRelease.fromJson({
+            'tag_name': tag,
+            'html_url': 'https://github.com/$kGithubRepo/releases/tag/$tag',
+            'assets': assets,
+          })!;
+      final portable = asset('$name.zip'), setup = asset('$name-setup.exe');
+      final android = asset('app-release.apk');
+      expect(
+        release([android, portable, setup]).windowsDownload.toString(),
+        setup['browser_download_url'],
+      );
+      expect(
+        release([android, portable]).windowsDownload.toString(),
+        portable['browser_download_url'],
+      );
+      expect(
+        release([
+          android,
+          {
+            ...setup,
+            'browser_download_url': 'https://example.org/installer.exe',
+          },
+        ]).windowsDownload,
+        isNull,
+      );
+    },
+  );
+
+  test(
     'Windows checks use the compiled application version without an Android channel',
     () async {
       debugDefaultTargetPlatformOverride = TargetPlatform.windows;

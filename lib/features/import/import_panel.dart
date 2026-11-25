@@ -518,7 +518,7 @@ class _ImportImagePanelState extends ConsumerState<ImportImagePanel> {
   /// 这个功能模块在**当前模型**下能不能用;不能用返回禁用原因。
   ///
   /// 判定直接借主页那条统一可见性谓词([GenModuleSettings.isVisibleFor]),
-  /// **不另立门槛**:主页上因型号能力(NAI 5 之于 Vibe、非 4.5 之于角色参考)
+  /// **不另立门槛**:主页上因型号能力(NAI 5 之于 Vibe、4.0 之于角色参考)
   /// 或用户隐藏而收走的模块,从这里导进去也会被 stripHiddenModules 原样剥掉 ——
   /// 让人按得下去、转一圈没效果,比按不动更难懂。
   ///

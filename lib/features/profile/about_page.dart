@@ -96,7 +96,7 @@ class AboutPage extends StatelessWidget {
           const SettingsCard(children: [UpdateRow()]),
           if (Platform.isWindows) ...[
             const SizedBox(height: 16),
-            const DiagnosticSettings(),
+            const SettingsRowTextTheme(child: DiagnosticSettings()),
           ],
           const SizedBox(height: 16),
           SettingsLabel(context.l10n.dataResources),

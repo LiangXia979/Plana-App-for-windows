@@ -1,6 +1,10 @@
 # Plana app for windows
 
-版本 **1.2.4-windows.63（构建 83）**。基于 Flutter 和原版浅蓝主题，提供 Windows 桌面工作台与图库优化。
+版本 **1.2.5-windows.64（构建 84）**。基于 Flutter 和原版浅蓝主题，提供 Windows 桌面工作台与图库优化。
+
+## windows.64 更新
+
+本版选择性同步上游 v1.2.5。工具箱加入双图并排比对，NAI 5 Full 和 Curated 支持精确参考。外部 OC 库可从网址或本地 JSON 加入，助手可以按所选资料库导入完整画风和角色。安装包、便携版和详细说明见本次发布。[Windows 64 发布页](https://github.com/LingXia979/Plana-App-for-windows/releases/tag/v1.2.5-windows.64)
 
 ## 上游 v1.2.4 桌面适配
 

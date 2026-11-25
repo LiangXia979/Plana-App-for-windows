@@ -17,6 +17,8 @@ import 'package:plana_app/features/assistant/preset_rules.dart';
 import 'package:plana_app/features/assistant/rules_page.dart';
 import 'package:plana_app/features/assistant/rules_preset_detail_page.dart';
 import 'package:plana_app/features/assistant/widgets/settings_sheet.dart';
+import 'package:plana_app/features/inspiration/external/oc_sources.dart';
+import 'package:plana_app/features/inspiration/external/oc_catalog.dart';
 import 'package:plana_app/features/generate/canvas_state.dart';
 import 'package:plana_app/features/generate/generate_state.dart';
 import 'package:plana_app/features/generate/models.dart';
@@ -31,15 +33,18 @@ void main() {
   late AppStores stores;
   late ProviderContainer c;
   var botAuthorized = false;
+  final sources = <OcSource>[];
   final capture = GlobalKey();
   setUpAll(loadDesktopCaptureFonts);
   setUp(() async {
     botAuthorized = false;
+    sources.clear();
     stores = AppStores.ephemeral();
     c = ProviderContainer(
       overrides: [
         appStoresProvider.overrideWithValue(stores),
         desktopModeProvider.overrideWithValue(true),
+        ocSourcesProvider.overrideWith((_) async => [...sources]),
         assistantBotAuthorizedProvider.overrideWith((ref) => botAuthorized),
         assistantEndpointProvider.overrideWithValue(
           const CustomEndpoint(
@@ -511,6 +516,34 @@ void main() {
     },
   );
 
+  testWidgets('a local preset is editable in its own collapsible group', (
+    tester,
+  ) async {
+    await mount(tester, const RulesPresetPage(), 1);
+    await tester.tap(find.byTooltip('新建预设'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('破限'));
+    await tester.pumpAndSettle();
+    expect(find.text('启用的模型'), findsOneWidget);
+    expect(find.textContaining('Plana 渠道和自定义 API'), findsOneWidget);
+    final library = c.read(rulesLibraryProvider).requireValue;
+    expect(library.presets.single.localOnly, true);
+    await tester.pageBack();
+    await tester.pumpAndSettle();
+    final group = find.text('破限（1）');
+    await tester.dragUntilVisible(
+      group.hitTestable(),
+      find.byKey(const ValueKey('rules-preset-groups')),
+      const Offset(0, -120),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text(library.presets.single.name), findsOneWidget);
+    await tester.tap(group);
+    await tester.pumpAndSettle();
+    expect(find.text(library.presets.single.name), findsNothing);
+    await finish(tester);
+  });
+
   testWidgets(
     'a first section saves a named draft and the menu opens below in a short window',
     (tester) async {
@@ -522,7 +555,12 @@ void main() {
       );
       await tester.tap(find.byTooltip('新建预设'));
       await tester.pumpAndSettle();
-      await tester.ensureVisible(find.text('添加一段'));
+      await tester.dragUntilVisible(
+        find.text('添加一段').hitTestable(),
+        find.byType(ReorderableListView),
+        const Offset(0, -100),
+      );
+      await tester.pumpAndSettle();
       await tester.tap(find.text('添加一段'));
       await tester.pumpAndSettle();
       await tester.enterText(find.byType(TextField), '首段');
@@ -786,6 +824,71 @@ void main() {
     });
   }
 
+  testWidgets(
+    'the open scope menu tracks libraries, retains checks and supports mouse priority ordering',
+    (tester) async {
+      botAuthorized = true;
+      OcSource source(String label) => OcSource(
+        Uri.parse('https://example.test/fixtures'),
+        label,
+        OcCatalog('', [], false, ''),
+        false,
+      );
+      final fixture = source('角色库');
+      await mount(
+        tester,
+        Builder(
+          builder: (context) => Scaffold(
+            body: FilledButton(
+              onPressed: () => showAssistantSettings(context),
+              child: const Text('打开设置'),
+            ),
+          ),
+        ),
+        1,
+      );
+      await tester.tap(find.text('打开设置'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('资料与规则'));
+      await tester.pumpAndSettle();
+      await tester.tap(
+        find.byKey(const ValueKey('assistant-library-dropdown')),
+      );
+      await tester.pumpAndSettle();
+      sources.add(fixture);
+      c.invalidate(ocSourcesProvider);
+      await tester.pumpAndSettle();
+      final check = find.byKey(ValueKey('library-check-${fixture.id}'));
+      expect(tester.widget<CheckboxListTile>(check).value, isFalse);
+      await tester.tap(check);
+      await tester.pumpAndSettle();
+      final handle = find.byKey(ValueKey('library-handle-${fixture.id}'));
+      await dragCard(tester, tester.getCenter(handle), -52);
+      expect(
+        c.read(assistantSettingsProvider).requireValue.libraries.active([
+          fixture.id,
+        ], botAuthorized: true),
+        [fixture.id, LibrarySelection.local],
+      );
+      expect(find.text('角色库 › 本地库'), findsOneWidget);
+      await captureDesktop(tester, capture, 'assistant-ordered-libraries');
+      sources[0] = source('新库名');
+      c.invalidate(ocSourcesProvider);
+      await tester.pumpAndSettle();
+      expect(find.text('新库名 › 本地库'), findsOneWidget);
+      sources.clear();
+      c.invalidate(ocSourcesProvider);
+      await tester.pumpAndSettle();
+      expect(check, findsNothing);
+      expect(find.byKey(const ValueKey('library-pause')), findsOneWidget);
+      await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+      await tester.pumpAndSettle();
+      await tester.tap(find.byTooltip('关闭助手设置'));
+      await tester.pumpAndSettle();
+      await finish(tester);
+    },
+  );
+
   for (final (name, scale, size, dark) in [
     ('normal', 1.0, const Size(1000, 780), false),
     ('large-dark', 1.4, const Size(880, 540), true),
@@ -827,72 +930,64 @@ void main() {
         await tester.tap(field);
         await tester.pumpAndSettle();
         final buttonRect = tester.getRect(field);
-        final first = tester.getRect(find.byType(MenuItemButton).first);
+        final pause = find.byKey(const ValueKey('library-pause'));
+        final public = find.byKey(const ValueKey('library-check-public'));
+        final local = find.byKey(const ValueKey('library-check-local'));
+        final first = tester.getRect(pause);
         expect(first.top, greaterThanOrEqualTo(buttonRect.bottom));
         expect(first.left, closeTo(buttonRect.left, 2));
         expect(first.width, closeTo(buttonRect.width, 2));
-        final public = find.byKey(
-          const ValueKey('assistant-library-dropdown-option-LibraryScope.all'),
-        );
-        expect(tester.widget<MenuItemButton>(public).onPressed, isNull);
+        expect(tester.widget<CheckboxListTile>(public).onChanged, isNull);
         expect(find.text('需要 Bot 授权'), findsOneWidget);
         await captureDesktop(tester, capture, 'assistant-library-$name-menu');
         await tester.sendKeyEvent(LogicalKeyboardKey.escape);
         await tester.pumpAndSettle();
-        expect(
-          c.read(assistantSettingsProvider).value!.libraryScope,
-          LibraryScope.all,
-        );
-
+        expect(pause, findsNothing);
         botAuthorized = true;
         c.invalidate(assistantBotAuthorizedProvider);
         await tester.pumpAndSettle();
         expect(
-          find.descendant(of: field, matching: find.text('本地库 + 公共库')),
+          find.descendant(of: field, matching: find.text('本地库 › 公共库')),
           findsOneWidget,
         );
-        await tester.tap(field);
-        await tester.pumpAndSettle();
-        expect(tester.widget<MenuItemButton>(public).onPressed, isNotNull);
-        await tester.tapAt(const Offset(20, 20));
-        await tester.pumpAndSettle();
-        expect(find.byType(MenuItemButton), findsNothing);
-        expect(
-          find.byKey(const ValueKey('desktop-assistant-settings')),
-          findsOneWidget,
-        );
-        expect(
-          c.read(assistantSettingsProvider).value!.libraryScope,
-          LibraryScope.all,
-        );
-
-        // Keyboard selection changes the value only after activation.
         tester.widget<OutlinedButton>(field).focusNode!.requestFocus();
         await tester.pump();
         await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
         await tester.pumpAndSettle();
-        expect(find.byType(MenuItemButton), findsNWidgets(3));
-        await tester.sendKeyEvent(LogicalKeyboardKey.arrowUp);
+        expect(tester.widget<CheckboxListTile>(public).onChanged, isNotNull);
+        await tester.tap(pause);
         await tester.pumpAndSettle();
+        expect(tester.widget<CheckboxListTile>(local).onChanged, isNull);
+        expect(tester.widget<CheckboxListTile>(public).value, isTrue);
         expect(
-          c.read(assistantSettingsProvider).value!.libraryScope,
-          LibraryScope.all,
+          tester
+              .widget<ReorderableDragStartListener>(
+                find.byKey(const ValueKey('library-handle-local')),
+              )
+              .enabled,
+          isFalse,
         );
-        await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+        await tester.tap(pause);
         await tester.pumpAndSettle();
+        await tester.ensureVisible(public);
+        await tester.tap(public);
+        await tester.pumpAndSettle();
+        expect(tester.widget<CheckboxListTile>(public).value, isFalse);
+        expect(tester.widget<CheckboxListTile>(local).value, isTrue);
+        await tester.tapAt(const Offset(20, 20));
+        await tester.pumpAndSettle();
+        expect(pause, findsNothing);
         expect(
-          c.read(assistantSettingsProvider).value!.libraryScope,
-          LibraryScope.local,
+          find.byKey(const ValueKey('desktop-assistant-settings')),
+          findsOneWidget,
         );
-        expect(find.byType(MenuItemButton), findsNothing);
         await tester.tap(find.byTooltip('关闭助手设置'));
         await tester.pumpAndSettle();
         c.invalidate(assistantSettingsProvider);
         await tester.runAsync(() => c.read(assistantSettingsProvider.future));
-        expect(
-          c.read(assistantSettingsProvider).value!.libraryScope,
-          LibraryScope.local,
-        );
+        expect(c.read(assistantSettingsProvider).value!.libraries.enabled, {
+          LibrarySelection.local,
+        });
         await finish(tester);
       },
     );

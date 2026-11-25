@@ -2,6 +2,10 @@ import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:plana_app/core/store/app_stores.dart';
+import 'package:plana_app/features/generate/generate_state.dart';
+import 'package:plana_app/features/generate/gen_modules.dart';
 import 'package:plana_app/core/store/blob_store.dart';
 import 'package:plana_app/features/generate/bot_request.dart';
 import 'package:plana_app/features/generate/cost.dart';
@@ -47,6 +51,58 @@ void main() {
       'height': 1216,
     },
   }, blobs);
+
+  test(
+    'Medium pauses references and excludes stale snapshots from both transports and costs',
+    () async {
+      final c = ProviderContainer(
+        overrides: [appStoresProvider.overrideWithValue(AppStores.ephemeral())],
+      );
+      addTearDown(c.dispose);
+      final gen = c.read(generateProvider.notifier);
+      gen.setModel('NAI 5.0 Full');
+      final image = Uint8List.fromList([1, 2, 3]);
+      final id = gen.addCharRef(image: image, name: 'reference');
+      gen.setNaiEffort(NaiEffort.medium);
+      final paused = c.read(generateProvider);
+      expect(paused.charRefs.single.image, same(image));
+      expect(paused.enabledCharRefs, 0);
+      final legacy = paused.copyWith(
+        charRefs: [paused.charRefs.single.copyWith(enabled: true)],
+      );
+      final ref = [
+        (image: 'base64', mode: 'style', strength: 1.0, fidelity: 1.0),
+      ];
+      expect(legacy.usableCharRefs(), isEmpty);
+      expect(
+        estimateCost(legacy, isOpus: true),
+        estimateCost(paused, isOpus: true),
+      );
+      expect(retargetModel(legacy, legacy.params.model).charRefs, isEmpty);
+      expect(
+        buildBotParams(legacy, seed: 1, presetId: 'none', charRefs: ref),
+        isNot(contains('preciseReferences')),
+      );
+      expect(
+        buildNaiPayload(
+          legacy,
+          presetId: 'none',
+          charRefs: ref,
+        ).body['parameters'],
+        isNot(contains('director_reference_images')),
+      );
+      gen.setNaiEffort(NaiEffort.high);
+      expect(c.read(generateProvider).enabledCharRefs, 0);
+      gen.setNaiEffort(NaiEffort.medium);
+      gen.setCharRefEnabled(id, true);
+      expect(c.read(generateProvider).params.naiEffort, NaiEffort.high);
+      expect(c.read(generateProvider).enabledCharRefs, 1);
+      gen.setNaiEffort(NaiEffort.medium);
+      gen.addCharRef(image: image, name: 'another reference');
+      expect(c.read(generateProvider).params.naiEffort, NaiEffort.high);
+      expect(c.read(generateProvider).enabledCharRefs, 1);
+    },
+  );
 
   final fixedNegative = kDefaultPromptPresets
       .firstWhere((p) => p.id == 'v5-standard')

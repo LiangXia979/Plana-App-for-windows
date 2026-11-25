@@ -21,7 +21,7 @@ $allowed = @{}
 foreach ($file in @(Get-PlanaRuntimeFiles $bundle)) {
     $allowed[$file.FullName.Substring($bundle.Length + 1).Replace('\', '/')] = $true
 }
-foreach ($name in @('LICENSE.txt', 'THIRD_PARTY_NOTICES.md', 'source-code.zip', '使用说明.txt',
+foreach ($name in @('LICENSE.txt', 'THIRD_PARTY_NOTICES.md', 'CHANGELOG.md', 'source-code.zip', '使用说明.txt',
     'licenses/7-Zip-LICENSE.txt', 'licenses/INNO-SETUP-LICENSE.txt',
     'licenses/ONNXRuntime-LICENSE.txt', 'licenses/ONNXRuntime-ThirdPartyNotices.txt',
     'licenses/WINDOWS-RUNTIME-NOTICES.txt')) {

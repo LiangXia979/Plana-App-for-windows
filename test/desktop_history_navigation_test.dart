@@ -1,5 +1,3 @@
-import 'dart:async';
-
 import 'package:flutter/material.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/services.dart';
@@ -19,6 +17,8 @@ import 'package:plana_app/features/gallery/widgets/desktop_canvas_gutters.dart';
 import 'package:plana_app/features/gallery/widgets/film_strip.dart';
 import 'package:plana_app/features/gallery/widgets/result_thumb.dart';
 import 'package:plana_app/features/import/import_panel.dart';
+
+import 'support/pump_until.dart';
 
 class _Gallery extends GalleryNotifier {
   _Gallery(this.images);
@@ -101,15 +101,7 @@ void main() {
     await tester.pumpWidget(const SizedBox());
     await tester.pump(const Duration(seconds: 1));
     stores.flushNow();
-    var done = false;
-    unawaited(stores.gallery.idle.then((_) => done = true));
-    for (var i = 0; i < 100 && !done; i++) {
-      await tester.runAsync(
-        () => Future<void>.delayed(const Duration(milliseconds: 10)),
-      );
-      await tester.pump();
-    }
-    expect(done, isTrue);
+    await pumpUntilComplete(tester, stores.gallery.idle);
     container.dispose();
     disposed = true;
   }

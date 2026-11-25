@@ -51,6 +51,7 @@ class GithubRelease {
     required this.notes,
     required this.url,
     required this.prerelease,
+    this.windowsDownload,
   });
 
   /// 形如 `v1.0.0-beta.2`(比较时会剥掉前导 v)。
@@ -61,6 +62,41 @@ class GithubRelease {
   /// Release 页地址,用户点「去下载」时用浏览器打开。
   final String url;
   final bool prerelease;
+  final Uri? windowsDownload;
+
+  static Uri? _windowsAsset(String tag, Object? assets) {
+    if (assets is! List) return null;
+    Uri? portable;
+    for (final asset in assets.whereType<Map>()) {
+      final name = asset['name'];
+      final raw = asset['browser_download_url'];
+      if (name is! String ||
+          raw is! String ||
+          name.contains('/') ||
+          name.contains('\\')) {
+        continue;
+      }
+      final url = Uri.tryParse(raw);
+      if (url == null ||
+          url.scheme != 'https' ||
+          url.host != 'github.com' ||
+          url.hasPort ||
+          url.userInfo.isNotEmpty ||
+          url.hasQuery ||
+          url.hasFragment ||
+          url.pathSegments.join('/') !=
+              '$kGithubRepo/releases/download/$tag/$name') {
+        continue;
+      }
+      final file = name.toLowerCase();
+      if (!file.startsWith('plana-windows-') || !file.contains('-x64')) {
+        continue;
+      }
+      if (file.endsWith('-setup.exe')) return url;
+      if (file.endsWith('.zip')) portable ??= url;
+    }
+    return portable;
+  }
 
   /// 展示名:GitHub 上 release 标题常留空,回落到 tag。
   String get display => name.isNotEmpty ? name : tag;
@@ -71,6 +107,7 @@ class GithubRelease {
     final url = j['html_url'] as String?;
     if (tag == null || tag.isEmpty || url == null || url.isEmpty) return null;
     return GithubRelease(
+      windowsDownload: _windowsAsset(tag, j['assets']),
       tag: tag,
       name: (j['name'] as String?) ?? '',
       notes: (j['body'] as String?) ?? '',

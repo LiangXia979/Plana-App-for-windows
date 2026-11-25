@@ -78,10 +78,17 @@ void main() {
       );
     });
 
-    test('角色参考每张 +5,且只在 4.5 系模型上计', () {
+    test('启用的精确参考每张 +5', () {
       final refs = [CharRefItem(id: 'r0'), CharRefItem(id: 'r1')];
       expect(estimateCost(_s(charRefs: refs), isOpus: true), 10);
-      // 非 4.5 模型不会下发角色参考,故不计费
+      expect(
+        estimateCost(
+          _s(model: 'NAI 5.0 Curated', charRefs: refs),
+          isOpus: true,
+        ),
+        10,
+      );
+      // 4.0 不支持角色参考
       expect(
         estimateCost(_s(model: 'NAI 4.0 Full', charRefs: refs), isOpus: true),
         0,
@@ -114,16 +121,17 @@ void main() {
         const v5 = 'NAI 5.0 Full';
         expect(estimateCost(_s(model: v5), isOpus: true), 0);
         // 832×1216 @28 步:base 19.29 → ceil 20,V5 ×1.5 = 30
-        expect(
-          estimateCost(_s(model: v5), isOpus: true, v5Charged: true),
-          30,
-        );
+        expect(estimateCost(_s(model: v5), isOpus: true, v5Charged: true), 30);
       });
 
       test('只影响 V5 —— 4.5 的免费额度跟这块电池无关', () {
         expect(estimateCost(_s(), isOpus: true, v5Charged: true), 0);
         expect(
-          estimateCost(_s(model: 'NAI 4.0 Full'), isOpus: true, v5Charged: true),
+          estimateCost(
+            _s(model: 'NAI 4.0 Full'),
+            isOpus: true,
+            v5Charged: true,
+          ),
           0,
         );
       });

@@ -102,11 +102,8 @@ class _UpdateSheet extends StatelessWidget {
   final GithubRelease release;
   final InstalledInfo installed;
 
-  Future<void> _open(BuildContext context) async {
-    final ok = await launchUrl(
-      Uri.parse(release.url),
-      mode: LaunchMode.externalApplication,
-    );
+  Future<void> _open(BuildContext context, Uri url) async {
+    final ok = await launchUrl(url, mode: LaunchMode.externalApplication);
     if (!context.mounted) return;
     if (ok) {
       Navigator.pop(context);
@@ -180,6 +177,14 @@ class _UpdateSheet extends StatelessWidget {
                   ),
                 ),
               ],
+              if (release.windowsDownload != null)
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: TextButton(
+                    onPressed: () => _open(context, Uri.parse(release.url)),
+                    child: Text(context.l10n.downloadOnGithub),
+                  ),
+                ),
               const SizedBox(height: 18),
               Row(
                 children: [
@@ -193,9 +198,16 @@ class _UpdateSheet extends StatelessWidget {
                   Expanded(
                     flex: 2,
                     child: FilledButton.icon(
-                      onPressed: () => _open(context),
+                      onPressed: () => _open(
+                        context,
+                        release.windowsDownload ?? Uri.parse(release.url),
+                      ),
                       icon: const Icon(Icons.open_in_new, size: 18),
-                      label: Text(context.l10n.downloadOnGithub),
+                      label: Text(
+                        release.windowsDownload == null
+                            ? context.l10n.downloadOnGithub
+                            : context.l10n.downloadWindowsPackage,
+                      ),
                     ),
                   ),
                 ],

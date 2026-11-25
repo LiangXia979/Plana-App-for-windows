@@ -3,6 +3,26 @@ import 'package:flutter/material.dart';
 import '../../../core/theme/app_skin.dart';
 import '../../../core/theme/app_theme.dart';
 
+/// 标准设置行的标题和说明，供「我的」里的开关和跳转项共用。
+class SettingsRowTextTheme extends StatelessWidget {
+  const SettingsRowTextTheme({super.key, required this.child});
+
+  final Widget child;
+
+  static TextStyle titleStyle(BuildContext context) =>
+      context.texts.bodyMedium!.copyWith(fontWeight: FontWeight.w600);
+
+  static TextStyle subtitleStyle(BuildContext context) => context.texts.labelSmall!
+      .copyWith(color: context.scheme.outline, height: 1.5);
+
+  @override
+  Widget build(BuildContext context) => ListTileTheme.merge(
+    titleTextStyle: titleStyle(context),
+    subtitleTextStyle: subtitleStyle(context),
+    child: child,
+  );
+}
+
 /// 设置类页面共用版式:分组卡 + 单行条目。
 class SettingsCard extends StatelessWidget {
   const SettingsCard({super.key, required this.children});
@@ -83,7 +103,7 @@ class SettingsRow extends StatelessWidget {
     final scheme = context.scheme;
     final label = Text(
       title,
-      style: context.texts.bodyMedium!.copyWith(fontWeight: FontWeight.w600),
+      style: SettingsRowTextTheme.titleStyle(context),
     );
     return InkWell(
       onTap: onTap,

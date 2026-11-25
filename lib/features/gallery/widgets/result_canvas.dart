@@ -1222,7 +1222,7 @@ class _ActionRailState extends ConsumerState<ResultActions> {
     if (!context.mounted) return;
     final currentParams = ref.read(generateProvider).params;
     final curModel = currentParams.model;
-    // 换了模型的快照要按新模型的能力面重新裁一遍(V5 没有 Vibe / 角色参考)
+    // 换了模型的快照要按新模型的能力面重新裁一遍(V5 没有 Vibe)
     final redrawInput = snapshot == null
         ? null
         : retargetModel(snapshot, curModel, naiEffort: currentParams.naiEffort);
