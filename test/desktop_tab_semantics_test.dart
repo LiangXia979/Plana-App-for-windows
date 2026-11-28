@@ -10,6 +10,7 @@ import 'package:plana_app/core/store/app_stores.dart';
 import 'package:plana_app/core/theme/theme_settings.dart';
 import 'package:plana_app/features/gallery/albums/album_models.dart';
 import 'package:plana_app/features/gallery/models.dart';
+import 'package:plana_app/features/gallery/temporary_gallery_state.dart';
 import 'package:plana_app/features/gallery/widgets/film_strip.dart';
 import 'package:plana_app/features/generate/widgets/anlas_panel.dart';
 import 'package:plana_app/main.dart';
@@ -181,6 +182,10 @@ void main() {
             desktopModeProvider.overrideWithValue(true),
           ],
         );
+        // Keep all fixture images in the strip while exercising Windows traversal.
+        container
+            .read(temporaryOptionsProvider.notifier)
+            .update(initialHistory: 0);
         container
             .read(themeSettingsProvider.notifier)
             .patch(
