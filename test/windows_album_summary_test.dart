@@ -190,7 +190,8 @@ void main() {
       }
       await albums.clearAll();
       final cleared = container.read(albumSummariesProvider);
-      expect(cleared.keys, [null, favoritesId, trashId]);
+      expect(cleared.keys, [null, favoritesId, savedGalleryId, trashId]);
+      expect(cleared[savedGalleryId], (count: 0, first: null, cover: null));
       expect(cleared[null]!.count, 3);
       expect(cleared[null]!.cover, isNull);
     },
