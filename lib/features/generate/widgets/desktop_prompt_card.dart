@@ -62,7 +62,14 @@ class _DesktopPromptCardState extends State<DesktopPromptCard>
   }
 }
 
-/// Opens the same prompt target in a large desktop editing dialog.
+Future<void> showDesktopPromptEditor(
+  BuildContext context,
+  WidgetRef ref, {
+  String? charId,
+  String? sectionId,
+}) => openPromptStudio(context, charId: charId, sectionId: sectionId);
+
+/// Opens the selected prompt in the full-window studio.
 class PromptFullscreenButton extends ConsumerWidget {
   const PromptFullscreenButton({super.key, this.charId, this.sectionId});
 
@@ -76,26 +83,12 @@ class PromptFullscreenButton extends ConsumerWidget {
       icon: const Icon(Icons.open_in_full, size: 16),
       constraints: const BoxConstraints.tightFor(width: 26, height: 32),
       padding: EdgeInsets.zero,
-      onPressed: () async {
-        final sessions = ref.read(editorSessionsProvider);
-        sessions.flushPending();
-        await showPromptFullscreenDialog(
-          context,
-          builder: (_) => ProviderScope(
-            overrides: [
-              editorProvider.overrideWith(
-                () => EditorNotifier(immediateWriteBack: true),
-              ),
-            ],
-            child: EditorPage(
-              positive: true,
-              floatingPanels: true,
-              charId: charId,
-              sectionId: sectionId,
-            ),
-          ),
-        );
-      },
+      onPressed: () => showDesktopPromptEditor(
+        context,
+        ref,
+        charId: charId,
+        sectionId: sectionId,
+      ),
     );
   }
 }

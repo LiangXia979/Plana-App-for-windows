@@ -146,7 +146,8 @@ class GenerateTopBar extends ConsumerWidget {
                 ],
               ),
             ),
-          if (m.naiSupportsEffort(state.params.model)) ...[
+          if (!ref.watch(desktopModeProvider) &&
+              m.naiSupportsEffort(state.params.model)) ...[
             const SizedBox(height: 10),
             Row(
               children: [
@@ -552,9 +553,65 @@ class _AuthModeChip extends ConsumerWidget {
 
 class _DesktopModelDropdown extends ConsumerWidget {
   const _DesktopModelDropdown();
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final model = ref.watch(generateProvider.select((s) => s.params.model));
+    final (model, medium) = ref.watch(
+      generateProvider.select((s) => (s.params.model, s.params.isNaiMedium)),
+    );
+
+    Widget modelItem(String value, {m.NaiEffort? effort}) {
+      final isMedium = effort == m.NaiEffort.medium;
+      final selected = value == model && isMedium == medium;
+      final description = isMedium
+          ? context.l10n.descNai5Medium
+          : _modelDescription(context.l10n, value);
+      return MenuItemButton(
+        key: effort == null ? null : ValueKey('nai-effort-${effort.name}'),
+        autofocus: selected,
+        onPressed: () {
+          final pausesRefs =
+              isMedium && ref.read(generateProvider).enabledCharRefs > 0;
+          ref
+              .read(generateProvider.notifier)
+              .setModel(value, naiEffort: effort);
+          if (pausesRefs) {
+            hintSnack(
+              context,
+              context.l10n.mediumPausesPreciseRefs,
+              icon: Icons.swap_horiz,
+            );
+          }
+        },
+        trailingIcon: selected ? const Icon(Icons.check, size: 16) : null,
+        child: SizedBox(
+          width: 262,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 5),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  isMedium ? m.nai5FullMediumLabel : value,
+                  style: const TextStyle(fontSize: 13),
+                ),
+                if (description != null)
+                  Text(
+                    description,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: 10,
+                      color: context.scheme.onSurfaceVariant,
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+
     final bot = ref.watch(authModeProvider).value == AuthMode.bot;
     return MenuAnchor(
       key: const ValueKey('desktop-model-dropdown'),
@@ -595,38 +652,13 @@ class _DesktopModelDropdown extends ConsumerWidget {
                 style: context.texts.labelSmall,
               ),
             ),
-          for (final value in m.modelsOf(group, nai5: true))
-            MenuItemButton(
-              autofocus: value == model,
-              onPressed: () =>
-                  ref.read(generateProvider.notifier).setModel(value),
-              trailingIcon: value == model
-                  ? const Icon(Icons.check, size: 16)
-                  : null,
-              child: SizedBox(
-                width: 262,
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 5),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(value, style: const TextStyle(fontSize: 13)),
-                      if (m.modelDescriptions[value]
-                          case final String description)
-                        Text(
-                          description,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                            fontSize: 10,
-                            color: context.scheme.onSurfaceVariant,
-                          ),
-                        ),
-                    ],
-                  ),
-                ),
-              ),
-            ),
+          for (final value in m.modelsOf(group, nai5: true)) ...[
+            if (m.naiSupportsEffort(value)) ...[
+              modelItem(value, effort: m.NaiEffort.high),
+              modelItem(value, effort: m.NaiEffort.medium),
+            ] else
+              modelItem(value),
+          ],
         ],
       ],
       builder: (context, controller, _) => Material(
@@ -645,7 +677,7 @@ class _DesktopModelDropdown extends ConsumerWidget {
                 children: [
                   Flexible(
                     child: Text(
-                      model,
+                      medium ? m.nai5FullMediumLabel : model,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: const TextStyle(
@@ -668,7 +700,7 @@ class _DesktopModelDropdown extends ConsumerWidget {
 
 String? _modelDescription(AppLocalizations l, String model) => switch (model) {
   'NAI 5.0 Full' => l.descNai5Full,
-  'NAI 5.0 Full Medium' => l.descNai5Medium,
+  m.nai5FullMediumLabel => l.descNai5Medium,
   'NAI 5.0 Curated' => l.descNai5Curated,
   'NAI 4.5 Full' => l.descNai45Full,
   'NAI 4.5 Curated' => l.descNai45Curated,

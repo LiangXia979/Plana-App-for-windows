@@ -159,6 +159,10 @@ class DirectorController extends Notifier<DirectorState> {
       return;
     }
     final target = ref.read(gallerySaveTargetProvider);
+    final release = ref
+        .read(appStoresProvider)
+        .temporaryGallery
+        .holdCanvas(target.canvasId);
     final jobId = DateTime.now().microsecondsSinceEpoch.toString();
     final runner = ref.read(directorRunnerProvider);
     state = state.copyWith(
@@ -198,6 +202,7 @@ class DirectorController extends Notifier<DirectorState> {
     } catch (error) {
       if (ref.mounted) report(error);
     } finally {
+      release();
       if (ref.mounted) {
         state = state.copyWith(
           busy: false,
@@ -226,6 +231,7 @@ class DirectorController extends Notifier<DirectorState> {
   Future<void> _savePending() async {
     final gallery = ref.read(galleryProvider.notifier);
     final completed = [...state.latest];
+    final temporary = _pending.firstOrNull?.target.canvasId != null;
     while (_pending.isNotEmpty) {
       final next = _pending.first;
       next.stamped ??= await compute(
@@ -254,9 +260,11 @@ class DirectorController extends Notifier<DirectorState> {
           hasPendingSave: _pending.isNotEmpty,
         );
       } catch (_) {
-        next.retry = ref
-            .read(galleryProvider)
-            .results
+        final canvas = next.target.canvasId;
+        final images = canvas == null
+            ? ref.read(galleryProvider).results
+            : ref.read(appStoresProvider).temporaryGallery.images(canvas);
+        next.retry = images
             .where(
               (r) =>
                   r.operation?.jobId == next.operation.jobId &&
@@ -268,7 +276,8 @@ class DirectorController extends Notifier<DirectorState> {
           preview: next.retry,
           failed: true,
           hasPendingSave: true,
-          message: l10nNow.desktopConversionFinishedRetrySavingTheResultWithoutRunning,
+          message: l10nNow
+              .desktopConversionFinishedRetrySavingTheResultWithoutRunning,
         );
         return;
       }
@@ -284,7 +293,11 @@ class DirectorController extends Notifier<DirectorState> {
     state = state.copyWith(
       failed: false,
       message:
-          '已保存 ${completed.length} 张结果到${destination.isEmpty ? '全部作品' : destination}',
+          '已保存 ${completed.length} 张结果到${temporary
+              ? '临时图库'
+              : destination.isEmpty
+              ? '全部作品'
+              : destination}',
     );
   }
 }

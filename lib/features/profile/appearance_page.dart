@@ -2,6 +2,7 @@ import '../../core/ui/theme_swatches.dart';
 import '../../core/ui/settings_scaffold.dart';
 import '../../l10n/l10n.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/theme/app_theme.dart';
@@ -9,6 +10,7 @@ import '../../core/platform/desktop.dart';
 import '../../core/theme/theme_settings.dart';
 import 'widgets/settings_ui.dart';
 import '../inspiration/inspiration_page.dart';
+import '../gallery/temporary_gallery_state.dart';
 
 class AppearancePage extends ConsumerWidget {
   const AppearancePage({super.key});
@@ -18,6 +20,8 @@ class AppearancePage extends ConsumerWidget {
     final ts = ref.watch(themeSettingsProvider);
     final desktop = ref.watch(desktopModeProvider);
     final notifier = ref.read(themeSettingsProvider.notifier);
+    final galleryOptions = ref.watch(temporaryOptionsProvider);
+    final gallerySettings = ref.read(temporaryOptionsProvider.notifier);
     return SettingsScaffold(
       appBar: AppBar(title: Text(desktop ? '外观与体验' : '外观与触感')),
       body: ListView(
@@ -231,6 +235,52 @@ class AppearancePage extends ConsumerWidget {
                         settings.copyWith(foldAfterInspirationSave: enabled),
                   ),
                 ),
+              if (desktop)
+                for (final studio in [false, true])
+                  LayoutBuilder(
+                    builder: (context, bounds) => _AppearanceRow(
+                      icon: Icons.view_sidebar_outlined,
+                      title: studio
+                          ? context.l10n.studioCompletionPlacement
+                          : context.l10n.completionPlacement,
+                      subtitle: studio
+                          ? context.l10n.studioCompletionPlacementHint
+                          : context.l10n.completionPlacementHint,
+                      controlBelow:
+                          bounds.maxWidth <
+                          440 * MediaQuery.textScalerOf(context).scale(14) / 14,
+                      control: SegmentedButton<bool>(
+                        key: ValueKey(
+                          studio
+                              ? 'appearance-studio-completion-placement'
+                              : 'appearance-completion-placement',
+                        ),
+                        showSelectedIcon: false,
+                        segments: [
+                          ButtonSegment(
+                            value: false,
+                            label: Text(context.l10n.completionFollow),
+                          ),
+                          ButtonSegment(
+                            value: true,
+                            label: Text(context.l10n.completionSide),
+                          ),
+                        ],
+                        selected: {
+                          studio
+                              ? ts.studioCompletionFixedToSide
+                              : ts.completionFixedToSide,
+                        },
+                        onSelectionChanged: (v) => notifier.patch(
+                          (s) => studio
+                              ? s.copyWith(
+                                  studioCompletionFixedToSide: v.single,
+                                )
+                              : s.copyWith(completionFixedToSide: v.single),
+                        ),
+                      ),
+                    ),
+                  ),
             ],
           ),
           if (desktop) ...[
@@ -238,6 +288,96 @@ class AppearancePage extends ConsumerWidget {
             SettingsLabel(context.l10n.gallery),
             SettingsCard(
               children: [
+                _SwitchRow(
+                  key: const ValueKey('appearance-saved-gallery'),
+                  icon: Icons.collections_bookmark_outlined,
+                  title: context.l10n.temporaryCollectSaved,
+                  subtitle: context.l10n.temporaryCollectHint,
+                  value: galleryOptions.collectSaved,
+                  onChanged: (v) => gallerySettings.update(collectSaved: v),
+                ),
+                _SwitchRow(
+                  key: const ValueKey('appearance-new-canvas-temporary'),
+                  icon: Icons.tab_outlined,
+                  title: context.l10n.temporaryNewCanvas,
+                  subtitle: context.l10n.temporaryNewCanvasHint,
+                  value: galleryOptions.temporaryForNewCanvases,
+                  onChanged: (v) =>
+                      gallerySettings.update(temporaryForNewCanvases: v),
+                ),
+                _GalleryOptionRow<bool>(
+                  icon: Icons.hourglass_empty,
+                  title: context.l10n.temporaryExitPolicy,
+                  subtitle: context.l10n.temporaryPolicyHint,
+                  options: {
+                    false: context.l10n.temporaryClearAll,
+                    true: context.l10n.temporaryKeepLatest,
+                  },
+                  selected: galleryOptions.keepRecent > 0,
+                  onSelect: (keep) => gallerySettings.update(
+                    keepRecent: keep ? galleryOptions.lastKeepCount : 0,
+                  ),
+                  detail: galleryOptions.keepRecent == 0
+                      ? null
+                      : _GalleryCountEditor(
+                          key: const ValueKey('temporary-keep-count'),
+                          label: context.l10n.temporaryKeepCount,
+                          presets: const [10, 20, 50],
+                          value: galleryOptions.keepRecent,
+                          step: 5,
+                          onChanged: (n) =>
+                              gallerySettings.update(keepRecent: n),
+                        ),
+                ),
+                _GalleryOptionRow<TemporaryExitAction>(
+                  icon: Icons.exit_to_app,
+                  title: context.l10n.temporaryConfirmExit,
+                  subtitle: switch (galleryOptions.exitAction) {
+                    TemporaryExitAction.ask =>
+                      context.l10n.temporaryConfirmHint,
+                    TemporaryExitAction.clean =>
+                      context.l10n.temporaryDirectHint,
+                    TemporaryExitAction.zipThenClean =>
+                      context.l10n.temporaryArchiveHint,
+                  },
+                  options: {
+                    TemporaryExitAction.ask: context.l10n.temporaryAsk,
+                    TemporaryExitAction.clean:
+                        context.l10n.temporaryDirectClean,
+                    TemporaryExitAction.zipThenClean:
+                        context.l10n.temporaryArchiveThenClean,
+                  },
+                  selected: galleryOptions.exitAction,
+                  onSelect: (v) => gallerySettings.update(exitAction: v),
+                ),
+                _GalleryOptionRow<bool>(
+                  icon: Icons.history,
+                  title: context.l10n.temporaryHistoryCount,
+                  subtitle: galleryOptions.initialHistory == 0
+                      ? context.l10n.temporaryHistoryHint
+                      : context.l10n.temporaryLimitedHistory(
+                          galleryOptions.initialHistory,
+                        ),
+                  options: {
+                    false: context.l10n.all,
+                    true: context.l10n.sizeCustom,
+                  },
+                  selected: galleryOptions.initialHistory > 0,
+                  onSelect: (limit) => gallerySettings.update(
+                    initialHistory: limit ? galleryOptions.lastHistoryCount : 0,
+                  ),
+                  detail: galleryOptions.initialHistory == 0
+                      ? null
+                      : _GalleryCountEditor(
+                          key: const ValueKey('temporary-history-count'),
+                          label: context.l10n.temporaryInitialCountLabel,
+                          presets: const [20, 50, 100],
+                          value: galleryOptions.initialHistory,
+                          step: 10,
+                          onChanged: (n) =>
+                              gallerySettings.update(initialHistory: n),
+                        ),
+                ),
                 LayoutBuilder(
                   builder: (context, bounds) {
                     final choices = SegmentedButton<GalleryDragFeel>(
@@ -299,22 +439,34 @@ class AppearancePage extends ConsumerWidget {
                     (settings) => settings.copyWith(inspirationRowSnap: value),
                   ),
                 ),
-                LayoutBuilder(builder: (context, bounds) => _AppearanceRow(
-                  icon: Icons.sell_outlined,
-                  title: context.l10n.inspirationTagMatch,
-                  subtitle: context.l10n.inspirationTagMatchHint,
-                  controlBelow: bounds.maxWidth < 440 * MediaQuery.textScalerOf(context).scale(14) / 14,
-                  control: SegmentedButton<bool>(
-                    key: const ValueKey('appearance-tag-match'),
-                    showSelectedIcon: false,
-                    segments: [
-                      ButtonSegment(value: false, label: Text(context.l10n.tagIntersection)),
-                      ButtonSegment(value: true, label: Text(context.l10n.tagUnion)),
-                    ],
-                    selected: {ts.inspirationMatchAnyTag},
-                    onSelectionChanged: (v) => notifier.patch((s) => s.copyWith(inspirationMatchAnyTag: v.single)),
+                LayoutBuilder(
+                  builder: (context, bounds) => _AppearanceRow(
+                    icon: Icons.sell_outlined,
+                    title: context.l10n.inspirationTagMatch,
+                    subtitle: context.l10n.inspirationTagMatchHint,
+                    controlBelow:
+                        bounds.maxWidth <
+                        440 * MediaQuery.textScalerOf(context).scale(14) / 14,
+                    control: SegmentedButton<bool>(
+                      key: const ValueKey('appearance-tag-match'),
+                      showSelectedIcon: false,
+                      segments: [
+                        ButtonSegment(
+                          value: false,
+                          label: Text(context.l10n.tagIntersection),
+                        ),
+                        ButtonSegment(
+                          value: true,
+                          label: Text(context.l10n.tagUnion),
+                        ),
+                      ],
+                      selected: {ts.inspirationMatchAnyTag},
+                      onSelectionChanged: (v) => notifier.patch(
+                        (s) => s.copyWith(inspirationMatchAnyTag: v.single),
+                      ),
+                    ),
                   ),
-                )),
+                ),
                 SettingsRowTextTheme(
                   child: ListTile(
                     key: const ValueKey('appearance-public-blocklist'),
@@ -322,8 +474,8 @@ class AppearancePage extends ConsumerWidget {
                     title: Text(context.l10n.publicLibraryBlocklist),
                     subtitle: Text(context.l10n.publicLibraryBlocklistHint),
                     trailing: const Icon(Icons.chevron_right),
-                    onTap: () => Navigator.of(context, rootNavigator: true)
-                        .push<void>(
+                    onTap: () =>
+                        Navigator.of(context, rootNavigator: true).push<void>(
                           MaterialPageRoute(
                             builder: (_) => const InspirationPage.blocklist(),
                           ),
@@ -486,6 +638,247 @@ class _AppearanceRow extends StatelessWidget {
               ],
             )
           : row,
+    );
+  }
+}
+
+class _GalleryOptionRow<T extends Object> extends StatelessWidget {
+  const _GalleryOptionRow({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    required this.options,
+    required this.selected,
+    required this.onSelect,
+    this.detail,
+  });
+  final IconData icon;
+  final String title, subtitle;
+  final Map<T, String> options;
+  final T selected;
+  final ValueChanged<T> onSelect;
+  final Widget? detail;
+
+  @override
+  Widget build(BuildContext context) => LayoutBuilder(
+    builder: (context, bounds) {
+      final scheme = context.scheme;
+      final below =
+          bounds.maxWidth < 620 * MediaQuery.textScalerOf(context).scale(1);
+      final segments = SegmentedButton<T>(
+        showSelectedIcon: false,
+        style: SegmentedButton.styleFrom(
+          side: BorderSide(color: scheme.outlineVariant, width: 1),
+          selectedBackgroundColor: Color.alphaBlend(
+            scheme.primary.withValues(alpha: .12),
+            scheme.surfaceContainerLow,
+          ),
+          selectedForegroundColor: scheme.primary,
+        ),
+        segments: [
+          for (final option in options.entries)
+            ButtonSegment(value: option.key, label: Text(option.value)),
+        ],
+        selected: {selected},
+        onSelectionChanged: (v) => onSelect(v.single),
+      );
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          _AppearanceRow(
+            icon: icon,
+            title: title,
+            subtitle: subtitle,
+            controlBelow: below,
+            control: below
+                ? Align(
+                    alignment: AlignmentDirectional.centerEnd,
+                    child: segments,
+                  )
+                : segments,
+          ),
+          if (detail != null)
+            Padding(
+              padding: const EdgeInsetsDirectional.fromSTEB(48, 0, 8, 10),
+              child: detail,
+            ),
+        ],
+      );
+    },
+  );
+}
+
+class _GalleryCountEditor extends StatefulWidget {
+  const _GalleryCountEditor({
+    super.key,
+    required this.label,
+    required this.presets,
+    required this.value,
+    required this.step,
+    required this.onChanged,
+  });
+  final String label;
+  final List<int> presets;
+  final int value, step;
+  final ValueChanged<int> onChanged;
+
+  @override
+  State<_GalleryCountEditor> createState() => _GalleryCountEditorState();
+}
+
+class _GalleryCountEditorState extends State<_GalleryCountEditor> {
+  late final _number = TextEditingController(text: widget.value.toString());
+  final _focus = FocusNode();
+
+  @override
+  void initState() {
+    super.initState();
+    _focus.addListener(_finishEditing);
+  }
+
+  void _finishEditing() {
+    if (!_focus.hasFocus && _number.text != widget.value.toString()) {
+      _number.text = widget.value.toString();
+    }
+  }
+
+  @override
+  void didUpdateWidget(covariant _GalleryCountEditor oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.value != widget.value &&
+        int.tryParse(_number.text) != widget.value) {
+      _number.text = widget.value.toString();
+    }
+  }
+
+  @override
+  void dispose() {
+    _focus.removeListener(_finishEditing);
+    _focus.dispose();
+    _number.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = context.scheme;
+    final shape = RoundedRectangleBorder(
+      borderRadius: BorderRadius.circular(10),
+      side: BorderSide(color: scheme.outlineVariant),
+    );
+    final style = OutlinedButton.styleFrom(
+      minimumSize: const Size(34, 30),
+      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+      padding: const EdgeInsets.symmetric(horizontal: 9),
+      side: BorderSide(color: scheme.outlineVariant),
+      backgroundColor: scheme.surfaceContainerLow,
+    );
+    final choices = Wrap(
+      crossAxisAlignment: WrapCrossAlignment.center,
+      alignment: WrapAlignment.end,
+      spacing: 4,
+      runSpacing: 4,
+      children: [
+        for (final n in widget.presets)
+          Semantics(
+            selected: widget.value == n,
+            child: OutlinedButton(
+              style: widget.value == n
+                  ? style.copyWith(
+                      backgroundColor: WidgetStatePropertyAll(
+                        scheme.secondaryContainer,
+                      ),
+                    )
+                  : style,
+              onPressed: () => widget.onChanged(n),
+              child: Text('$n'),
+            ),
+          ),
+        Material(
+          color: scheme.surfaceContainerLow,
+          shape: shape,
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              IconButton(
+                tooltip: '−${context.l10n.temporaryCount(widget.step)}',
+                icon: const Icon(Icons.remove, size: 16),
+                padding: EdgeInsets.zero,
+                constraints: const BoxConstraints.tightFor(
+                  width: 26,
+                  height: 30,
+                ),
+                onPressed: widget.value <= 1
+                    ? null
+                    : () => widget.onChanged(
+                        (widget.value - widget.step).clamp(1, widget.value),
+                      ),
+              ),
+              SizedBox(
+                width:
+                    (widget.value.toString().length.clamp(3, 10) * 9.0 + 6) *
+                    MediaQuery.textScalerOf(context).scale(1),
+                child: TextField(
+                  controller: _number,
+                  focusNode: _focus,
+                  decoration: InputDecoration(
+                    isCollapsed: true,
+                    border: InputBorder.none,
+                    hintText: widget.label,
+                  ),
+                  style: context.texts.labelLarge,
+                  textAlign: TextAlign.center,
+                  keyboardType: TextInputType.number,
+                  inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                  onChanged: (v) {
+                    final n = int.tryParse(v);
+                    if (n != null && n > 0 && n != widget.value) {
+                      widget.onChanged(n);
+                    }
+                  },
+                  onTapOutside: (_) => _focus.unfocus(),
+                  onSubmitted: (_) => _focus.unfocus(),
+                ),
+              ),
+              Text(context.l10n.unitImages, style: context.texts.labelSmall),
+              IconButton(
+                tooltip: '+${context.l10n.temporaryCount(widget.step)}',
+                icon: const Icon(Icons.add, size: 16),
+                padding: EdgeInsets.zero,
+                constraints: const BoxConstraints.tightFor(
+                  width: 26,
+                  height: 30,
+                ),
+                onPressed: () => widget.onChanged(widget.value + widget.step),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+    return DecoratedBox(
+      decoration: ShapeDecoration(
+        color: Color.alphaBlend(
+          scheme.primary.withValues(alpha: .035),
+          scheme.surfaceContainerLow,
+        ),
+        shape: shape.copyWith(
+          side: BorderSide(color: scheme.outlineVariant.withValues(alpha: .5)),
+        ),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        child: OverflowBar(
+          alignment: MainAxisAlignment.spaceBetween,
+          overflowAlignment: OverflowBarAlignment.end,
+          spacing: 10,
+          overflowSpacing: 6,
+          children: [
+            Text(widget.label, style: context.texts.bodySmall),
+            choices,
+          ],
+        ),
+      ),
     );
   }
 }

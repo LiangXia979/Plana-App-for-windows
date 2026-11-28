@@ -5,9 +5,50 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../generate/generate_state.dart';
 import '../generate/canvas_state.dart';
-import '../generate/models.dart' show PromptSection;
+import '../generate/models.dart' show GenerateState, PromptSection;
 import '../generate/prompt_sections.dart' show normalizeSections;
 import 'editor_models.dart';
+
+(String, String) editorDrafts(
+  GenerateState gen, {
+  String? charId,
+  String? sectionId,
+}) {
+  if (charId == null) {
+    if (sectionId != null) {
+      final section = gen.sections.where((s) => s.id == sectionId).firstOrNull;
+      return (
+        pickEditorText(section?.positiveRaw ?? '', section?.positive ?? ''),
+        pickEditorText(section?.negativeRaw ?? '', section?.negative ?? ''),
+      );
+    }
+    return (
+      pickEditorText(gen.promptRaw, gen.prompt),
+      pickEditorText(gen.negativePromptRaw, gen.negativePrompt),
+    );
+  }
+  final char = gen.characters.where((c) => c.id == charId).firstOrNull;
+  return (
+    pickEditorText(char?.positiveRaw ?? '', char?.positive ?? ''),
+    pickEditorText(char?.negativeRaw ?? '', char?.negative ?? ''),
+  );
+}
+
+List<PromptFoldLink> editorFoldLinks(
+  GenerateState gen, {
+  String? charId,
+  String? sectionId,
+}) => charId == null
+    ? sectionId == null
+          ? gen.promptFoldLinks
+          : [
+              for (final s in gen.sections)
+                if (s.id == sectionId) ...s.foldLinks,
+            ]
+    : [
+        for (final character in gen.characters)
+          if (character.id == charId) ...character.foldLinks,
+      ];
 
 final editorProvider = NotifierProvider<EditorNotifier, EditorState>(
   EditorNotifier.new,
@@ -49,6 +90,7 @@ class EditorState {
     this.negativeText = '',
     this.activePositive = true,
     this.canUndo = false,
+    this.canRedo = false,
     this.foldBodies = const {},
     this.foldLinks = const [],
   });
@@ -56,7 +98,7 @@ class EditorState {
   final String positiveText;
   final String negativeText;
   final bool activePositive;
-  final bool canUndo;
+  final bool canUndo, canRedo;
 
   /// 折叠表:占位符名字 → 折叠体(正/负两侧共用,载入时已跨侧去重)。
   final Map<String, String> foldBodies;
@@ -89,6 +131,7 @@ class EditorState {
     String? negativeText,
     bool? activePositive,
     bool? canUndo,
+    bool? canRedo,
     Map<String, String>? foldBodies,
     List<PromptFoldLink>? foldLinks,
   }) => EditorState(
@@ -96,6 +139,7 @@ class EditorState {
     negativeText: negativeText ?? this.negativeText,
     activePositive: activePositive ?? this.activePositive,
     canUndo: canUndo ?? this.canUndo,
+    canRedo: canRedo ?? this.canRedo,
     foldBodies: foldBodies ?? this.foldBodies,
     foldLinks: foldLinks ?? this.foldLinks,
   );
@@ -113,7 +157,7 @@ typedef _Snap = (
 /// 不清空,重进接着撤,只在进程结束或角色被删时消亡。每份历史快照保存
 /// 自己的折叠表，确保块内改字、解散和删除都可以还原。
 class _UndoArchive {
-  final List<_Snap> snaps = [];
+  final List<_Snap> snaps = [], redos = [];
   Map<String, String> folds = const {};
 }
 
@@ -226,6 +270,7 @@ class EditorNotifier extends Notifier<EditorState> {
       negativeText: negText,
       activePositive: startPositive,
       canUndo: arc.snaps.isNotEmpty,
+      canRedo: arc.redos.isNotEmpty,
       foldBodies: arc.folds,
       foldLinks: [
         for (final link in links)
@@ -284,22 +329,20 @@ class EditorNotifier extends Notifier<EditorState> {
   );
 
   /// Typing the first tag on an absent side creates that side on this canvas.
-  String? addTemporaryFoldSide(
+  String? addFoldSide(
     String anchor, {
     required bool positive,
     required String body,
   }) {
     final editing = state.placementOf(anchor);
-    final link = editing?.link;
-    if (link == null ||
-        link.temporaryCategory == null ||
+    if (editing == null ||
         body.trim().isEmpty ||
-        (positive ? link.positiveName : link.negativeName).isNotEmpty) {
+        (positive ? editing.positive : editing.negative) != null) {
       return null;
     }
-    final title = link.positiveName.isNotEmpty
-        ? link.positiveName
-        : link.negativeName.replaceFirst(RegExp(r'·排除$'), '');
+    final title =
+        editing.positive?.name ??
+        editing.negative!.name.replaceFirst(RegExp(r'·排除$'), '');
     final placed = _applyInspiration(
       title: title,
       positiveBody: positive ? body : null,
@@ -319,7 +362,7 @@ class EditorNotifier extends Notifier<EditorState> {
     PlacedPromptFold? editing,
     required bool rename,
   }) {
-    assert((selection == null) != (editing == null));
+    assert(selection == null || editing == null);
     final bodies = {...state.foldBodies};
     final used = {
       for (final text in [state.positiveText, state.negativeText])
@@ -331,7 +374,9 @@ class EditorNotifier extends Notifier<EditorState> {
       String? savedBody,
     ) {
       final text = positive ? state.positiveText : state.negativeText;
-      final body = stripFolds(savedBody ?? bodies[previous?.name] ?? '').trim();
+      final body = savedBody == null
+          ? bodies[previous?.name] ?? ''
+          : stripFolds(savedBody).trim();
       final slot = previous != null
           ? PromptFoldSlot(text, previous.start, previous.end)
           : positive == state.activePositive
@@ -355,20 +400,21 @@ class EditorNotifier extends Notifier<EditorState> {
       return (
         text: slot?.replace(reference) ?? appendUnit(text, reference),
         name: name,
-        body: body,
+        body: body.trim(),
       );
     }
 
     final pos = place(true, editing?.positive, positiveBody);
     final neg = place(false, editing?.negative, negativeBody);
     final oldLink = editing?.link;
-    final link = (oldLink ?? PromptFoldLink.forEntry(entryId!)).copyWith(
-      sourceEntryId: entryId,
-      positiveName: pos.name,
-      positiveBody: pos.body,
-      negativeName: neg.name,
-      negativeBody: neg.body,
-    );
+    final link = (oldLink ?? PromptFoldLink.placed(sourceEntryId: entryId))
+        .copyWith(
+          sourceEntryId: entryId,
+          positiveName: pos.name,
+          positiveBody: pos.body,
+          negativeName: neg.name,
+          negativeBody: neg.body,
+        );
     final links = validPromptFoldLinks(
       expandFolds(pos.text, bodies),
       expandFolds(neg.text, bodies),
@@ -394,6 +440,7 @@ class EditorNotifier extends Notifier<EditorState> {
       foldLinks: links,
       foldBodies: bodies,
       canUndo: true,
+      canRedo: false,
     );
     flushWriteBack();
     return link;
@@ -401,8 +448,14 @@ class EditorNotifier extends Notifier<EditorState> {
 
   /// Edit a block in place. Its placeholder and the opposite prompt remain
   /// intact; body maps are immutable snapshots so undo restores their content.
-  void editFoldBody(String name, String body, {bool structural = false}) {
-    if (!state.foldBodies.containsKey(name) || state.foldBodies[name] == body) {
+  void editFoldBody(
+    String name,
+    String body, {
+    bool structural = false,
+    String? weightOrigin,
+  }) {
+    if (!state.foldBodies.containsKey(name) ||
+        (state.foldBodies[name] == body && weightOrigin == null)) {
       return;
     }
     if (![state.positiveText, state.negativeText].any(
@@ -412,7 +465,7 @@ class EditorNotifier extends Notifier<EditorState> {
       return; // A dismissed/deleted block must not be revived by a late edit.
     }
     final now = DateTime.now().millisecondsSinceEpoch;
-    if (structural || now - _lastPushMs > 700) {
+    if (structural || _arc.redos.isNotEmpty || now - _lastPushMs > 700) {
       _remember();
       _lastPushMs = now;
     }
@@ -421,36 +474,55 @@ class EditorNotifier extends Notifier<EditorState> {
       expandFolds(state.negativeText, state.foldBodies),
       state.foldLinks,
     );
+    final placement = state.placementOf(name);
+    final original = links
+        .where((l) => l.positiveName == name || l.negativeName == name)
+        .firstOrNull;
+    final isPositive = placement?.positive?.name == name;
+    final addingOrigin = original == null && weightOrigin?.isNotEmpty == true;
+    final anchor =
+        original ??
+        (addingOrigin
+            ? PromptFoldLink.placed(
+                positiveName: isPositive ? name : '',
+                negativeName: isPositive ? '' : name,
+              )
+            : null);
     final bodies = {...state.foldBodies, name: body};
     _arc.folds = bodies;
     state = state.copyWith(
       foldBodies: bodies,
       foldLinks: [
-        for (final link in links)
-          link.copyWith(
-            positiveBody: link.positiveName == name
-                ? body.trim()
-                : link.positiveBody,
-            negativeBody: link.negativeName == name
-                ? body.trim()
-                : link.negativeBody,
-          ),
+        for (final link in [...links, if (addingOrigin) anchor!])
+          if (link.id == anchor?.id)
+            link.copyWith(
+              positiveBody: isPositive ? body.trim() : null,
+              negativeBody: isPositive ? null : body.trim(),
+              positiveWeightOrigin: isPositive ? weightOrigin : null,
+              negativeWeightOrigin: isPositive ? null : weightOrigin,
+            )
+          else
+            link,
       ],
       canUndo: true,
+      canRedo: false,
     );
     _scheduleWriteBack();
   }
 
+  _Snap _snapshot(PromptSection? extracted) => (
+    state.positiveText,
+    state.negativeText,
+    state.foldLinks,
+    extracted,
+    state.foldBodies,
+  );
+
   void _remember([PromptSection? extracted]) {
-    final snaps = _arc.snaps;
-    snaps.add((
-      state.positiveText,
-      state.negativeText,
-      state.foldLinks,
-      extracted,
-      state.foldBodies,
-    ));
-    if (snaps.length > _maxHistory) snaps.removeAt(0);
+    final archive = _arc;
+    archive.redos.clear();
+    archive.snaps.add(_snapshot(extracted));
+    if (archive.snaps.length > _maxHistory) archive.snaps.removeAt(0);
   }
 
   void _scheduleWriteBack() {
@@ -631,6 +703,7 @@ class EditorNotifier extends Notifier<EditorState> {
     );
     final now = DateTime.now().millisecondsSinceEpoch;
     if (structural ||
+        _arc.redos.isNotEmpty ||
         extracted != null ||
         removedLinkedFold ||
         now - _lastPushMs > 700) {
@@ -642,6 +715,7 @@ class EditorNotifier extends Notifier<EditorState> {
       negativeText: negative,
       foldLinks: nextLinks,
       canUndo: true,
+      canRedo: false,
     );
     _scheduleWriteBack();
   }
@@ -652,27 +726,54 @@ class EditorNotifier extends Notifier<EditorState> {
   }
 
   void undo() {
-    final snaps = _arc.snaps;
-    if (snaps.isEmpty) return;
-    final s = snaps.removeLast();
+    final archive = _arc;
+    if (archive.snaps.isEmpty) return;
+    final snap = archive.snaps.removeLast();
+    final extracted = snap.$4;
+    final removed = extracted != null && _dropExtracted(extracted);
+    archive.redos.add(_snapshot(removed ? extracted : null));
+    _restore(snap);
+  }
+
+  void redo() {
+    final archive = _arc;
+    if (archive.redos.isEmpty) return;
+    final snap = archive.redos.removeLast();
+    PromptSection? added;
+    final canvasId = _canvasId;
+    if (snap.$4 case final section? when canvasId != null) {
+      ref.read(canvasWorkspaceProvider.notifier).updatePrompts(canvasId, (p) {
+        if (p.sections.any((s) => s.id == section.id)) return p;
+        added = section;
+        return p.copyWith(
+          sections: normalizeSections([...p.sections, section]),
+        );
+      });
+    }
+    archive.snaps.add(_snapshot(added));
+    _restore(snap);
+  }
+
+  void _restore(_Snap snap) {
     _lastPushMs = 0;
+    _arc.folds = snap.$5;
     state = state.copyWith(
-      positiveText: s.$1,
-      negativeText: s.$2,
-      foldLinks: s.$3,
-      foldBodies: s.$5,
-      canUndo: snaps.isNotEmpty,
+      positiveText: snap.$1,
+      negativeText: snap.$2,
+      foldLinks: snap.$3,
+      foldBodies: snap.$5,
+      canUndo: _arc.snaps.isNotEmpty,
+      canRedo: _arc.redos.isNotEmpty,
     );
-    _arc.folds = state.foldBodies;
-    if (s.$4 case final extracted?) _dropExtracted(extracted);
     _scheduleWriteBack();
   }
 
   /// 撤回一次「提取为新分区」:那一格还在、词也没改过,就从它所在的画布
   /// 拿掉;改过的留着 —— 那是之后另写的东西,撤销不该替人扔掉。
-  void _dropExtracted(PromptSection section) {
+  bool _dropExtracted(PromptSection section) {
     final canvasId = _canvasId;
-    if (canvasId == null) return;
+    if (canvasId == null) return false;
+    var removed = false;
     ref.read(canvasWorkspaceProvider.notifier).updatePrompts(canvasId, (p) {
       final cur = p.sections.where((x) => x.id == section.id).firstOrNull;
       if (cur == null ||
@@ -682,6 +783,7 @@ class EditorNotifier extends Notifier<EditorState> {
           cur.negativeRaw != section.negativeRaw) {
         return p;
       }
+      removed = true;
       return p.copyWith(
         sections: normalizeSections([
           for (final x in p.sections)
@@ -689,6 +791,7 @@ class EditorNotifier extends Notifier<EditorState> {
         ]),
       );
     });
+    return removed;
   }
 
   String outputPositive() =>

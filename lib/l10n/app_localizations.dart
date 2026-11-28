@@ -100,6 +100,72 @@ abstract class AppLocalizations {
     Locale('zh'),
   ];
 
+  /// No description provided for @updateReleaseNotes.
+  ///
+  /// In zh, this message translates to:
+  /// **'更新内容'**
+  String get updateReleaseNotes;
+
+  /// No description provided for @updateNotesUnavailable.
+  ///
+  /// In zh, this message translates to:
+  /// **'此版本尚未填写更新说明。'**
+  String get updateNotesUnavailable;
+
+  /// No description provided for @updateReleasePage.
+  ///
+  /// In zh, this message translates to:
+  /// **'查看发布页'**
+  String get updateReleasePage;
+
+  /// No description provided for @updateDownload.
+  ///
+  /// In zh, this message translates to:
+  /// **'下载更新'**
+  String get updateDownload;
+
+  /// No description provided for @updateDownloading.
+  ///
+  /// In zh, this message translates to:
+  /// **'正在下载并校验更新'**
+  String get updateDownloading;
+
+  /// No description provided for @updateRunInstaller.
+  ///
+  /// In zh, this message translates to:
+  /// **'打开安装程序'**
+  String get updateRunInstaller;
+
+  /// No description provided for @updateOpenPackageFolder.
+  ///
+  /// In zh, this message translates to:
+  /// **'打开免安装包目录'**
+  String get updateOpenPackageFolder;
+
+  /// No description provided for @updatePackageMissing.
+  ///
+  /// In zh, this message translates to:
+  /// **'此版本没有可校验的 Windows 安装包，可在发布页查看附件。'**
+  String get updatePackageMissing;
+
+  /// No description provided for @updateIntegrityFailed.
+  ///
+  /// In zh, this message translates to:
+  /// **'更新包校验失败，请重新下载。'**
+  String get updateIntegrityFailed;
+
+  /// No description provided for @updateDownloadFailed.
+  ///
+  /// In zh, this message translates to:
+  /// **'下载未完成，请检查网络和可用磁盘空间后重试。'**
+  String get updateDownloadFailed;
+
+  /// No description provided for @updateLaunchFailed.
+  ///
+  /// In zh, this message translates to:
+  /// **'无法打开下载的更新包，请重试或查看发布页。'**
+  String get updateLaunchFailed;
+
   /// No description provided for @downloadWindowsPackage.
   ///
   /// In zh, this message translates to:
@@ -769,7 +835,7 @@ abstract class AppLocalizations {
   /// No description provided for @preciseReference.
   ///
   /// In zh, this message translates to:
-  /// **'角色参考'**
+  /// **'精确参考'**
   String get preciseReference;
 
   /// No description provided for @fidelity.
@@ -829,7 +895,7 @@ abstract class AppLocalizations {
   /// No description provided for @rulesLocalOnly.
   ///
   /// In zh, this message translates to:
-  /// **'按模型启用后，Plana 渠道和自定义 API 会在普通规则后发送这里的补充说明。Codex、反重力等订阅会跳过此分区。'**
+  /// **'按模型启用后，仅自定义 API 会在普通规则之后附加这里的说明。Plana 后端和 Codex、反重力等订阅会跳过此分区。'**
   String get rulesLocalOnly;
 
   /// No description provided for @refCharacterStyle.
@@ -2047,7 +2113,7 @@ abstract class AppLocalizations {
   /// No description provided for @refMutexCharRefPaused.
   ///
   /// In zh, this message translates to:
-  /// **'与角色参考互斥,已暂停角色参考'**
+  /// **'与精确参考互斥,已暂停精确参考'**
   String get refMutexCharRefPaused;
 
   /// No description provided for @refLibrary.
@@ -2059,7 +2125,7 @@ abstract class AppLocalizations {
   /// No description provided for @importCharRef.
   ///
   /// In zh, this message translates to:
-  /// **'导入角色参考图'**
+  /// **'导入精确参考图'**
   String get importCharRef;
 
   /// No description provided for @filesImportFailed.
@@ -2161,7 +2227,7 @@ abstract class AppLocalizations {
   /// No description provided for @charRefLibrary.
   ///
   /// In zh, this message translates to:
-  /// **'角色参考图库'**
+  /// **'精确参考图库'**
   String get charRefLibrary;
 
   /// No description provided for @searchName.
@@ -2173,7 +2239,7 @@ abstract class AppLocalizations {
   /// No description provided for @noCharRefs.
   ///
   /// In zh, this message translates to:
-  /// **'还没有角色参考图'**
+  /// **'还没有精确参考图'**
   String get noCharRefs;
 
   /// No description provided for @noMatchingRefs.
@@ -2557,7 +2623,7 @@ abstract class AppLocalizations {
   /// No description provided for @addedVibeMutex.
   ///
   /// In zh, this message translates to:
-  /// **'已加入 Vibe · 与角色参考互斥,已暂停角色参考'**
+  /// **'已加入 Vibe · 与精确参考互斥,已暂停精确参考'**
   String get addedVibeMutex;
 
   /// No description provided for @addedVibe.
@@ -2569,13 +2635,13 @@ abstract class AppLocalizations {
   /// No description provided for @addedCharRefMutex.
   ///
   /// In zh, this message translates to:
-  /// **'已加入角色参考 · 与 Vibe 互斥,已暂停 Vibe'**
+  /// **'已加入精确参考 · 与 Vibe 互斥,已暂停 Vibe'**
   String get addedCharRefMutex;
 
   /// No description provided for @addedCharRef.
   ///
   /// In zh, this message translates to:
-  /// **'已加入角色参考'**
+  /// **'已加入精确参考'**
   String get addedCharRef;
 
   /// No description provided for @importReplace.
@@ -5089,7 +5155,7 @@ abstract class AppLocalizations {
   /// No description provided for @catCharLib.
   ///
   /// In zh, this message translates to:
-  /// **'角色参考库'**
+  /// **'精确参考库'**
   String get catCharLib;
 
   /// No description provided for @actClean.
@@ -5185,7 +5251,7 @@ abstract class AppLocalizations {
   /// No description provided for @clearCharRefLib.
   ///
   /// In zh, this message translates to:
-  /// **'清空角色参考库'**
+  /// **'清空精确参考库'**
   String get clearCharRefLib;
 
   /// No description provided for @clearCharRefLibBody.
@@ -5911,7 +5977,7 @@ abstract class AppLocalizations {
   /// No description provided for @charRefImportFailed.
   ///
   /// In zh, this message translates to:
-  /// **'角色参考「{name}」失败: {error}'**
+  /// **'精确参考「{name}」失败: {error}'**
   String charRefImportFailed(String name, String error);
 
   /// No description provided for @inspirationImportFailed.
@@ -10843,7 +10909,7 @@ abstract class AppLocalizations {
   /// No description provided for @desktopEachCanvasKeepsItsOwnPromptsCharactersPresets.
   ///
   /// In zh, this message translates to:
-  /// **'每张画布分别保存提示词、角色、预设和采样参数。\n\nVibe、角色参考、图生图、重绘和 LoRA 在画布之间共享。'**
+  /// **'每张画布分别保存提示词、角色、预设和采样参数。\n\nVibe、精确参考、图生图、重绘和 LoRA 在画布之间共享。'**
   String get desktopEachCanvasKeepsItsOwnPromptsCharactersPresets;
 
   /// No description provided for @skipStep.
@@ -11155,13 +11221,13 @@ abstract class AppLocalizations {
   /// No description provided for @desktopImportCharacterReferenceImages.
   ///
   /// In zh, this message translates to:
-  /// **'导入角色参考图库'**
+  /// **'导入精确参考图库'**
   String get desktopImportCharacterReferenceImages;
 
   /// No description provided for @desktopSelectImagesToAddAsCharacterReferences.
   ///
   /// In zh, this message translates to:
-  /// **'点选图片加入角色参考'**
+  /// **'点选图片加入精确参考'**
   String get desktopSelectImagesToAddAsCharacterReferences;
 
   /// No description provided for @desktopCouldNotSaveCheckFolderPermissionsAndAvailable.
@@ -11905,7 +11971,7 @@ abstract class AppLocalizations {
   /// No description provided for @desktopAddCharacterReference.
   ///
   /// In zh, this message translates to:
-  /// **'加入角色参考'**
+  /// **'加入精确参考'**
   String get desktopAddCharacterReference;
 
   /// No description provided for @desktopDisabled.
@@ -14290,6 +14356,102 @@ abstract class AppLocalizations {
   /// **'编辑灵感'**
   String get editInspirationBlock;
 
+  /// No description provided for @completionPlacement.
+  ///
+  /// In zh, this message translates to:
+  /// **'提示词补全位置'**
+  String get completionPlacement;
+
+  /// No description provided for @studioCompletionPlacement.
+  ///
+  /// In zh, this message translates to:
+  /// **'大屏编辑提示词补全位置'**
+  String get studioCompletionPlacement;
+
+  /// No description provided for @studioCompletionPlacementHint.
+  ///
+  /// In zh, this message translates to:
+  /// **'在光标附近或大屏编辑器右侧检视器下方显示补全建议'**
+  String get studioCompletionPlacementHint;
+
+  /// No description provided for @completionPlacementHint.
+  ///
+  /// In zh, this message translates to:
+  /// **'在光标附近或提示词卡片侧面显示补全建议'**
+  String get completionPlacementHint;
+
+  /// No description provided for @completionFollow.
+  ///
+  /// In zh, this message translates to:
+  /// **'跟随'**
+  String get completionFollow;
+
+  /// No description provided for @completionSide.
+  ///
+  /// In zh, this message translates to:
+  /// **'固定侧面'**
+  String get completionSide;
+
+  /// No description provided for @increaseTagWeight.
+  ///
+  /// In zh, this message translates to:
+  /// **'提高权重'**
+  String get increaseTagWeight;
+
+  /// No description provided for @decreaseTagWeight.
+  ///
+  /// In zh, this message translates to:
+  /// **'降低权重'**
+  String get decreaseTagWeight;
+
+  /// No description provided for @danbooruWiki.
+  ///
+  /// In zh, this message translates to:
+  /// **'D 站 Wiki'**
+  String get danbooruWiki;
+
+  /// No description provided for @deleteWholeBlock.
+  ///
+  /// In zh, this message translates to:
+  /// **'删除整块'**
+  String get deleteWholeBlock;
+
+  /// No description provided for @wholeBlock.
+  ///
+  /// In zh, this message translates to:
+  /// **'整块'**
+  String get wholeBlock;
+
+  /// No description provided for @disableBlock.
+  ///
+  /// In zh, this message translates to:
+  /// **'禁用整块'**
+  String get disableBlock;
+
+  /// No description provided for @enableBlock.
+  ///
+  /// In zh, this message translates to:
+  /// **'启用整块'**
+  String get enableBlock;
+
+  /// No description provided for @unpackBlock.
+  ///
+  /// In zh, this message translates to:
+  /// **'解散为散词'**
+  String get unpackBlock;
+
+  /// No description provided for @selectBlockTag.
+  ///
+  /// In zh, this message translates to:
+  /// **'点击块内词条即可编辑'**
+  String get selectBlockTag;
+
+  /// No description provided for @pairedPromptBlock.
+  ///
+  /// In zh, this message translates to:
+  /// **'正负配对'**
+  String get pairedPromptBlock;
+
   /// No description provided for @foldAfterInspirationSave.
   ///
   /// In zh, this message translates to:
@@ -15105,6 +15267,1122 @@ abstract class AppLocalizations {
   /// In zh, this message translates to:
   /// **'使用带生成信息的原图可同时比对提示词'**
   String get compareMetadataHint;
+
+  /// No description provided for @studioSearchLibrary.
+  ///
+  /// In zh, this message translates to:
+  /// **'搜索灵感名称、拼音或词条…'**
+  String get studioSearchLibrary;
+
+  /// No description provided for @studioNoMatches.
+  ///
+  /// In zh, this message translates to:
+  /// **'没有匹配的灵感'**
+  String get studioNoMatches;
+
+  /// No description provided for @studioOriginalWeights.
+  ///
+  /// In zh, this message translates to:
+  /// **'原权重'**
+  String get studioOriginalWeights;
+
+  /// No description provided for @studioBlockWeight.
+  ///
+  /// In zh, this message translates to:
+  /// **'整块权重'**
+  String get studioBlockWeight;
+
+  /// No description provided for @studioIndependentWeights.
+  ///
+  /// In zh, this message translates to:
+  /// **'保留块内独立权重'**
+  String get studioIndependentWeights;
+
+  /// No description provided for @studioCopyBlock.
+  ///
+  /// In zh, this message translates to:
+  /// **'复制整块'**
+  String get studioCopyBlock;
+
+  /// No description provided for @studioParent.
+  ///
+  /// In zh, this message translates to:
+  /// **'返回上级'**
+  String get studioParent;
+
+  /// No description provided for @temporaryBatchPick.
+  ///
+  /// In zh, this message translates to:
+  /// **'多选挑图批量处理…'**
+  String get temporaryBatchPick;
+
+  /// No description provided for @temporaryBatchTarget.
+  ///
+  /// In zh, this message translates to:
+  /// **'目标图库'**
+  String get temporaryBatchTarget;
+
+  /// No description provided for @temporaryBatchFile.
+  ///
+  /// In zh, this message translates to:
+  /// **'转入标准图库'**
+  String get temporaryBatchFile;
+
+  /// No description provided for @temporaryBatchZip.
+  ///
+  /// In zh, this message translates to:
+  /// **'仅打包所选 ZIP'**
+  String get temporaryBatchZip;
+
+  /// No description provided for @temporaryBatchAll.
+  ///
+  /// In zh, this message translates to:
+  /// **'整批转入「{name}」（{count} 张未收录）'**
+  String temporaryBatchAll(int count, String name);
+
+  /// No description provided for @temporaryBatchCount.
+  ///
+  /// In zh, this message translates to:
+  /// **'已选 {count} / {total} 张'**
+  String temporaryBatchCount(int count, int total);
+
+  /// No description provided for @temporaryBatchFiled.
+  ///
+  /// In zh, this message translates to:
+  /// **'已转入 {count} 张'**
+  String temporaryBatchFiled(int count);
+
+  /// No description provided for @studioMain.
+  ///
+  /// In zh, this message translates to:
+  /// **'主体提示词'**
+  String get studioMain;
+
+  /// No description provided for @studioSections.
+  ///
+  /// In zh, this message translates to:
+  /// **'主提示词与分区'**
+  String get studioSections;
+
+  /// No description provided for @studioPosOnly.
+  ///
+  /// In zh, this message translates to:
+  /// **'仅正面'**
+  String get studioPosOnly;
+
+  /// No description provided for @studioNegOnly.
+  ///
+  /// In zh, this message translates to:
+  /// **'仅负面'**
+  String get studioNegOnly;
+
+  /// No description provided for @studioGlobal.
+  ///
+  /// In zh, this message translates to:
+  /// **'全局主体'**
+  String get studioGlobal;
+
+  /// No description provided for @studioWritePositive.
+  ///
+  /// In zh, this message translates to:
+  /// **'写入：正面'**
+  String get studioWritePositive;
+
+  /// No description provided for @studioWriteNegative.
+  ///
+  /// In zh, this message translates to:
+  /// **'写入：负面'**
+  String get studioWriteNegative;
+
+  /// No description provided for @studioSection.
+  ///
+  /// In zh, this message translates to:
+  /// **'分区'**
+  String get studioSection;
+
+  /// No description provided for @studioFocusHere.
+  ///
+  /// In zh, this message translates to:
+  /// **'切到此栏输入'**
+  String get studioFocusHere;
+
+  /// No description provided for @studioPack.
+  ///
+  /// In zh, this message translates to:
+  /// **'合并成块'**
+  String get studioPack;
+
+  /// No description provided for @studioBoth.
+  ///
+  /// In zh, this message translates to:
+  /// **'同屏'**
+  String get studioBoth;
+
+  /// No description provided for @studioExpand.
+  ///
+  /// In zh, this message translates to:
+  /// **'在中栏展开编辑'**
+  String get studioExpand;
+
+  /// No description provided for @studioBlock.
+  ///
+  /// In zh, this message translates to:
+  /// **'块编辑'**
+  String get studioBlock;
+
+  /// No description provided for @studioCopyComplete.
+  ///
+  /// In zh, this message translates to:
+  /// **'复制完整提示词'**
+  String get studioCopyComplete;
+
+  /// No description provided for @studioFocused.
+  ///
+  /// In zh, this message translates to:
+  /// **'当前输入焦点'**
+  String get studioFocused;
+
+  /// No description provided for @studioOutline.
+  ///
+  /// In zh, this message translates to:
+  /// **'提示词大纲'**
+  String get studioOutline;
+
+  /// No description provided for @studioNoLocal.
+  ///
+  /// In zh, this message translates to:
+  /// **'暂无可插入的本地灵感'**
+  String get studioNoLocal;
+
+  /// No description provided for @studioTranslateFailed.
+  ///
+  /// In zh, this message translates to:
+  /// **'暂时无法翻译，可按原文插入。'**
+  String get studioTranslateFailed;
+
+  /// No description provided for @studioLoading.
+  ///
+  /// In zh, this message translates to:
+  /// **'正在读取灵感库…'**
+  String get studioLoading;
+
+  /// No description provided for @studioNoPositive.
+  ///
+  /// In zh, this message translates to:
+  /// **'此块没有正面提示词'**
+  String get studioNoPositive;
+
+  /// No description provided for @studioNoNegative.
+  ///
+  /// In zh, this message translates to:
+  /// **'此块没有负面提示词'**
+  String get studioNoNegative;
+
+  /// No description provided for @studioLibrary.
+  ///
+  /// In zh, this message translates to:
+  /// **'灵感库快插'**
+  String get studioLibrary;
+
+  /// No description provided for @studioInspectHint.
+  ///
+  /// In zh, this message translates to:
+  /// **'点选词条调整权重，双击块进入编辑。'**
+  String get studioInspectHint;
+
+  /// No description provided for @studioPosition.
+  ///
+  /// In zh, this message translates to:
+  /// **'画布站位'**
+  String get studioPosition;
+
+  /// No description provided for @studioRemoveBlock.
+  ///
+  /// In zh, this message translates to:
+  /// **'移除此块'**
+  String get studioRemoveBlock;
+
+  /// No description provided for @studioInspector.
+  ///
+  /// In zh, this message translates to:
+  /// **'词条与块检视器'**
+  String get studioInspector;
+
+  /// No description provided for @studioNegative.
+  ///
+  /// In zh, this message translates to:
+  /// **'负面排除词'**
+  String get studioNegative;
+
+  /// No description provided for @studioAddTags.
+  ///
+  /// In zh, this message translates to:
+  /// **'输入英文或中文添加标签'**
+  String get studioAddTags;
+
+  /// No description provided for @studioUp.
+  ///
+  /// In zh, this message translates to:
+  /// **'返回上一级'**
+  String get studioUp;
+
+  /// No description provided for @studioRedo.
+  ///
+  /// In zh, this message translates to:
+  /// **'重做'**
+  String get studioRedo;
+
+  /// No description provided for @studioResetWeight.
+  ///
+  /// In zh, this message translates to:
+  /// **'重置权重'**
+  String get studioResetWeight;
+
+  /// No description provided for @studioManual.
+  ///
+  /// In zh, this message translates to:
+  /// **'手动'**
+  String get studioManual;
+
+  /// No description provided for @studioCopyTag.
+  ///
+  /// In zh, this message translates to:
+  /// **'复制词条'**
+  String get studioCopyTag;
+
+  /// No description provided for @studioDisableTag.
+  ///
+  /// In zh, this message translates to:
+  /// **'暂时禁用'**
+  String get studioDisableTag;
+
+  /// No description provided for @studioDeleteTag.
+  ///
+  /// In zh, this message translates to:
+  /// **'删除词条'**
+  String get studioDeleteTag;
+
+  /// No description provided for @studioCompleting.
+  ///
+  /// In zh, this message translates to:
+  /// **'正在补全'**
+  String get studioCompleting;
+
+  /// No description provided for @studioReturnInspector.
+  ///
+  /// In zh, this message translates to:
+  /// **'返回检视'**
+  String get studioReturnInspector;
+
+  /// No description provided for @temporaryName.
+  ///
+  /// In zh, this message translates to:
+  /// **'临时图库'**
+  String get temporaryName;
+
+  /// No description provided for @temporaryScope.
+  ///
+  /// In zh, this message translates to:
+  /// **'当前画布 · 退出时清理'**
+  String get temporaryScope;
+
+  /// No description provided for @temporaryCollectSaved.
+  ///
+  /// In zh, this message translates to:
+  /// **'收录到「已保存」图库'**
+  String get temporaryCollectSaved;
+
+  /// No description provided for @temporaryCollectHint.
+  ///
+  /// In zh, this message translates to:
+  /// **'单独保存图片时，同时收录到 Plana 的「已保存」图库。'**
+  String get temporaryCollectHint;
+
+  /// No description provided for @temporaryExitPolicy.
+  ///
+  /// In zh, this message translates to:
+  /// **'临时图库退出清理'**
+  String get temporaryExitPolicy;
+
+  /// No description provided for @temporaryPolicyHint.
+  ///
+  /// In zh, this message translates to:
+  /// **'按画布处理未收录的临时图片，已收藏或已保存到图库的作品不受影响。'**
+  String get temporaryPolicyHint;
+
+  /// No description provided for @temporaryClearAll.
+  ///
+  /// In zh, this message translates to:
+  /// **'全部清理'**
+  String get temporaryClearAll;
+
+  /// No description provided for @temporaryKeepLatest.
+  ///
+  /// In zh, this message translates to:
+  /// **'保留最近'**
+  String get temporaryKeepLatest;
+
+  /// No description provided for @temporaryKeepCount.
+  ///
+  /// In zh, this message translates to:
+  /// **'每画布保留最新未收录图'**
+  String get temporaryKeepCount;
+
+  /// No description provided for @temporaryKeepHint.
+  ///
+  /// In zh, this message translates to:
+  /// **'每个画布各自保留此数量的临时图片。'**
+  String get temporaryKeepHint;
+
+  /// No description provided for @temporaryConfirmExit.
+  ///
+  /// In zh, this message translates to:
+  /// **'退出时处理方式'**
+  String get temporaryConfirmExit;
+
+  /// No description provided for @temporaryConfirmHint.
+  ///
+  /// In zh, this message translates to:
+  /// **'有未收录临时图待清理时弹窗确认，可选择先按画布打包 ZIP。'**
+  String get temporaryConfirmHint;
+
+  /// No description provided for @temporaryDirectHint.
+  ///
+  /// In zh, this message translates to:
+  /// **'退出时直接按上方规则清理未收录的临时图。'**
+  String get temporaryDirectHint;
+
+  /// No description provided for @temporaryArchiveHint.
+  ///
+  /// In zh, this message translates to:
+  /// **'退出时先按画布打包 ZIP 到单独保存文件夹，成功后再按上方规则清理。'**
+  String get temporaryArchiveHint;
+
+  /// No description provided for @temporaryHistoryCount.
+  ///
+  /// In zh, this message translates to:
+  /// **'底栏历史初始加载数'**
+  String get temporaryHistoryCount;
+
+  /// No description provided for @temporaryHistoryHint.
+  ///
+  /// In zh, this message translates to:
+  /// **'打开或切换图库时加载全部历史图，本轮新图继续追加。'**
+  String get temporaryHistoryHint;
+
+  /// No description provided for @temporaryHistoryHelp.
+  ///
+  /// In zh, this message translates to:
+  /// **'填 0 表示全部加载。此设置仅影响创作页底栏的显示。'**
+  String get temporaryHistoryHelp;
+
+  /// No description provided for @temporaryFolder.
+  ///
+  /// In zh, this message translates to:
+  /// **'选择单独保存文件夹'**
+  String get temporaryFolder;
+
+  /// No description provided for @temporaryPacking.
+  ///
+  /// In zh, this message translates to:
+  /// **'正在打包 ZIP'**
+  String get temporaryPacking;
+
+  /// No description provided for @temporaryCancelPack.
+  ///
+  /// In zh, this message translates to:
+  /// **'取消打包'**
+  String get temporaryCancelPack;
+
+  /// No description provided for @temporaryDeleteQuestion.
+  ///
+  /// In zh, this message translates to:
+  /// **'删除画布及其临时图片？'**
+  String get temporaryDeleteQuestion;
+
+  /// No description provided for @temporaryExitQuestion.
+  ///
+  /// In zh, this message translates to:
+  /// **'退出前处理临时图库'**
+  String get temporaryExitQuestion;
+
+  /// No description provided for @temporarySkipPrompt.
+  ///
+  /// In zh, this message translates to:
+  /// **'记住本次选择，下次退出不再询问'**
+  String get temporarySkipPrompt;
+
+  /// No description provided for @temporaryZipDelete.
+  ///
+  /// In zh, this message translates to:
+  /// **'打包 ZIP 并删除画布'**
+  String get temporaryZipDelete;
+
+  /// No description provided for @temporaryZipExit.
+  ///
+  /// In zh, this message translates to:
+  /// **'按画布打包 ZIP 并退出'**
+  String get temporaryZipExit;
+
+  /// No description provided for @temporaryCleanDelete.
+  ///
+  /// In zh, this message translates to:
+  /// **'清理并删除画布'**
+  String get temporaryCleanDelete;
+
+  /// No description provided for @temporaryCleanExit.
+  ///
+  /// In zh, this message translates to:
+  /// **'清理并退出'**
+  String get temporaryCleanExit;
+
+  /// No description provided for @temporaryStar.
+  ///
+  /// In zh, this message translates to:
+  /// **'收藏到图库'**
+  String get temporaryStar;
+
+  /// No description provided for @temporaryFile.
+  ///
+  /// In zh, this message translates to:
+  /// **'加入标准图库'**
+  String get temporaryFile;
+
+  /// No description provided for @temporaryFiled.
+  ///
+  /// In zh, this message translates to:
+  /// **'已加入所选图库'**
+  String get temporaryFiled;
+
+  /// No description provided for @temporaryRecoveryQuestion.
+  ///
+  /// In zh, this message translates to:
+  /// **'清理上次异常退出留下的临时图片？'**
+  String get temporaryRecoveryQuestion;
+
+  /// No description provided for @temporaryRecoveryHint.
+  ///
+  /// In zh, this message translates to:
+  /// **'已收录到正式图库的作品会继续保留。'**
+  String get temporaryRecoveryHint;
+
+  /// No description provided for @temporaryLoadError.
+  ///
+  /// In zh, this message translates to:
+  /// **'临时图库未能载入 · 重试'**
+  String get temporaryLoadError;
+
+  /// No description provided for @temporaryCount.
+  ///
+  /// In zh, this message translates to:
+  /// **'{n} 张'**
+  String temporaryCount(int n);
+
+  /// No description provided for @temporaryMore.
+  ///
+  /// In zh, this message translates to:
+  /// **'加载更多（+{n}）'**
+  String temporaryMore(int n);
+
+  /// No description provided for @temporaryCloseCounts.
+  ///
+  /// In zh, this message translates to:
+  /// **'共 {total} 张，{collected} 张已收录到图库，{kept} 张将留到下次，{removed} 张将被清理。'**
+  String temporaryCloseCounts(int total, int collected, int kept, int removed);
+
+  /// No description provided for @temporaryRecovered.
+  ///
+  /// In zh, this message translates to:
+  /// **'上次异常退出留下 {n} 张临时图片'**
+  String temporaryRecovered(int n);
+
+  /// No description provided for @temporaryPacked.
+  ///
+  /// In zh, this message translates to:
+  /// **'已按画布打包 {n} 个 ZIP'**
+  String temporaryPacked(int n);
+
+  /// No description provided for @temporaryBusy.
+  ///
+  /// In zh, this message translates to:
+  /// **'临时图库仍在生成、排队或保存，请在任务完成或取消后重试。'**
+  String get temporaryBusy;
+
+  /// No description provided for @temporaryOpenFailed.
+  ///
+  /// In zh, this message translates to:
+  /// **'无法打开临时图库：{error}'**
+  String temporaryOpenFailed(String error);
+
+  /// No description provided for @temporaryActionFailed.
+  ///
+  /// In zh, this message translates to:
+  /// **'操作失败：{error}'**
+  String temporaryActionFailed(String error);
+
+  /// No description provided for @temporarySavedPath.
+  ///
+  /// In zh, this message translates to:
+  /// **'已保存到 {path}'**
+  String temporarySavedPath(String path);
+
+  /// No description provided for @temporaryCleanupFailed.
+  ///
+  /// In zh, this message translates to:
+  /// **'临时图库处理未完成：{error}'**
+  String temporaryCleanupFailed(String error);
+
+  /// No description provided for @temporaryAsk.
+  ///
+  /// In zh, this message translates to:
+  /// **'每次询问'**
+  String get temporaryAsk;
+
+  /// No description provided for @temporaryDirectClean.
+  ///
+  /// In zh, this message translates to:
+  /// **'直接清理'**
+  String get temporaryDirectClean;
+
+  /// No description provided for @temporaryArchiveThenClean.
+  ///
+  /// In zh, this message translates to:
+  /// **'打包后清理'**
+  String get temporaryArchiveThenClean;
+
+  /// No description provided for @temporaryInitialCountLabel.
+  ///
+  /// In zh, this message translates to:
+  /// **'打开或切换图库时初始加载'**
+  String get temporaryInitialCountLabel;
+
+  /// No description provided for @temporaryLimitedHistory.
+  ///
+  /// In zh, this message translates to:
+  /// **'打开或切换图库时初始加载最近 {n} 张，本轮新图继续追加。'**
+  String temporaryLimitedHistory(int n);
+
+  /// No description provided for @temporarySingleLead.
+  ///
+  /// In zh, this message translates to:
+  /// **'本次有 {quantity}未收录临时图将被清理。'**
+  String temporarySingleLead(String quantity);
+
+  /// No description provided for @temporaryMultiLead.
+  ///
+  /// In zh, this message translates to:
+  /// **'{canvases} 个画布共有 {quantity}未收录临时图将被清理。'**
+  String temporaryMultiLead(int canvases, String quantity);
+
+  /// No description provided for @temporaryCleanStat.
+  ///
+  /// In zh, this message translates to:
+  /// **'{n} 张待清理'**
+  String temporaryCleanStat(int n);
+
+  /// No description provided for @temporaryCollectedStat.
+  ///
+  /// In zh, this message translates to:
+  /// **'{n} 张已收录保留'**
+  String temporaryCollectedStat(int n);
+
+  /// No description provided for @temporaryKeptStat.
+  ///
+  /// In zh, this message translates to:
+  /// **'{n} 张留到下次'**
+  String temporaryKeptStat(int n);
+
+  /// No description provided for @temporarySingleDetail.
+  ///
+  /// In zh, this message translates to:
+  /// **'涉及画布：{name}。已收藏或已保存到图库的作品不受影响。'**
+  String temporarySingleDetail(String name);
+
+  /// No description provided for @temporaryMultiDetail.
+  ///
+  /// In zh, this message translates to:
+  /// **'按画布拆分：{details}。打包 ZIP 会按画布名分别归档。'**
+  String temporaryMultiDetail(String details);
+
+  /// No description provided for @temporaryCanvasCountDetail.
+  ///
+  /// In zh, this message translates to:
+  /// **'{name}（{status}）'**
+  String temporaryCanvasCountDetail(String name, String status);
+
+  /// No description provided for @temporaryRememberHint.
+  ///
+  /// In zh, this message translates to:
+  /// **'选择「打包 ZIP 并退出」会记为「打包后清理」，选择「清理并退出」会记为「直接清理」。'**
+  String get temporaryRememberHint;
+
+  /// No description provided for @temporarySingleZipExit.
+  ///
+  /// In zh, this message translates to:
+  /// **'打包 ZIP 并退出'**
+  String get temporarySingleZipExit;
+
+  /// No description provided for @guideBrowseManual.
+  ///
+  /// In zh, this message translates to:
+  /// **'浏览使用手册'**
+  String get guideBrowseManual;
+
+  /// No description provided for @guideBanner.
+  ///
+  /// In zh, this message translates to:
+  /// **'初次使用 Plana？可以先设置生成接入和图片保存位置。'**
+  String get guideBanner;
+
+  /// No description provided for @guideOpen.
+  ///
+  /// In zh, this message translates to:
+  /// **'打开使用引导'**
+  String get guideOpen;
+
+  /// No description provided for @guideWelcome.
+  ///
+  /// In zh, this message translates to:
+  /// **'欢迎'**
+  String get guideWelcome;
+
+  /// No description provided for @guideAppearance.
+  ///
+  /// In zh, this message translates to:
+  /// **'外观'**
+  String get guideAppearance;
+
+  /// No description provided for @guideGeneration.
+  ///
+  /// In zh, this message translates to:
+  /// **'生成接入'**
+  String get guideGeneration;
+
+  /// No description provided for @guideBotStep.
+  ///
+  /// In zh, this message translates to:
+  /// **'Bot 授权与扩展'**
+  String get guideBotStep;
+
+  /// No description provided for @guideStorage.
+  ///
+  /// In zh, this message translates to:
+  /// **'保存与图库'**
+  String get guideStorage;
+
+  /// No description provided for @guideFinish.
+  ///
+  /// In zh, this message translates to:
+  /// **'完成与速查'**
+  String get guideFinish;
+
+  /// No description provided for @guideWelcomeSub.
+  ///
+  /// In zh, this message translates to:
+  /// **'认识桌面工作台'**
+  String get guideWelcomeSub;
+
+  /// No description provided for @guideAppearanceSub.
+  ///
+  /// In zh, this message translates to:
+  /// **'主题与配色'**
+  String get guideAppearanceSub;
+
+  /// No description provided for @guideAccessSub.
+  ///
+  /// In zh, this message translates to:
+  /// **'账号与接口'**
+  String get guideAccessSub;
+
+  /// No description provided for @guideBotSub.
+  ///
+  /// In zh, this message translates to:
+  /// **'生成或可选扩展'**
+  String get guideBotSub;
+
+  /// No description provided for @guideStorageSub.
+  ///
+  /// In zh, this message translates to:
+  /// **'目录、图库与格式'**
+  String get guideStorageSub;
+
+  /// No description provided for @guideFinishSub.
+  ///
+  /// In zh, this message translates to:
+  /// **'核对设置，开始创作'**
+  String get guideFinishSub;
+
+  /// No description provided for @guideProgress.
+  ///
+  /// In zh, this message translates to:
+  /// **'第 {step} 步，共 {total} 步 · {title}'**
+  String guideProgress(int step, int total, String title);
+
+  /// No description provided for @guideLater.
+  ///
+  /// In zh, this message translates to:
+  /// **'之后可以在「我的」中调整这些设置。'**
+  String get guideLater;
+
+  /// No description provided for @guideCompleteBack.
+  ///
+  /// In zh, this message translates to:
+  /// **'完成并返回'**
+  String get guideCompleteBack;
+
+  /// No description provided for @guideStart.
+  ///
+  /// In zh, this message translates to:
+  /// **'开始创作'**
+  String get guideStart;
+
+  /// No description provided for @guideSkipExtensions.
+  ///
+  /// In zh, this message translates to:
+  /// **'跳过扩展'**
+  String get guideSkipExtensions;
+
+  /// No description provided for @guideNeedAccess.
+  ///
+  /// In zh, this message translates to:
+  /// **'请保存令牌，或暂时跳过接入设置。'**
+  String get guideNeedAccess;
+
+  /// No description provided for @guideNeedBot.
+  ///
+  /// In zh, this message translates to:
+  /// **'使用 Bot 生成需要先完成授权。'**
+  String get guideNeedBot;
+
+  /// No description provided for @guideIntroLead.
+  ///
+  /// In zh, this message translates to:
+  /// **'选好外观、生成接入和保存习惯，就可以在桌面工作台开始创作。'**
+  String get guideIntroLead;
+
+  /// No description provided for @guideWrite.
+  ///
+  /// In zh, this message translates to:
+  /// **'写提示词'**
+  String get guideWrite;
+
+  /// No description provided for @guideWriteBody.
+  ///
+  /// In zh, this message translates to:
+  /// **'在三栏工作台编排分区和角色，边写边补全，也能从灵感库快插。AI 助手可通过 API 或 ChatGPT 订阅起草提示词。'**
+  String get guideWriteBody;
+
+  /// No description provided for @guideCanvases.
+  ///
+  /// In zh, this message translates to:
+  /// **'管理多画布'**
+  String get guideCanvases;
+
+  /// No description provided for @guideCanvasesBody.
+  ///
+  /// In zh, this message translates to:
+  /// **'点画布栏的＋新建，双击标签改名。每个画布分别保留提示词、画幅和临时图库。'**
+  String get guideCanvasesBody;
+
+  /// No description provided for @guideContinueImage.
+  ///
+  /// In zh, this message translates to:
+  /// **'从图片继续创作'**
+  String get guideContinueImage;
+
+  /// No description provided for @guideImageBody.
+  ///
+  /// In zh, this message translates to:
+  /// **'拖入带生成参数的图片，可逐项选择提示词、角色和参数。普通图片可以用作参考图或图生图底图。'**
+  String get guideImageBody;
+
+  /// No description provided for @guideThemeLead.
+  ///
+  /// In zh, this message translates to:
+  /// **'更改明暗模式或配色，可以在画布预览里看到效果。'**
+  String get guideThemeLead;
+
+  /// No description provided for @guideThemePreview.
+  ///
+  /// In zh, this message translates to:
+  /// **'画布预览'**
+  String get guideThemePreview;
+
+  /// No description provided for @guideOfficial.
+  ///
+  /// In zh, this message translates to:
+  /// **'官方 Token'**
+  String get guideOfficial;
+
+  /// No description provided for @guideOfficialHint.
+  ///
+  /// In zh, this message translates to:
+  /// **'使用 NovelAI 访问令牌'**
+  String get guideOfficialHint;
+
+  /// No description provided for @guideEmailHint.
+  ///
+  /// In zh, this message translates to:
+  /// **'使用 NovelAI 官方账号登录'**
+  String get guideEmailHint;
+
+  /// No description provided for @guideThirdHint.
+  ///
+  /// In zh, this message translates to:
+  /// **'NovelAI 或 OpenAI 兼容格式'**
+  String get guideThirdHint;
+
+  /// No description provided for @guideBotHint.
+  ///
+  /// In zh, this message translates to:
+  /// **'使用受邀账号，在下一步授权'**
+  String get guideBotHint;
+
+  /// No description provided for @guideAccessLead.
+  ///
+  /// In zh, this message translates to:
+  /// **'选择生成图片的方式，也可以暂时跳过，先浏览工作台。'**
+  String get guideAccessLead;
+
+  /// No description provided for @guideLocalProxy.
+  ///
+  /// In zh, this message translates to:
+  /// **'本机代理快速配置'**
+  String get guideLocalProxy;
+
+  /// No description provided for @guideAuthorize.
+  ///
+  /// In zh, this message translates to:
+  /// **'授权 Bot 以生成图片'**
+  String get guideAuthorize;
+
+  /// No description provided for @guideOptional.
+  ///
+  /// In zh, this message translates to:
+  /// **'可选扩展'**
+  String get guideOptional;
+
+  /// No description provided for @guideOptionalBody.
+  ///
+  /// In zh, this message translates to:
+  /// **'受邀账号可在这里开启扩展。使用官方或第三方接口生成图片时，可以跳过这一步。'**
+  String get guideOptionalBody;
+
+  /// No description provided for @guidePerks.
+  ///
+  /// In zh, this message translates to:
+  /// **'Anima、Krea 2 等额外模型，公共 Vibe、画师串和角色 OC，以及 WD Tagger 图片反推。'**
+  String get guidePerks;
+
+  /// No description provided for @guideBackupOptions.
+  ///
+  /// In zh, this message translates to:
+  /// **'Plana 云备份通过 Bot 同步灵感库与 Vibe。Google 云端硬盘使用 Google 登录，本地文件备份可直接使用。'**
+  String get guideBackupOptions;
+
+  /// No description provided for @guideStorageLead.
+  ///
+  /// In zh, this message translates to:
+  /// **'选择单图导出位置、当前画布的图库和单图格式。'**
+  String get guideStorageLead;
+
+  /// No description provided for @guideDirectory.
+  ///
+  /// In zh, this message translates to:
+  /// **'单独保存文件夹'**
+  String get guideDirectory;
+
+  /// No description provided for @guideDirectoryHint.
+  ///
+  /// In zh, this message translates to:
+  /// **'单图保存和临时图库 ZIP 共用此位置。'**
+  String get guideDirectoryHint;
+
+  /// No description provided for @guideUnset.
+  ///
+  /// In zh, this message translates to:
+  /// **'首次保存时选择'**
+  String get guideUnset;
+
+  /// No description provided for @guidePickFolder.
+  ///
+  /// In zh, this message translates to:
+  /// **'选择文件夹'**
+  String get guidePickFolder;
+
+  /// No description provided for @guideClearFolder.
+  ///
+  /// In zh, this message translates to:
+  /// **'恢复未指定'**
+  String get guideClearFolder;
+
+  /// No description provided for @guideCurrentGallery.
+  ///
+  /// In zh, this message translates to:
+  /// **'当前画布的图库'**
+  String get guideCurrentGallery;
+
+  /// No description provided for @guideStandard.
+  ///
+  /// In zh, this message translates to:
+  /// **'标准图库'**
+  String get guideStandard;
+
+  /// No description provided for @guideStandardHint.
+  ///
+  /// In zh, this message translates to:
+  /// **'生成时自动归档，保留原图与生成参数。'**
+  String get guideStandardHint;
+
+  /// No description provided for @guideTempHint.
+  ///
+  /// In zh, this message translates to:
+  /// **'按画布暂存；未收录的图片按退出规则处理，可提前收录或打包 ZIP。'**
+  String get guideTempHint;
+
+  /// No description provided for @guideNewTemp.
+  ///
+  /// In zh, this message translates to:
+  /// **'新建画布也默认使用临时图库'**
+  String get guideNewTemp;
+
+  /// No description provided for @guideFormat.
+  ///
+  /// In zh, this message translates to:
+  /// **'默认单图保存格式'**
+  String get guideFormat;
+
+  /// No description provided for @guideJpgHint.
+  ///
+  /// In zh, this message translates to:
+  /// **'JPG 不保留生成参数。需要从导出图恢复参数时，请选 PNG 或 WebP，并在保存设置中保留原始元数据。'**
+  String get guideJpgHint;
+
+  /// No description provided for @guideReady.
+  ///
+  /// In zh, this message translates to:
+  /// **'生成接入已配置，可以开始创作。'**
+  String get guideReady;
+
+  /// No description provided for @guideNotReady.
+  ///
+  /// In zh, this message translates to:
+  /// **'偏好已保存。准备生成时，可在「我的 → 账号与接入」添加账号。'**
+  String get guideNotReady;
+
+  /// No description provided for @guideNoAccess.
+  ///
+  /// In zh, this message translates to:
+  /// **'暂未配置'**
+  String get guideNoAccess;
+
+  /// No description provided for @guideSavedOfficial.
+  ///
+  /// In zh, this message translates to:
+  /// **'官方 Token · 已保存'**
+  String get guideSavedOfficial;
+
+  /// No description provided for @guideBotReady.
+  ///
+  /// In zh, this message translates to:
+  /// **'Bot 账户 · 已授权'**
+  String get guideBotReady;
+
+  /// No description provided for @guideNoBot.
+  ///
+  /// In zh, this message translates to:
+  /// **'暂未授权，可按需开启'**
+  String get guideNoBot;
+
+  /// No description provided for @guideSaveFormat.
+  ///
+  /// In zh, this message translates to:
+  /// **'保存与格式'**
+  String get guideSaveFormat;
+
+  /// No description provided for @guideMode.
+  ///
+  /// In zh, this message translates to:
+  /// **'图库模式'**
+  String get guideMode;
+
+  /// No description provided for @guideTips.
+  ///
+  /// In zh, this message translates to:
+  /// **'桌面速查'**
+  String get guideTips;
+
+  /// No description provided for @guideImportTip.
+  ///
+  /// In zh, this message translates to:
+  /// **'把参数带回画布'**
+  String get guideImportTip;
+
+  /// No description provided for @guideImportTipBody.
+  ///
+  /// In zh, this message translates to:
+  /// **'把原图拖到创作页，在导入预览里勾选要使用的部分。'**
+  String get guideImportTipBody;
+
+  /// No description provided for @guideStudioTip.
+  ///
+  /// In zh, this message translates to:
+  /// **'打开大屏提示词编辑'**
+  String get guideStudioTip;
+
+  /// No description provided for @guideStudioTipBody.
+  ///
+  /// In zh, this message translates to:
+  /// **'点提示词卡的展开按钮进入三栏工作台。点命名块可以编辑整块或块内词条。'**
+  String get guideStudioTipBody;
+
+  /// No description provided for @guideTempTip.
+  ///
+  /// In zh, this message translates to:
+  /// **'多选收录或打包临时图'**
+  String get guideTempTip;
+
+  /// No description provided for @guideTempTipBody.
+  ///
+  /// In zh, this message translates to:
+  /// **'在临时图库打开「打包 ZIP」旁的箭头，可挑图转入标准图库，或只打包所选。'**
+  String get guideTempTipBody;
+
+  /// No description provided for @guideToolsTip.
+  ///
+  /// In zh, this message translates to:
+  /// **'去工具箱比图、查参数'**
+  String get guideToolsTip;
+
+  /// No description provided for @guideToolsTipBody.
+  ///
+  /// In zh, this message translates to:
+  /// **'在「图片比对」把两张原图放入 A、B 槽。在「图片元数据」可查看、改写或批量导出副本。'**
+  String get guideToolsTipBody;
+
+  /// No description provided for @temporaryNewCanvas.
+  ///
+  /// In zh, this message translates to:
+  /// **'新建画布默认使用临时图库'**
+  String get temporaryNewCanvas;
+
+  /// No description provided for @temporaryNewCanvasHint.
+  ///
+  /// In zh, this message translates to:
+  /// **'新建、复制或恢复画布时自动使用临时图库；已有画布保持原样。'**
+  String get temporaryNewCanvasHint;
+
+  /// No description provided for @guideTempDetail.
+  ///
+  /// In zh, this message translates to:
+  /// **'收藏或转入标准图库的图片会保留；单张保存与打包 ZIP 写入所选文件夹（开启「收录到已保存」时单张保存也会在 Plana 留一份）；打包 ZIP 后临时图仍按退出规则处理。'**
+  String get guideTempDetail;
+
+  /// No description provided for @guideNewTempShort.
+  ///
+  /// In zh, this message translates to:
+  /// **'新画布默认临时图库'**
+  String get guideNewTempShort;
 }
 
 class _AppLocalizationsDelegate

@@ -51,7 +51,9 @@ import '../generate/prompt_import_binding.dart';
 import '../generate/canvas_state.dart';
 import '../generate/prompt_sections.dart'
     show composeSections, joinSections, SectionImport, importPromptsInto;
-import '../inspiration/public_tags.dart' show publicTagsProvider;
+import '../inspiration/public_tags.dart'
+    show publicTagsProvider, publicPreviewsOf, tagPreviewOf;
+import '../inspiration/character_library_cover.dart';
 import '../inspiration/public_tag_blocks.dart';
 import '../inspiration/external/oc_sources.dart';
 import 'runtime/reference_library.dart';
@@ -259,18 +261,8 @@ bool assistantSupportsModel(String displayModel) =>
 
 /// 一份提议**拿去生成**时发出的状态。纯函数,不碰任何 provider。
 ///
-/// **沿用创作页的只有参数、Vibe 和主提示词分区。** 正向、负向按 [mode] 写进
-/// 主提示词(与导入同一个 [importPromptsInto],「直接生成」和「导入后再生成」
-/// 出同一张图);角色分区一律只认 AI 这份,没给就是空;模型、尺寸、采样、
-/// 种子照创作页现在的来。
-///
-/// 四个图像模块里只留 Vibe:它管的是画风氛围,套在谁的提示词上都成立。
-/// 角色参考、图生图、重绘不留 —— 这三样是**冲着某张具体的图、某个具体的角色**
-/// 配的,AI 写了一个全新的画面,再拿画布上那张底图去图生图、那块遮罩去重绘、
-/// 那个角色去做参考,出来的只会是两边拧在一起的东西。
-///
-/// 原先是「拿画布当底、AI 给了的提示词字段盖上去」,于是 AI 没写角色分区时,
-/// 出图会带上画布里原有的角色 —— 用户没点过引用,AI 也没见过它们,图里却有。
+/// 提议按 [mode] 写入提示词与角色。采样、Vibe、精确参考和图生图
+/// 均沿用目标画布的配置与启用状态；重绘遮罩只用于原来的重绘任务。
 ///
 /// 坐标开关虽然挂在参数里,却是**角色分区的一部分**:它决定分区里那几个坐标
 /// 算不算数。分区只认 AI 的,开关也跟着 AI 走 —— 沿用画布上开着的开关,
@@ -280,6 +272,7 @@ GenerateState proposalSendState(
   DrawProposal r,
   SectionImport mode, {
   required String Function() newId,
+  List<CharacterLibrarySource?> characterSources = const [],
   bool allowEditNegative = false,
   PromptImportBinding binding = const PromptImportBinding(),
   void Function(PromptImportBinding)? onBinding,
@@ -328,12 +321,56 @@ GenerateState proposalSendState(
         : (row, retained, reserved) =>
               decorateProposalRow(row, globals, retained, reserved, newId),
   ).copyWith(
-    characters: decorateProposalCharacters(built.chars, r.blocks, newId),
-    charRefs: const [],
-    img2img: null,
+    characters: [
+      for (final (index, character) in decorateProposalCharacters(
+        built.chars,
+        r.blocks,
+        newId,
+      ).indexed)
+        if (characterSources.elementAtOrNull(index) case final source?)
+          character.copyWith(source: source.id, avatar: source.preview)
+        else
+          character,
+    ],
     inpaint: null,
     params: canvas.params.copyWith(useCoords: built.placed),
   );
+}
+
+List<CharacterLibrarySource?> proposalCharacterSources(
+  DrawProposal draw,
+  Iterable<TagEntry> entries,
+  Map<String, String> publicCovers, {
+  Map<String, String> usedOcs = const {},
+}) {
+  if (entries.isEmpty) return const [];
+  // Semantic presets can rename both the role and its block. A lookup
+  // still identifies a copy of the OC inside this particular character.
+  final evidence = [
+    ...draw.blocks,
+    if (usedOcs.isNotEmpty)
+      ...PromptBlock.fromLibraryParts(draw.toJson(includeBlocks: false), {
+        'oc': usedOcs,
+      }),
+  ];
+  final sources = <CharacterLibrarySource?>[];
+  for (final (index, c) in draw.characters.indexed) {
+    final query = CharacterLibraryQuery([
+      (c.name, c.positive),
+      for (final block in evidence)
+        if (block.character == index &&
+            !block.negative &&
+            block.kind == PromptBlockKind.character)
+          (block.name, block.libraryText ?? block.text),
+    ]);
+    final entry = query.match(entries);
+    sources.add(
+      entry == null
+          ? null
+          : (id: entry.id, preview: tagPreviewOf(entry, publicCovers)),
+    );
+  }
+  return sources;
 }
 
 /// 提议里用到的库内画师串,把它们的负面补进负向(去重,同灵感页加画风)。
@@ -1045,7 +1082,9 @@ class AssistantNotifier extends Notifier<AssistantState> {
       final plan = endpoint is PlanEndpoint;
       final modelKey = ref.read(effectiveAssistantModelKeyProvider);
       final acceptsApiSupplement =
-          !plan && customEndpointIdOf(modelKey) == endpoint?.id;
+          endpoint != null &&
+          !plan &&
+          customEndpointIdOf(modelKey) == endpoint.id;
       if (queued != null && queued.planSelection != _selectedPlan()) {
         _pushError(
           '排队时选择的 ChatGPT 账户或模型已有变化，请移除这条消息后重新发送。',
@@ -1226,25 +1265,33 @@ class AssistantNotifier extends Notifier<AssistantState> {
       final repository = externalSources.isEmpty
           ? null
           : ref.read(ocRepositoryProvider);
+      final turnOcs = <String, TagEntry>{};
       Future<AssistantReferences> ocReferences(
         String? query, {
         bool search = false,
-      }) async => AssistantReferences(
-        TagCategory.character,
-        local,
-        publicOcs,
-        blocks[TagCategory.character] ?? const PublicTagRule(),
-        order: active,
-        strictScope: strictScope,
-        external: repository == null
-            ? const {}
-            : await externalOcReferences(
-                repository,
-                externalSources,
-                query: query,
-                search: search,
-              ),
-      );
+      }) async {
+        final refs = AssistantReferences(
+          TagCategory.character,
+          local,
+          publicOcs,
+          blocks[TagCategory.character] ?? const PublicTagRule(),
+          order: active,
+          strictScope: strictScope,
+          external: repository == null
+              ? const {}
+              : await externalOcReferences(
+                  repository,
+                  externalSources,
+                  query: query,
+                  search: search,
+                ),
+        );
+        for (final e in refs.entries) {
+          turnOcs[e.id] = e;
+        }
+        return refs;
+      }
+
       final lastDrawing = preceding.reversed
           .map((m) => m.draw)
           .nonNulls
@@ -1543,7 +1590,6 @@ class AssistantNotifier extends Notifier<AssistantState> {
               ocBlock.text,
             ],
             if (blockSummary.isNotEmpty) collapse(blockSummary),
-            if (request.apiSupplement.isNotEmpty) request.apiSupplement,
           ].join('\n\n'),
           // 空串 = 用后端的全局默认。用户在顶栏选过才带 key 出去。
           model: channelModel,
@@ -1674,6 +1720,8 @@ class AssistantNotifier extends Notifier<AssistantState> {
                 sourceCanvasId,
                 scope,
                 artists.entries,
+                ocEntries: turnOcs.values,
+                publicOcs: publicOcs,
                 previousPositives: previousPositives,
                 previousDraw: sourceDraw,
                 useBlocks: useBlocks,
@@ -1940,6 +1988,8 @@ class AssistantNotifier extends Notifier<AssistantState> {
     String sourceCanvasId,
     LibraryScope scope,
     List<TagEntry> artistEntries, {
+    required Iterable<TagEntry> ocEntries,
+    required List<TagEntry> publicOcs,
     required List<String> previousPositives,
     required DrawProposal? previousDraw,
     required bool useBlocks,
@@ -2010,6 +2060,18 @@ class AssistantNotifier extends Notifier<AssistantState> {
             at: _now,
             tools: List.of(tools),
             draw: draw,
+            characterSources: draw == null || draw.characters.isEmpty
+                ? const []
+                : proposalCharacterSources(
+                    draw,
+                    ocEntries,
+                    publicPreviewsOf(publicOcs, local: ocEntries),
+                    usedOcs: {
+                      ...?r.resources['ocs'],
+                      ...?r.resources['oc'],
+                      ...r.ocLookups,
+                    },
+                  ),
             resources: r.resources,
             // 结果卡据此定差异基线(见 AssistantMsg.withCanvas)
             withCanvas: canvas,
@@ -2139,7 +2201,7 @@ class AssistantNotifier extends Notifier<AssistantState> {
     } finally {
       _trackJob(msgId, null);
     }
-    if (!inline || ok != GenOutcome.ok) return;
+    if (!ref.mounted || !inline || ok != GenOutcome.ok) return;
     final now = ref.read(galleryProvider).results.firstOrNull?.id;
     if (now == null || now == before) return;
     final i = state.msgs.indexWhere((m) => m.id == msgId);
@@ -2151,6 +2213,7 @@ class AssistantNotifier extends Notifier<AssistantState> {
 
   /// 记 / 清「这条消息正在出哪一单」。
   void _trackJob(String msgId, String? jobId) {
+    if (!ref.mounted) return;
     final next = {...state.jobs};
     if (jobId == null) {
       if (next.remove(msgId) == null) return;
@@ -2251,11 +2314,12 @@ class AssistantNotifier extends Notifier<AssistantState> {
         PromptSnapshot.of(base).sameAs(change.after);
     var seq = 0;
     final sent = alreadyApplied
-        ? base.copyWith(charRefs: const [], img2img: null, inpaint: null)
+        ? base.copyWith(inpaint: null)
         : proposalSendState(
             base,
             r,
             settings.importTo,
+            characterSources: msg.characterSources,
             binding: _binding(targetId),
             allowEditNegative: settings.allowEditNegative,
             newId: () => 'preview${seq++}',
@@ -2300,6 +2364,7 @@ class AssistantNotifier extends Notifier<AssistantState> {
       base,
       r,
       settings.importTo,
+      characterSources: msg.characterSources,
       allowEditNegative: settings.allowEditNegative,
       binding: binding,
       onBinding: (value) => nextBinding = value,

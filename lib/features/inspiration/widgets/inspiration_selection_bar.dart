@@ -12,14 +12,16 @@ class DesktopInspirationSelectionBar extends StatelessWidget {
     required this.onPrompt,
     required this.onCharacters,
     required this.onClear,
-    this.menu,
+    required this.onTag,
+    this.onDelete,
   });
 
   final int count;
   final bool busy;
   final VoidCallback onPrompt, onClear;
   final VoidCallback? onCharacters;
-  final Widget? menu;
+  final VoidCallback onTag;
+  final VoidCallback? onDelete;
 
   @override
   Widget build(BuildContext context) => Padding(
@@ -57,19 +59,27 @@ class DesktopInspirationSelectionBar extends StatelessWidget {
                   icon: const Icon(Icons.person_add_alt, size: 18),
                   label: Text(context.l10n.desktopAddCharacter),
                 ),
-              ?menu,
-              if (menu == null)
+              TextButton.icon(
+                key: const ValueKey('inspiration-selection-tag'),
+                onPressed: busy ? null : onTag,
+                icon: const Icon(Icons.sell_outlined, size: 18),
+                label: Text(context.l10n.tagLabel),
+              ),
+              if (onDelete != null)
                 TextButton.icon(
-                  onPressed: busy ? null : onClear,
-                  icon: const Icon(Icons.close, size: 18),
-                  label: Text(context.l10n.clearSelection),
-                )
-              else
-                IconButton(
-                  tooltip: context.l10n.clearSelection,
-                  onPressed: busy ? null : onClear,
-                  icon: const Icon(Icons.close, size: 20),
+                  key: const ValueKey('inspiration-selection-delete'),
+                  style: TextButton.styleFrom(
+                    foregroundColor: context.scheme.error,
+                  ),
+                  onPressed: busy ? null : onDelete,
+                  icon: const Icon(Icons.delete_outline, size: 18),
+                  label: Text(context.l10n.delete),
                 ),
+              TextButton.icon(
+                onPressed: busy ? null : onClear,
+                icon: const Icon(Icons.close, size: 18),
+                label: Text(context.l10n.clearSelection),
+              ),
             ],
           ),
         ),

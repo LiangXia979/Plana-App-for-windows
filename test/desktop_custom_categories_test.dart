@@ -17,7 +17,6 @@ import 'package:plana_app/features/inspiration/tag_editor_page.dart';
 import 'package:plana_app/features/inspiration/tag_library.dart';
 import 'package:plana_app/features/inspiration/tag_models.dart';
 import 'package:plana_app/features/inspiration/widgets/category_sheets.dart';
-import 'package:plana_app/features/inspiration/widgets/char_pick_sheet.dart';
 import 'package:plana_app/features/inspiration/widgets/tag_card.dart';
 
 import 'support/desktop_capture.dart';
@@ -109,10 +108,6 @@ void main() {
                         ),
                       ),
                       child: const Text('编辑条目'),
-                    ),
-                    TextButton(
-                      onPressed: () => showCharPickSheet(context),
-                      child: const Text('选择角色'),
                     ),
                   ],
                 ),
@@ -239,41 +234,6 @@ void main() {
         custom.webId,
       );
       expect(key('tag-editor-dialog'), findsNothing);
-      await finish(tester);
-    },
-  );
-
-  testWidgets(
-    'character picker includes custom categories and remembers its page',
-    (tester) async {
-      await tester.runAsync(
-        () => container
-            .read(tagLibraryProvider.notifier)
-            .upsert(
-              TagEntry(
-                id: 'outfit',
-                category: custom.key,
-                name: '衣服条目',
-                positive: 'dress',
-              ),
-            ),
-      );
-      await mount(tester, dark: true);
-      await tester.tap(find.text('选择角色'));
-      await tester.pumpAndSettle();
-      await tester.tap(find.text('服装'));
-      await tester.pumpAndSettle();
-      expect(key('outfit'), findsOneWidget);
-      await tester.tap(find.byTooltip('关闭'));
-      await tester.pumpAndSettle();
-      await tester.tap(find.text('选择角色'));
-      await tester.pumpAndSettle();
-      expect(key('outfit'), findsOneWidget);
-      expect(
-        container.read(uiPrefsProvider).lastPages['charPick'],
-        custom.webId,
-      );
-      await captureDesktop(tester, capture, 'batch9-category-picker-dark');
       await finish(tester);
     },
   );

@@ -4,6 +4,7 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/util/runtime_diagnostics.dart';
 import '../../../l10n/l10n.dart';
 import 'oc_sources.dart';
 
@@ -173,7 +174,7 @@ class _ConnectDialogState extends ConsumerState<_ConnectDialog> {
             OcAccessError() => e.message,
             FormatException() => '无法识别资料库格式，请检查 JSON 文件或链接。',
             FileSystemException() => '无法读取或保存本机文件。',
-            _ => '连接失败，请检查网址、网络或访客口令再试。',
+            _ => '连接失败。可在「我的 → 关于 Plana → 日志诊断」开启日志后重试。',
           };
         });
       }
@@ -260,13 +261,18 @@ class _ConnectDialogState extends ConsumerState<_ConnectDialog> {
                     ),
                   ],
                 ),
-                if (_error != null)
-                  Text(
+                if (_error != null) ...[
+                  SelectableText(
                     _error!,
                     style: TextStyle(
                       color: Theme.of(context).colorScheme.error,
                     ),
                   ),
+                  if (RuntimeDiagnostics.current != null)
+                    const SelectableText(
+                      '可在「我的 → 关于 Plana → 日志目录」打开最新的 dart 日志，搜索 external-oc。',
+                    ),
+                ],
                 if (_busy) const LinearProgressIndicator(),
               ],
             ),

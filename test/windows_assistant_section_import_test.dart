@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -13,6 +14,9 @@ import 'package:plana_app/features/assistant/preset_rules.dart';
 import 'package:plana_app/features/assistant/assistant_models.dart';
 import 'package:plana_app/features/assistant/assistant_state.dart';
 import 'package:plana_app/features/generate/canvas_state.dart';
+import 'package:plana_app/features/generate/generation_controller.dart';
+import 'package:plana_app/features/generate/gen_jobs.dart';
+import 'package:plana_app/features/gallery/albums/album_models.dart';
 import 'package:plana_app/features/generate/generate_state.dart';
 import 'package:plana_app/features/generate/models.dart';
 import 'package:plana_app/features/generate/prompt_sections.dart';
@@ -21,6 +25,23 @@ import 'package:plana_app/features/generate/gen_modules.dart';
 import 'package:plana_app/features/inspiration/tag_models.dart';
 import 'package:plana_app/features/inspiration/tag_library.dart';
 import 'package:plana_app/features/inspiration/public_tags.dart';
+
+class _CaptureGeneration extends GenerationNotifier {
+  final received = Completer<GenerateState>();
+  @override
+  GenPool build() => const GenPool();
+  @override
+  Future<GenOutcome> generate({
+    GallerySaveTarget? galleryTarget,
+    GenerateState? using,
+    bool stay = false,
+    void Function(String)? onJob,
+    CanvasOrigin? origin,
+  }) async {
+    received.complete(using!);
+    return GenOutcome.ok;
+  }
+}
 
 class _Session extends BotSessionNotifier {
   @override
@@ -44,6 +65,7 @@ class _Library extends TagLibrary {
         category: TagCategory.character,
         name: '礼服猫',
         positive: '1.4::blue hair, silver eyes::, {ribbon}, [boots]',
+        previews: ['https://art.invalid/cat.png'],
       ),
       TagEntry(
         id: 'a',
@@ -110,9 +132,14 @@ class _SemanticRules extends RulesLibraryNotifier {
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
-  for (final legacy in [false, true]) {
+  for (final (legacy, semantic) in [
+    (false, false),
+    (true, false),
+    (false, true),
+    (true, true),
+  ]) {
     test(
-      'Bot backend honors OC placeholders and imports only library spans (legacy: $legacy)',
+      'OC cover follows the source in automatic and manual imports (legacy: $legacy, semantic: $semantic)',
       () async {
         const oc = '1.4::blue hair, silver eyes::, {ribbon}, [boots]';
         final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
@@ -128,7 +155,16 @@ void main() {
                   ? 'garden'
                   : '<<artist:A:artist:foo>>, garden',
               'characters': [
-                {'name': '主角', 'positive': 'standing, __OC_礼服猫__, waving'},
+                {
+                  'name': '主角',
+                  'positive': semantic
+                      ? 'standing, $oc, waving'
+                      : 'standing, __OC_礼服猫__, waving',
+                  if (semantic)
+                    'blocks': {
+                      'positive': ['角色·舞台装'],
+                    },
+                },
               ],
               'blocks': {
                 'positive': ['场景·整张图'],
@@ -154,6 +190,7 @@ void main() {
         final c = ProviderContainer(
           overrides: [
             appStoresProvider.overrideWithValue(stores),
+            generationProvider.overrideWith(_CaptureGeneration.new),
             botSessionProvider.overrideWith(_Session.new),
             backendBaseProvider.overrideWith(
               () => _Backend('http://127.0.0.1:${server.port}'),
@@ -162,7 +199,9 @@ void main() {
             agentModelsProvider.overrideWith(
               (_) async => const AgentModelList(),
             ),
-            rulesLibraryProvider.overrideWith(_Rules.new),
+            rulesLibraryProvider.overrideWith(
+              semantic ? _SemanticRules.new : _Rules.new,
+            ),
             tagLibraryProvider.overrideWith(_Library.new),
           ],
         );
@@ -175,11 +214,40 @@ void main() {
                 (s) => s.copyWith(
                   libraryScope: LibraryScope.local,
                   autoImport: true,
-                  autoGenerate: false,
-                  ocPlaceholders: true,
+                  autoGenerate: true,
+                  ocPlaceholders: !semantic,
                   allowEditNegative: false,
                 ),
               );
+          final bytes = Uint8List.fromList([1, 2, 3]);
+          final refs = [
+            CharRefItem(
+              id: 'reference',
+              enabled: !legacy,
+              image: bytes,
+              strength: .6,
+            ),
+          ];
+          final img2img = Img2ImgConfig(
+            image: bytes,
+            strength: .44,
+            noise: .22,
+          );
+          final gen = c.read(generateProvider.notifier);
+          final base = c.read(generateProvider);
+          gen.applyCanvas(
+            CanvasPrompts.of(
+              base.copyWith(
+                charRefs: refs,
+                img2img: img2img,
+                params: base.params.copyWith(
+                  model: semantic ? 'NAI 5.0 Full' : 'NAI 4.5 Full',
+                  naiEffort: NaiEffort.high,
+                ),
+              ),
+            ),
+            force: true,
+          );
           final done = Completer<void>();
           final sub = c.listen(assistantProvider, (before, after) {
             if (before?.running == true &&
@@ -194,13 +262,53 @@ void main() {
           );
           await done.future.timeout(const Duration(seconds: 10));
           sub.close();
-          expect(payloads.single, contains('__OC_礼服猫__'));
-          expect(payloads.single, isNot(contains('silver eyes')));
-          final draw = c.read(assistantProvider).msgs.last.draw!;
-          expect(draw.blocks.map((b) => b.name), [if (legacy) 'A', '礼服猫']);
+          final submitted =
+              await (c.read(generationProvider.notifier) as _CaptureGeneration)
+                  .received
+                  .future
+                  .timeout(const Duration(seconds: 10));
+          for (final snapshot in [c.read(generateProvider), submitted]) {
+            expect(snapshot.charRefs, same(refs));
+            expect(snapshot.charRefs.single.enabled, !legacy);
+            expect(snapshot.img2img, same(img2img));
+          }
+          expect(payloads.single, isNot(contains('画面偏暖色')));
+          if (!semantic) {
+            expect(payloads.single, contains('__OC_礼服猫__'));
+            expect(payloads.single, isNot(contains('silver eyes')));
+          }
+          final message = c.read(assistantProvider).msgs.last;
+          final draw = message.draw!;
+          if (semantic) {
+            expect(
+              draw.blocks.where((b) => b.character == 0).single.name,
+              '舞台装',
+            );
+          } else {
+            expect(draw.blocks.map((b) => b.name), [if (legacy) 'A', '礼服猫']);
+          }
           final role = c.read(generateProvider).characters.single;
-          expect(role.foldLinks.single.positiveBody, oc);
+          expect(
+            role.foldLinks.single.positiveBody,
+            semantic ? 'standing, $oc, waving' : oc,
+          );
           expect(role.positive, 'standing, $oc, waving');
+          expect(role.source, 'cat');
+          expect(role.avatar, 'https://art.invalid/cat.png');
+          final restored = AssistantMsg.fromJson(
+            jsonDecode(jsonEncode(message.toJson())),
+          );
+          expect(restored.characterSources, message.characterSources);
+          expect(replayText(restored), isNot(contains('art.invalid')));
+          expect(payloads.single, isNot(contains('art.invalid')));
+          final assistant = c.read(assistantProvider.notifier);
+          expect(assistant.undo(message.id), isTrue);
+          expect(c.read(generateProvider).characters, isEmpty);
+          expect(assistant.applyProposal(message.id), isTrue);
+          expect(
+            c.read(generateProvider).characters.single.avatar,
+            role.avatar,
+          );
         } finally {
           c.dispose();
           await stores.flushForExit();
@@ -298,7 +406,7 @@ void main() {
             reason: 'locked imports skip the artist supplement',
           );
           expect(requests.first['user_request'], contains('全局负面提示词已锁定'));
-          expect(requests.first['user_request'], endsWith('画面偏暖色'));
+          expect(requests.first['user_request'], isNot(contains('画面偏暖色')));
           expect(
             requests.first['preset_rules'].toString(),
             isNot(contains('画面偏暖色')),
@@ -369,7 +477,16 @@ void main() {
             mode,
           );
           final gen = c.read(generateProvider.notifier);
+          final bytes = Uint8List.fromList([3, 1, 4]);
           final original = GenerateState.initial().copyWith(
+            params: GenerateState.initial().params.copyWith(
+              model: 'NAI 4.5 Full',
+            ),
+            charRefs: [
+              CharRefItem(id: 'on', image: bytes, strength: .7),
+              CharRefItem(id: 'off', enabled: false, image: bytes),
+            ],
+            img2img: Img2ImgConfig(image: bytes, strength: .43, noise: .2),
             prompt: 'forest',
             promptRaw: '<#scene: forest#>',
             negativePrompt: 'lowres',
@@ -401,6 +518,15 @@ void main() {
               .prompts
               .applyTo(original);
           final sent = stripHiddenModules(changed, const GenModuleSettings());
+          final alreadyApplied = assistant.previewSendState(
+            'r',
+            canvasId: source,
+          )!;
+          for (final snapshot in [preview, changed, alreadyApplied]) {
+            expect(snapshot.charRefs, same(original.charRefs));
+            expect(snapshot.charRefs.last.enabled, isFalse);
+            expect(snapshot.img2img, same(original.img2img));
+          }
           expect(sent.prompt, preview.prompt);
           expect(sent.negativePrompt, preview.negativePrompt);
           expect(changed.sections.length, switch (mode) {

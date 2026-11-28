@@ -515,30 +515,99 @@ void main() {
     },
   );
 
-  testWidgets('advanced parameters survive reopening and resizing', (
+  testWidgets('advanced parameters adapt to the form width and retain edits', (
     tester,
   ) async {
     await mount(tester);
     final advanced = find.text('更多参数');
-    await tester.ensureVisible(advanced);
-    await tester.tap(advanced);
-    await tester.pumpAndSettle();
-    expect(tester.takeException(), isNull);
     final schedule = key('metadata-field-noise_schedule');
+    final rescale = key('metadata-field-cfg_rescale');
+    final strength = key('metadata-field-strength');
+    final noise = key('metadata-field-noise');
+    await tester.ensureVisible(advanced);
+    final scheme = Theme.of(tester.element(advanced)).colorScheme;
+    Color? chipFill(String label) {
+      final chip = find.widgetWithText(FilterChip, label);
+      final ink = find.descendant(of: chip, matching: find.byType(Ink)).first;
+      return (tester.widget<Ink>(ink).decoration! as ShapeDecoration).color;
+    }
+
+    expect(chipFill('SMEA'), scheme.surfaceContainerLow);
+    expect(chipFill('SMEA Dynamic'), scheme.surfaceContainerLow);
+    await tester.tap(find.widgetWithText(FilterChip, 'SMEA'));
+    await tester.pumpAndSettle();
+    expect(chipFill('SMEA'), isNot(scheme.surfaceContainerLow));
+    expect(chipFill('SMEA Dynamic'), scheme.surfaceContainerLow);
+    await tester.tap(find.widgetWithText(FilterChip, 'SMEA Dynamic'));
+    await tester.pumpAndSettle();
+    expect(chipFill('SMEA Dynamic'), chipFill('SMEA'));
+    await tester.tap(find.widgetWithText(FilterChip, 'SMEA'));
+    await tester.pumpAndSettle();
+    expect(chipFill('SMEA Dynamic'), scheme.surfaceContainerLow);
+    final moreButton = tester.widget<TextButton>(
+      find.widgetWithText(TextButton, '更多参数'),
+    );
+    expect(moreButton.style!.foregroundColor!.resolve({}), scheme.onSurface);
+    final smea = tester.getRect(find.text('SMEA'));
+    expect(tester.getCenter(advanced).dy, closeTo(smea.center.dy, 2));
+    expect(tester.getRect(advanced).left, greaterThan(smea.right));
+    expect(schedule, findsNothing);
+    await tester.tap(advanced);
+    await tester.pumpAndSettle();
     await tester.ensureVisible(schedule);
-    await tester.enterText(schedule, 'karras');
+    final titleStyle = tester.widget<Text>(find.text('生成参数')).style;
+    for (final name in ['噪声调度', 'CFG Rescale', '重绘强度', '噪声强度']) {
+      expect(tester.widget<Text>(find.text(name)).style, titleStyle);
+    }
+    expect(
+      tester.getRect(schedule).left,
+      tester.getRect(key('metadata-field-steps')).left,
+    );
+    expect(
+      tester.getRect(noise).right,
+      closeTo(tester.getRect(key('metadata-field-sampler')).right, .01),
+    );
+    for (final field in [rescale, strength, noise]) {
+      expect(tester.getTopLeft(field).dy, tester.getTopLeft(schedule).dy);
+    }
+    await screenshot(tester, 'toolbox-metadata-advanced', showHeading: false);
+    await tester.tap(schedule);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('karras'));
+    await tester.pumpAndSettle();
+    expect(tester.widget<TextField>(schedule).controller!.text, 'karras');
+    await tester.enterText(schedule, 'custom-schedule');
+    await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+    await tester.pumpAndSettle();
     await tester.ensureVisible(advanced);
     await tester.tap(advanced);
     await tester.pumpAndSettle();
+    expect(schedule, findsNothing);
     await tester.tap(advanced);
     await tester.pumpAndSettle();
-    expect(tester.takeException(), isNull);
-    expect(tester.widget<TextField>(schedule).controller!.text, 'karras');
+    expect(
+      tester.widget<TextField>(schedule).controller!.text,
+      'custom-schedule',
+    );
     expect(tester.getSize(schedule).height, lessThan(80));
     tester.view.physicalSize = const Size(540, 650);
     await tester.pumpAndSettle();
-    await tester.ensureVisible(schedule);
-    expect(tester.widget<TextField>(schedule).controller!.text, 'karras');
+    expect(tester.getTopLeft(schedule).dy, tester.getTopLeft(rescale).dy);
+    expect(
+      tester.getTopLeft(strength).dy,
+      greaterThan(tester.getBottomLeft(schedule).dy),
+    );
+    expect(tester.getTopLeft(strength).dy, tester.getTopLeft(noise).dy);
+    tester.view.physicalSize = const Size(350, 650);
+    await tester.pumpAndSettle();
+    expect(
+      tester.getTopLeft(rescale).dy,
+      greaterThan(tester.getBottomLeft(schedule).dy),
+    );
+    expect(
+      tester.widget<TextField>(schedule).controller!.text,
+      'custom-schedule',
+    );
     expect(tester.takeException(), isNull);
     await tester.pumpWidget(const SizedBox());
   });

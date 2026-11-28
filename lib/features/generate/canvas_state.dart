@@ -1,6 +1,8 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/store/app_stores.dart';
+import '../../core/platform/desktop.dart';
+import '../gallery/temporary_gallery_state.dart';
 import '../editor/editor_state.dart';
 import 'canvas_models.dart';
 import 'generate_state.dart';
@@ -187,8 +189,7 @@ class CanvasWorkspaceNotifier extends Notifier<CanvasWorkspace> {
       activeId: id,
       nextId: state.nextId + 1,
     );
-    ref.read(generateProvider.notifier).applyCanvas(prompts, force: true);
-    _save();
+    _finishCreatingCanvas(id, prompts);
     return id;
   }
 
@@ -217,9 +218,17 @@ class CanvasWorkspaceNotifier extends Notifier<CanvasWorkspace> {
       activeId: id,
       nextId: state.nextId + 1,
     );
+    _finishCreatingCanvas(id, prompts);
+    return id;
+  }
+
+  void _finishCreatingCanvas(String id, CanvasPrompts prompts) {
+    if (ref.read(desktopModeProvider) &&
+        ref.read(temporaryOptionsProvider).temporaryForNewCanvases) {
+      ref.read(temporaryOptionsProvider.notifier).choose(id, true);
+    }
     ref.read(generateProvider.notifier).applyCanvas(prompts, force: true);
     _save();
-    return id;
   }
 
   /// 新画布叫「画布 N」,N 取没被占用的最小号:新装时默认画布之后就是「画布 1」,

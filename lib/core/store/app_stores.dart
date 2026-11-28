@@ -7,6 +7,7 @@ import 'package:path_provider/path_provider.dart';
 import '../../features/assistant/session_store.dart';
 import '../../features/editor/data/trans_cache_store.dart';
 import '../../features/gallery/gallery_store.dart';
+import '../../features/gallery/temporary_gallery.dart';
 import '../../features/gallery/albums/album_store.dart';
 import '../../features/generate/workspace_store.dart';
 import '../../features/generate/canvas_history.dart';
@@ -45,6 +46,10 @@ class AppStores {
   final BlobStore blobs;
   final WorkspaceStore workspace;
   final GalleryStore gallery;
+  late final temporaryGallery = TemporaryGallery(
+    prefs.supportDirectory,
+    gallery,
+  );
   final AlbumStore albums;
   final DesktopOutputStore desktopOutput;
   final KeyLedgerStore ledger;
@@ -129,7 +134,10 @@ class AppStores {
     }
     // 先恢复，避免把 rename 失败留下的有效图片/设置误判为空档。
     try {
-      await recoverPendingWrites(root);
+      await recoverPendingWrites(
+        root,
+        exclude: TemporaryGallery.directoryIn(root),
+      );
     } on FileSystemException {
       /* 保留恢复文件 */
     }

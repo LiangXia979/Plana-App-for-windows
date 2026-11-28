@@ -7,6 +7,7 @@ import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:plana_app/core/net/remote_image.dart';
+import 'package:plana_app/features/editor/editor_models.dart';
 import 'package:plana_app/features/generate/generate_state.dart';
 import 'package:plana_app/features/inspiration/widgets/tag_card.dart';
 
@@ -36,7 +37,7 @@ void main() {
 
   for (final remote in [false, true]) {
     testWidgets(
-      '${remote ? 'remote' : 'local'} avatar previews original on right click and selects on left click',
+      '${remote ? 'remote' : 'local'} left click previews the original, right click leaves the canvas alone',
       (tester) async {
         final source = remote ? CharacterAvatarFixture.remote : fixture.local;
         fixture.setCharacter(source, enabled: false);
@@ -47,12 +48,8 @@ void main() {
           find.byKey(const ValueKey('character-library-avatar')),
           findsNothing,
         );
-        expect(find.byTooltip('角色库'), findsOneWidget); // List-level add stays.
-        await tester.tap(
-          avatar,
-          kind: PointerDeviceKind.mouse,
-          buttons: kSecondaryButton,
-        );
+        expect(find.byTooltip('角色库'), findsNothing);
+        await tester.tap(avatar, kind: PointerDeviceKind.mouse);
         await tester.pumpAndSettle();
         expect(preview, findsOneWidget);
         expect(find.text('选择角色'), findsNothing);
@@ -77,24 +74,17 @@ void main() {
           fixture.container.read(generateProvider).characters.single,
           same(gen.characters.single),
         );
-        await tester.tap(avatar, kind: PointerDeviceKind.mouse);
+        await tester.tap(
+          avatar,
+          kind: PointerDeviceKind.mouse,
+          buttons: kSecondaryButton,
+        );
         await tester.pumpAndSettle();
-        expect(find.text('选择角色'), findsWidgets);
-        expect(preview, findsNothing);
-        await tester.tap(find.byKey(const ValueKey('replacement')));
-        await tester.pumpAndSettle();
-        final chosen = fixture.container
-            .read(generateProvider)
-            .characters
-            .single;
-        expect(chosen.id, gen.characters.single.id);
-        expect(chosen.name, '新角色');
-        expect(chosen.positive, 'new traveler');
-        expect(chosen.negative, 'hat');
-        expect(chosen.avatar, fixture.local);
-        expect(chosen.enabled, isFalse);
-        expect(chosen.position, 'B2');
-        expect(chosen.positiveRaw, isNot(contains('~hat~')));
+        expect(find.byType(Dialog), findsNothing);
+        expect(
+          fixture.container.read(generateProvider).characters.single,
+          same(gen.characters.single),
+        );
         expect(tester.takeException(), isNull);
         await finish(tester);
       },
@@ -157,19 +147,55 @@ void main() {
     );
   }
 
+  testWidgets('a saved AI fold resolves its OC cover and left-click preview', (
+    tester,
+  ) async {
+    fixture.setCharacter(null);
+    const name = '☺ 新角色 · 角色';
+    const body = '1.2::new traveler::';
+    final gen = fixture.container.read(generateProvider.notifier);
+    gen.updateCharacter(
+      'avatar',
+      name: '主角',
+      positive: 'standing, $body, smiling',
+      positiveRaw: 'standing, <#$name: $body$kFoldClose, smiling',
+      foldLinks: const [
+        PromptFoldLink(
+          id: 'old-import',
+          temporaryCategory: 'character',
+          positiveName: name,
+          positiveBody: body,
+          negativeName: '',
+          negativeBody: '',
+        ),
+      ],
+    );
+    final saved = fixture.container.read(generateProvider).characters.single;
+    await fixture.mount(tester);
+    await waitForAvatarImage(tester, avatar);
+    await tester.tap(avatar, kind: PointerDeviceKind.mouse);
+    await tester.pumpAndSettle();
+    expect(
+      (tester.widget<Image>(previewImage).image as FileImage).file.path,
+      fixture.local,
+    );
+    expect(
+      fixture.container.read(generateProvider).characters.single,
+      same(saved),
+    );
+    await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+    await finish(tester);
+  });
+
   for (final missing in [true, false]) {
     testWidgets(
-      '${missing ? 'empty' : 'unreadable'} avatar keeps library selection usable',
+      '${missing ? 'empty' : 'unreadable'} avatar opens no picker and handles unavailable artwork',
       (tester) async {
         final corrupt = File('${fixture.root.path}/corrupt.png')
           ..writeAsStringSync('not an image');
         fixture.setCharacter(missing ? null : corrupt.path);
         await fixture.mount(tester);
-        await tester.tap(
-          avatar,
-          kind: PointerDeviceKind.mouse,
-          buttons: kSecondaryButton,
-        );
+        await tester.tap(avatar, kind: PointerDeviceKind.mouse);
         await tester.pumpAndSettle();
         if (missing) {
           expect(preview, findsNothing);
@@ -189,11 +215,8 @@ void main() {
           await tester.pumpAndSettle();
           expect(preview, findsNothing);
         }
-        await tester.tap(avatar, kind: PointerDeviceKind.mouse);
-        await tester.pumpAndSettle();
-        expect(find.text('选择角色'), findsWidgets);
-        await tester.sendKeyEvent(LogicalKeyboardKey.escape);
-        await tester.pumpAndSettle();
+        expect(find.text('选择角色'), findsNothing);
+        expect(find.byType(Dialog), findsNothing);
         expect(tester.takeException(), isNull);
         await finish(tester);
       },
@@ -211,11 +234,7 @@ void main() {
       );
       await tester.enterText(input, 'traveler, pending words');
       for (var attempt = 0; attempt < 2; attempt++) {
-        await tester.tap(
-          avatar,
-          kind: PointerDeviceKind.mouse,
-          buttons: kSecondaryButton,
-        );
+        await tester.tap(avatar, kind: PointerDeviceKind.mouse);
         await tester.pumpAndSettle();
         await waitForAvatarImage(tester, preview);
         final viewer = tester.widget<InteractiveViewer>(
@@ -257,32 +276,32 @@ void main() {
       fixture = CharacterAvatarFixture();
       await fixture.initialize(desktop: false);
     });
-    testWidgets('avatar keeps centered cropping and library-only tap', (
-      tester,
-    ) async {
-      fixture.setCharacter(fixture.local);
-      await fixture.mount(tester);
-      final thumb = find.byType(TagCardPreview);
-      expect(tester.widget<TagCardPreview>(thumb).alignment, Alignment.center);
-      await tester.tap(
-        thumb,
-        kind: PointerDeviceKind.mouse,
-        buttons: kSecondaryButton,
-      );
-      await tester.pumpAndSettle();
-      expect(preview, findsNothing);
-      await tester.tap(thumb);
-      await tester.pumpAndSettle();
-      // 选角面板现在显示类别页签,验证真实替换行为而非旧标题。
-      expect(find.byKey(const ValueKey('replacement')), findsOneWidget);
-      await tester.tap(find.byKey(const ValueKey('replacement')));
-      await tester.pumpAndSettle();
-      final chosen = fixture.container.read(generateProvider).characters.single;
-      expect(chosen.name, '新角色');
-      expect(chosen.positive, 'new traveler');
-      expect(chosen.avatar, fixture.local);
-      expect(preview, findsNothing);
-      await finish(tester);
-    });
+    testWidgets(
+      'avatar keeps centered cropping and opens the full image on tap',
+      (tester) async {
+        fixture.setCharacter(fixture.local);
+        await fixture.mount(tester);
+        final thumb = find.byType(TagCardPreview);
+        expect(
+          tester.widget<TagCardPreview>(thumb).alignment,
+          Alignment.center,
+        );
+        final before = fixture.container
+            .read(generateProvider)
+            .characters
+            .single;
+        await tester.tap(thumb);
+        await tester.pumpAndSettle();
+        await waitForAvatarImage(tester, preview);
+        expect(preview, findsOneWidget);
+        expect(
+          fixture.container.read(generateProvider).characters.single,
+          same(before),
+        );
+        await tester.tap(find.byTooltip('关闭预览'));
+        await tester.pumpAndSettle();
+        await finish(tester);
+      },
+    );
   });
 }

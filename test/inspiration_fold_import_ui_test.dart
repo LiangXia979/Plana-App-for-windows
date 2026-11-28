@@ -20,7 +20,6 @@ import 'package:plana_app/features/editor/data/tag_translation_service.dart';
 import 'package:plana_app/features/editor/editor_models.dart';
 import 'package:plana_app/features/editor/editor_settings.dart';
 import 'package:plana_app/features/editor/widgets/chip_flow_view.dart';
-import 'package:plana_app/features/editor/widgets/tag_panel.dart';
 import 'package:plana_app/features/generate/generate_state.dart';
 import 'package:plana_app/features/generate/models.dart';
 import 'package:plana_app/features/generate/prompt_presets.dart';
@@ -180,10 +179,7 @@ void main() {
                           child: Column(
                             children: [
                               ?proposal,
-                              if (ref.watch(generateProvider).sections.isEmpty)
-                                const DesktopPromptCard()
-                              else
-                                const PromptCard(),
+                              const PromptCard(),
                               for (final c
                                   in ref.watch(generateProvider).characters)
                                 Padding(
@@ -266,16 +262,10 @@ void main() {
     await tester.tapAt(
       tester.state<ChipFlowViewState>(finder).chipAnchor(index)!.center,
     );
-    // The single-click inspector waits for the double-click gesture window.
-    await tester.pump(const Duration(milliseconds: 350));
     await tester.pumpAndSettle();
-    await tap(
-      tester,
-      find.descendant(
-        of: key('desktop-tag-popover'),
-        matching: find.text('删除'),
-      ),
-    );
+    await tap(tester, find.byTooltip('大屏编辑提示词').hitTestable().last);
+    await tap(tester, find.text('移除此块'));
+    await tap(tester, key('studio-back'));
   }
 
   Future<void> finish(WidgetTester tester) async {
@@ -387,11 +377,11 @@ void main() {
           await tester.tapAt(anchor.center);
           await tester.pumpAndSettle();
           expect(
-            tester
-                .widget<TagPanel>(key('fold-inspector'))
-                .titleSpan!
-                .toPlainText(includeSemanticsLabels: false),
-            contains(moon),
+            find.descendant(
+              of: key('fold-inspector'),
+              matching: find.byIcon(Icons.dark_mode_outlined),
+            ),
+            findsOneWidget,
           );
           if (paired) await tap(tester, key('fold-inspector-负面'));
           await tap(tester, find.byTooltip('存为灵感块'));

@@ -18,7 +18,7 @@ class DesktopSaveDirectory extends Notifier<String?> {
   @override
   String? build() => ref.read(prefsStoreProvider).get(preferenceKey);
 
-  Future<void> select(String directory) async {
+  Future<void> select(String? directory) async {
     await ref
         .read(prefsStoreProvider)
         .write(key: preferenceKey, value: directory);

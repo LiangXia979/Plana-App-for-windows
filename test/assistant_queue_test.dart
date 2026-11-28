@@ -19,6 +19,7 @@ import 'package:plana_app/features/assistant/preset_rules.dart';
 import 'package:plana_app/features/generate/canvas_state.dart';
 import 'package:plana_app/features/generate/generate_state.dart';
 import 'package:plana_app/features/inspiration/public_tag_blocks.dart';
+import 'package:plana_app/features/inspiration/character_library_cover.dart';
 import 'package:plana_app/features/inspiration/external/oc_sources.dart';
 import 'package:plana_app/features/inspiration/public_tags.dart';
 import 'package:plana_app/features/inspiration/tag_library.dart';
@@ -62,7 +63,11 @@ class _Turn {
   _Turn(this.request, this.body);
   final HttpRequest request;
   final Map<String, dynamic> body;
-  Future<void> finish({bool fail = false, String positive = ''}) async {
+  Future<void> finish({
+    bool fail = false,
+    String positive = '',
+    List<Map<String, String>> characters = const [],
+  }) async {
     if (request.uri.path == '/reply') {
       request.response.headers.contentType = ContentType.json;
       request.response.write(
@@ -85,7 +90,7 @@ class _Turn {
     request.response.write(
       fail
           ? 'event: error\ndata: {"message":"本地模拟失败"}\n\n'
-          : 'event: final\ndata: ${jsonEncode({'thinking': '完成', if (positive.isNotEmpty) 'positive': positive})}\n\n',
+          : 'event: final\ndata: ${jsonEncode({'thinking': '完成', if (positive.isNotEmpty) 'positive': positive, if (characters.isNotEmpty) 'characters': characters})}\n\n',
     );
     try {
       await request.response.close();
@@ -196,10 +201,28 @@ void main() {
       final file = File(
         '${stores.prefs.supportDirectory.path}/assistant-fixture.json',
       );
+      final evening = File.fromUri(file.uri.resolve('evening.png'));
+      await evening.writeAsBytes(
+        img.encodePng(img.Image(width: 8, height: 12)),
+      );
       await file.writeAsString(
         jsonEncode({
           'characters': [
-            {'name': '星海', 'prompt': 'external costume'},
+            {
+              'name': '星海',
+              'forms': [
+                {
+                  'name': '日常',
+                  'prompt': 'external costume',
+                  'image': 'day.png',
+                },
+                {
+                  'name': '礼服',
+                  'prompt': 'evening dress',
+                  'image': 'evening.png',
+                },
+              ],
+            },
           ],
         }),
       );
@@ -211,6 +234,7 @@ void main() {
           name: '星海',
           category: TagCategory.character,
           positive: 'public costume',
+          previews: ['https://art.invalid/public-star.png'],
         ),
       );
       final prefs = c.read(assistantSettingsProvider.notifier);
@@ -221,11 +245,22 @@ void main() {
       await prefs.patch((s) => s.copyWith(sourceSelection: config));
       await start();
       expect(
-        turns.single.body['web_ocs'].single['tag_group'],
+        turns.single.body['web_ocs'].first['tag_group'],
         'external costume',
       );
       expect(turns.single.body['library_scope'], 'local');
-      await completeLast();
+      await turns.last.finish(
+        characters: const [
+          {'name': '星海', 'positive': 'evening dress, waving'},
+        ],
+      );
+      await until(() => !c.read(assistantProvider).running);
+      final external = c.read(generateProvider).characters.single;
+      expect(external.source, startsWith('ext:${source.id}:'));
+      final cover = await c.read(
+        characterLibraryCoverProvider(external).future,
+      );
+      expect(cover, evening.path);
       await prefs.patch(
         (s) => s.copyWith(
           sourceSelection: config.withOrder([
@@ -237,8 +272,17 @@ void main() {
       );
       await n.send('next');
       await until(() => turns.length == 2);
-      expect(turns.last.body['web_ocs'].single['tag_group'], 'public costume');
-      await completeLast();
+      expect(turns.last.body['web_ocs'].first['tag_group'], 'public costume');
+      await turns.last.finish(
+        characters: const [
+          {'name': '星海', 'positive': 'waving, public costume'},
+          {'name': '星海', 'positive': 'unrelated outfit'},
+        ],
+      );
+      await until(() => !c.read(assistantProvider).running);
+      final imported = c.read(generateProvider).characters;
+      expect(imported.first.avatar, 'https://art.invalid/public-star.png');
+      expect(imported.last.avatar, isNull);
       await prefs.patch(
         (s) => s.copyWith(sourceSelection: config.withPause(true)),
       );

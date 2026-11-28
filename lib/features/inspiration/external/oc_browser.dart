@@ -18,6 +18,7 @@ import '../tag_models.dart';
 import '../widgets/inspiration_entry_card.dart';
 import '../widgets/inspiration_selection_bar.dart';
 import '../widgets/tag_filter_chips.dart';
+import '../widgets/tag_sheets.dart';
 import 'oc_catalog.dart';
 import 'oc_sources.dart';
 
@@ -28,6 +29,7 @@ typedef OcBrowseItem = ({OcSource source, OcCharacter character});
 Map<String, Set<String>> _tagsByCharacter(Map<String, List<String>> overrides) {
   final grouped = <String, Set<String>>{};
   for (final e in overrides.entries) {
+    if (!e.key.startsWith('ext:')) continue;
     final prefix = e.key.substring(0, e.key.lastIndexOf(':') + 1);
     (grouped[prefix] ??= {}).addAll(e.value);
   }
@@ -304,6 +306,30 @@ class _ExternalOcBrowserState extends ConsumerState<ExternalOcBrowser> {
         job.ticket.cancel();
       }
     };
+  }
+
+  Future<void> _tagSelection() async {
+    if (_applying) return;
+    final cards = [
+      for (final group in _entries.values)
+        for (final original in group)
+          if (_selected.containsKey(original.id)) original,
+    ];
+    if (cards.isEmpty) return;
+    setState(() => _applying = true);
+    try {
+      await tagInspirationSelection(
+        context,
+        ref,
+        TagCategory.character,
+        externalCards: cards,
+        suggestions: widget.sources.expand(
+          (s) => s.tagsWithEdits(widget.tagOverrides),
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => _applying = false);
+    }
   }
 
   void _pick(TagEntry entry) => setState(() {
@@ -623,6 +649,7 @@ class _ExternalOcBrowserState extends ConsumerState<ExternalOcBrowser> {
             )
           else
             DesktopInspirationSelectionBar(
+              onTag: _tagSelection,
               count: _selected.length,
               busy: _applying,
               onClear: () => setState(_selected.clear),

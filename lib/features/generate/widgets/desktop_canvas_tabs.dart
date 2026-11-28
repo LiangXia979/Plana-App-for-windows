@@ -1,3 +1,6 @@
+import 'dart:ui' show BoxHeightStyle;
+
+import '../../gallery/temporary_gallery_actions.dart';
 import '../../../l10n/l10n.dart';
 import 'canvas_history_sheet.dart';
 import 'package:flutter/foundation.dart' show listEquals;
@@ -28,6 +31,8 @@ class DesktopCanvasTabsState extends ConsumerState<DesktopCanvasTabs> {
   final _menuAnchor = GlobalKey();
   String? _renamingId;
   bool _confirmingDelete = false;
+  PointerDownEvent? _labelDown;
+  ({String id, PointerDownEvent down})? _lastLabelClick;
   List<double> _extents = const [];
   int _activeIndex = 0;
   double? _viewportWidth;
@@ -62,6 +67,29 @@ class DesktopCanvasTabsState extends ConsumerState<DesktopCanvasTabs> {
     _scheduleReveal();
   }
 
+  // Record completed label clicks so selection stays immediate on the first
+  // click. Dragging to reorder and pressing a close button are separate actions.
+  void _pressTab(String id) {
+    final down = _labelDown;
+    final previous = _lastLabelClick;
+    _labelDown = null;
+    _lastLabelClick = null;
+    if (down != null &&
+        down.kind == PointerDeviceKind.mouse &&
+        down.buttons == kPrimaryMouseButton) {
+      if (previous != null &&
+          previous.id == id &&
+          down.timeStamp - previous.down.timeStamp <= kDoubleTapTimeout &&
+          (down.position - previous.down.position).distance <= kDoubleTapSlop &&
+          ref.read(canvasWorkspaceProvider).activeId == id) {
+        renameActiveCanvas();
+        return;
+      }
+      _lastLabelClick = (id: id, down: down);
+    }
+    _select(id);
+  }
+
   void createCanvas({bool duplicate = false}) {
     _menu.close();
     _finishRename();
@@ -77,22 +105,17 @@ class DesktopCanvasTabsState extends ConsumerState<DesktopCanvasTabs> {
     if (workspace.activeId == workspace.defaultId || _renamingId != null) {
       return;
     }
-    _name.value = TextEditingValue(
-      text: workspace.active.name,
-      selection: TextSelection(
-        baseOffset: 0,
-        extentOffset: workspace.active.name.length,
-      ),
-    );
+    final name = workspace.active.name;
+    // Keep the caret at the leading edge of the selection: a focused field
+    // would otherwise scroll a long name to its end as soon as it appears.
+    final selection = TextSelection(baseOffset: name.length, extentOffset: 0);
+    _name.value = TextEditingValue(text: name, selection: selection);
     setState(() => _renamingId = workspace.activeId);
     _scheduleReveal();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted || _renamingId != workspace.activeId) return;
       _nameFocus.requestFocus();
-      _name.selection = TextSelection(
-        baseOffset: 0,
-        extentOffset: _name.text.length,
-      );
+      _name.selection = selection;
     });
   }
 
@@ -115,16 +138,23 @@ class DesktopCanvasTabsState extends ConsumerState<DesktopCanvasTabs> {
     final canvas = ref.read(canvasWorkspaceProvider).find(id);
     if (canvas == null) return;
     _confirmingDelete = true;
-    final ok = await confirmDialog(
+    final cleaned = await closeTemporaryGallery(
       context,
-      title: '删除「${canvas.name}」？',
-      message: l10nNow.desktopRemoveThisCanvasAndItsSettingsGeneratedImages,
-      confirmLabel: '删除',
+      canvas: id,
+      confirmEmpty: () => mounted
+          ? confirmDialog(
+              context,
+              title: '删除「${canvas.name}」？',
+              message:
+                  l10nNow.desktopRemoveThisCanvasAndItsSettingsGeneratedImages,
+              confirmLabel: '删除',
+            )
+          : Future.value(false),
     );
     _confirmingDelete = false;
     if (!mounted) return;
     _tabsFocus.requestFocus();
-    if (!ok) return;
+    if (!cleaned) return;
     final canvases = ref.read(canvasWorkspaceProvider.notifier);
     final removed = canvases.remove(canvas.id);
     if (removed == null) return;
@@ -181,18 +211,14 @@ class DesktopCanvasTabsState extends ConsumerState<DesktopCanvasTabs> {
         key: const ValueKey('desktop-canvas-name-editor'),
         controller: _name,
         focusNode: _nameFocus,
-        style: style.copyWith(color: context.scheme.onSurface),
+        style: style,
+        textAlignVertical: TextAlignVertical.center,
+        selectionHeightStyle: BoxHeightStyle.tight,
+        scrollPadding: EdgeInsets.zero,
         maxLength: kCanvasNameMax,
         maxLengthEnforcement: MaxLengthEnforcement.truncateAfterCompositionEnds,
         textInputAction: TextInputAction.done,
-        decoration: const InputDecoration(
-          isDense: true,
-          counterText: '',
-          contentPadding: EdgeInsets.symmetric(horizontal: 4, vertical: 7),
-          border: OutlineInputBorder(
-            borderRadius: BorderRadius.all(Radius.circular(4)),
-          ),
-        ),
+        decoration: null,
         onSubmitted: (_) => _finishRename(focusTabs: true),
         onTapOutside: (_) => _finishRename(),
       ),
@@ -418,7 +444,8 @@ class DesktopCanvasTabsState extends ConsumerState<DesktopCanvasTabs> {
                                 selected: canvas.id == workspace.activeId,
                                 index: index,
                                 labelStyle: labelStyle,
-                                onSelect: () => _select(canvas.id),
+                                onSelect: () => _pressTab(canvas.id),
+                                onLabelDown: (event) => _labelDown = event,
                                 onContextMenu: (position) =>
                                     _showMenu(canvas.id, position),
                                 onClose: () => _deleteCanvas(canvas.id),
@@ -489,6 +516,7 @@ class _CanvasTab extends StatelessWidget {
     required this.labelStyle,
     required this.onSelect,
     this.onContextMenu,
+    this.onLabelDown,
     this.onClose,
     this.closeKey,
     this.editor,
@@ -501,6 +529,7 @@ class _CanvasTab extends StatelessWidget {
   final TextStyle labelStyle;
   final VoidCallback onSelect;
   final ValueChanged<Offset>? onContextMenu;
+  final PointerDownEventListener? onLabelDown;
   final VoidCallback? onClose;
   final Key? closeKey;
   final Widget? editor;
@@ -508,32 +537,68 @@ class _CanvasTab extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final label = TextButton(
-      onPressed: onSelect,
-      style: TextButton.styleFrom(
-        textStyle: labelStyle,
-        foregroundColor: selected
-            ? context.scheme.primary
-            : context.scheme.onSurfaceVariant,
-        minimumSize: const Size(0, 36),
-        padding: const EdgeInsets.symmetric(horizontal: 10),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-      ),
-      child: Text(name, maxLines: 1, overflow: TextOverflow.ellipsis),
+    final color = selected
+        ? context.scheme.primary
+        : context.scheme.onSurfaceVariant;
+    final padding = EdgeInsetsDirectional.only(
+      start: 10,
+      end: index == 0 ? 10 : 34,
     );
-    Widget content = editor != null
-        ? Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 3),
-            child: editor,
+    final label = Text(
+      name,
+      style: labelStyle.copyWith(color: color),
+      strutStyle: StrutStyle.fromTextStyle(labelStyle, forceStrutHeight: true),
+      maxLines: 1,
+      overflow: TextOverflow.ellipsis,
+    );
+    final field = editor;
+    Widget content = field == null
+        ? Listener(
+            onPointerDown: onLabelDown,
+            child: TextButton(
+              onPressed: onSelect,
+              style: TextButton.styleFrom(
+                alignment: AlignmentDirectional.centerStart,
+                minimumSize: Size.zero,
+                padding: padding,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              ),
+              child: label,
+            ),
           )
-        : preview
-        ? label
-        : Tooltip(message: name, child: label);
+        : Stack(
+            fit: StackFit.expand,
+            children: [
+              PositionedDirectional(
+                start: 4,
+                end: index == 0 ? 4 : 27,
+                top: 3,
+                bottom: 3,
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    color: context.scheme.surface,
+                    border: Border.all(color: context.scheme.primary),
+                    borderRadius: BorderRadius.circular(5),
+                  ),
+                ),
+              ),
+              Padding(
+                padding: padding,
+                child: Align(
+                  alignment: AlignmentDirectional.centerStart,
+                  child: field,
+                ),
+              ),
+            ],
+          );
     if (!preview && editor == null) {
       content = ReorderableDragStartListener(
         index: index,
         enabled: index != 0,
-        child: content,
+        child: Tooltip(message: name, child: content),
       );
     }
     final body = Padding(
@@ -543,26 +608,34 @@ class _CanvasTab extends StatelessWidget {
             ? context.scheme.primaryContainer
             : context.scheme.surfaceContainerLow,
         borderRadius: BorderRadius.circular(8),
-        child: Row(
+        child: Stack(
+          fit: StackFit.expand,
           children: [
-            Expanded(child: content),
+            content,
             if (index != 0)
-              SizedBox(
-                width: 24,
-                height: 36,
-                child: preview
-                    ? const Icon(Icons.close, size: 16)
-                    : IconButton(
-                        key: closeKey,
-                        tooltip: '关闭画布「$name」',
-                        padding: EdgeInsets.zero,
-                        style: IconButton.styleFrom(
-                          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                        ),
-                        iconSize: 16,
-                        onPressed: onClose,
-                        icon: const Icon(Icons.close),
-                      ),
+              PositionedDirectional(
+                end: 2,
+                top: 0,
+                bottom: 0,
+                child: Center(
+                  child: SizedBox.square(
+                    dimension: 20,
+                    child: preview
+                        ? const Icon(Icons.close, size: 16)
+                        : IconButton(
+                            key: closeKey,
+                            tooltip: '关闭画布「$name」',
+                            padding: EdgeInsets.zero,
+                            style: IconButton.styleFrom(
+                              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                              shape: const CircleBorder(),
+                            ),
+                            iconSize: 16,
+                            onPressed: onClose,
+                            icon: const Icon(Icons.close),
+                          ),
+                  ),
+                ),
               ),
           ],
         ),
@@ -590,7 +663,11 @@ double _tabExtent(
     textScaler: MediaQuery.textScalerOf(context),
     maxLines: 1,
   )..layout();
-  final width = text.width.clamp(36.0, 130.0) + 20 + (closable ? 24 : 0) + 4;
+  final width =
+      text.width.clamp(36.0, 130.0).ceilToDouble() +
+      22 +
+      (closable ? 24 : 0) +
+      4;
   text.dispose();
   return width;
 }

@@ -12,6 +12,7 @@ import 'package:plana_app/core/store/app_stores.dart';
 import 'package:plana_app/core/store/prefs_store.dart';
 import 'package:plana_app/core/theme/app_theme.dart';
 import 'package:plana_app/features/gallery/desktop_image_save.dart';
+import 'package:plana_app/features/gallery/gallery_state.dart';
 import 'package:plana_app/features/gallery/models.dart';
 import 'package:plana_app/features/gallery/save_settings.dart';
 import 'package:plana_app/features/gallery/widgets/result_canvas.dart';
@@ -63,6 +64,7 @@ void main() {
         img.encodePng(img.Image(width: 32, height: 48)),
       ),
     );
+    stores.gallery.initialResults = [result];
     clipboardWrites = [];
     clipboardAccepts = true;
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
@@ -236,6 +238,7 @@ void main() {
         () => PrefsStore.open(temp, legacyRead: (_) async => null),
       );
       expect(prefs!.get(DesktopSaveDirectory.preferenceKey), temp.path);
+      expect(container.read(galleryProvider).results.single.saved, isTrue);
       await tester.pumpWidget(const SizedBox());
     },
   );
@@ -250,6 +253,7 @@ void main() {
       expect(picker.calls, 1);
       expect(container.read(desktopSaveDirectoryProvider), isNull);
       expect(temp.listSync(), isEmpty);
+      expect(container.read(galleryProvider).results.single.saved, isFalse);
       await mount(tester, empty: true);
       expect(
         tester.widget<TextButton>(key('canvas-inpaint')).onPressed,

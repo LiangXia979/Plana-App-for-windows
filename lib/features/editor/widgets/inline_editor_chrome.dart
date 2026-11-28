@@ -8,32 +8,25 @@ import '../../generate/generate_state.dart';
 import '../../generate/models.dart' show tokenLimitOf;
 import '../../generate/prompt_presets.dart';
 import '../../generate/prompt_sections.dart' show mainEnabled, sectionTexts;
-import '../../generate/widgets/common.dart' show hintSnack;
 import '../../generate/widgets/prompt_token_counts.dart';
-import '../data/tag_favorites.dart';
 import '../editor_state.dart';
-import 'prompt_preset_menu_button.dart';
 
 /// Compact desktop controls around the same editor used on mobile.
 class InlineEditorChrome extends ConsumerWidget {
   const InlineEditorChrome({
     super.key,
     required this.child,
-    required this.onSettings,
     required this.onToggleMode,
     required this.chipMode,
     this.charId,
     this.sectionId,
-    this.onInsertFavorite,
   });
 
   final Widget child;
-  final VoidCallback onSettings;
   final VoidCallback onToggleMode;
   final bool chipMode;
   final String? charId;
   final String? sectionId;
-  final void Function(String)? onInsertFavorite;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -50,7 +43,6 @@ class InlineEditorChrome extends ConsumerWidget {
         ? 'desktop-section-$sectionId'
         : 'desktop-prompt';
     final generated = ref.watch(generateProvider);
-    final favorites = ref.watch(tagFavoritesProvider);
     final preset = character ? null : ref.watch(activePromptPresetProvider);
     final mainOn =
         character || !state.activePositive || mainEnabled(generated.sections);
@@ -143,66 +135,12 @@ class InlineEditorChrome extends ConsumerWidget {
                       chipMode ? Icons.notes_rounded : Icons.sell_outlined,
                     ),
                   ),
-                  if (!character && sectionId == null)
-                    const PromptPresetMenuButton(),
-                  PopupMenuButton<String>(
-                    key: ValueKey('$prefix-favorites'),
-                    tooltip: l10nNow.desktopFavoriteTag,
-                    enabled: favorites.isNotEmpty && onInsertFavorite != null,
-                    constraints: const BoxConstraints(
-                      minWidth: 180,
-                      maxWidth: 320,
-                    ),
-                    icon: const Icon(Icons.star_border_rounded, size: 18),
-                    onSelected: onInsertFavorite,
-                    itemBuilder: (_) => [
-                      for (final tag in favorites)
-                        PopupMenuItem(
-                          value: tag,
-                          child: Row(
-                            children: [
-                              Expanded(
-                                child: Text(
-                                  tag,
-                                  maxLines: 2,
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                              ),
-                              IconButton(
-                                tooltip: l10nNow.desktopRemoveFromFavorites,
-                                icon: const Icon(Icons.close, size: 16),
-                                onPressed: () {
-                                  final n = ref.read(
-                                    tagFavoritesProvider.notifier,
-                                  );
-                                  final index = n.remove(tag);
-                                  Navigator.of(context).pop();
-                                  hintSnack(
-                                    context,
-                                    l10nNow.desktopRemovedFromFavorites,
-                                    actionLabel: '撤销',
-                                    onAction: () => n.restore(tag, index),
-                                  );
-                                },
-                              ),
-                            ],
-                          ),
-                        ),
-                    ],
-                  ),
                   IconButton(
                     tooltip: l10nNow.undo,
                     key: ValueKey('$prefix-undo'),
                     onPressed: state.canUndo ? notifier.undo : null,
                     icon: const Icon(Icons.undo_rounded),
                   ),
-                  if (!character && sectionId == null)
-                    IconButton(
-                      key: const ValueKey('desktop-editor-settings'),
-                      tooltip: l10nNow.editorSettings,
-                      onPressed: onSettings,
-                      icon: const Icon(Icons.settings_outlined),
-                    ),
                 ],
               ),
             ],
@@ -230,32 +168,22 @@ class InlineEditorChrome extends ConsumerWidget {
           ),
         ),
         const SizedBox(height: 6),
-        Row(
-          crossAxisAlignment: CrossAxisAlignment.end,
-          children: [
-            Expanded(
-              child: Text(
-                '$tokens / $limit',
-                textAlign: TextAlign.end,
-                style: context.texts.labelSmall!.copyWith(
-                  color: over ? scheme.error : scheme.outline,
-                ),
-              ),
+        Align(
+          alignment: Alignment.centerRight,
+          child: PromptTokenCounts(
+            used: tokens,
+            limit: limit,
+            positive: totalPromptTokens(
+              ref.watch(naiTokenizerProvider).value,
+              main: notifier.outputPositive(),
             ),
-            const SizedBox(width: 12),
-            PromptTokenCounts(
-              positive: totalPromptTokens(
-                ref.watch(naiTokenizerProvider).value,
-                main: notifier.outputPositive(),
-              ),
-              negative: medium
-                  ? null
-                  : totalPromptTokens(
-                      ref.watch(naiTokenizerProvider).value,
-                      main: notifier.outputNegative(),
-                    ),
-            ),
-          ],
+            negative: medium
+                ? null
+                : totalPromptTokens(
+                    ref.watch(naiTokenizerProvider).value,
+                    main: notifier.outputNegative(),
+                  ),
+          ),
         ),
       ],
     );

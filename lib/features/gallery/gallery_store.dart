@@ -58,6 +58,7 @@ class GalleryStore {
   GalleryStore(this._blobs, Directory supportRoot)
     : _root = Directory('${supportRoot.path}/gallery');
 
+  GalleryStore? Function(String id)? temporarySource;
   final BlobStore _blobs;
   final Directory _root;
 
@@ -67,6 +68,8 @@ class GalleryStore {
   File get _indexFile => File('${_root.path}/index.json');
 
   File imageFileForPreview(String id) {
+    final other = temporarySource?.call(id);
+    if (other != null) return other.imageFileForPreview(id);
     final png = _imageFile(id);
     if (png.existsSync()) return png;
     final webp = _imageWebp(id);
@@ -196,6 +199,7 @@ class GalleryStore {
       inpaintFrom: _validId(raw['inpaintFrom']),
       inpaintHistoryCleared: raw['inpaintHistoryCleared'] == true,
       favorite: raw['favorite'] == true,
+      saved: raw['saved'] == true,
       hasInput: raw['hasInput'] == true,
       operation: ImageOperation.fromJson(raw['operation']),
     );
@@ -212,6 +216,7 @@ class GalleryStore {
     if (r.inpaintFrom != null) 'inpaintFrom': r.inpaintFrom,
     if (r.inpaintHistoryCleared) 'inpaintHistoryCleared': true,
     if (r.favorite) 'favorite': true,
+    if (r.saved) 'saved': true,
     'hasInput': r.hasInput,
     if (r.operation != null) 'operation': r.operation!.toJson(),
   };
@@ -408,7 +413,11 @@ class GalleryStore {
         bytes,
       );
       try {
-        await _writeThumb(r.id, bytes, await imageFileForPreview(r.id).stat());
+        await _writeThumb(
+          r.id,
+          bytes,
+          await (isWebp(bytes) ? _imageWebp(r.id) : _imageFile(r.id)).stat(),
+        );
       } catch (
         _
       ) {} // Invalid/missing provenance makes readers use the original.
@@ -741,6 +750,8 @@ class GalleryStore {
   });
 
   Future<Uint8List?> readImage(String id) async {
+    final other = temporarySource?.call(id);
+    if (other != null) return other.readImage(id);
     try {
       final f = await _existingImage(id);
       if (f == null) return null;
@@ -804,12 +815,14 @@ class GalleryStore {
 
   /// A thumbnail can be replaced independently of its source/signature. Rebuild
   /// legacy caches once, then verify both the source and the cached pixels.
-  Future<Uint8List?> readThumb(String id) => _thumbReads.putIfAbsent(
-    id,
-    () => _readThumb(id).whenComplete(() {
-      _thumbReads.remove(id);
-    }),
-  );
+  Future<Uint8List?> readThumb(String id) =>
+      temporarySource?.call(id)?.readThumb(id) ??
+      _thumbReads.putIfAbsent(
+        id,
+        () => _readThumb(id).whenComplete(() {
+          _thumbReads.remove(id);
+        }),
+      );
 
   /// Read and close files before a queued Windows delete/clear can unlink them.
   Future<({FileStat source, Uint8List bytes, bool cached})?> _thumbInput(
@@ -993,6 +1006,8 @@ class GalleryStore {
   /// 参数快照的**原始 JSON**(检索索引轻量抽取用):只 jsonDecode,
   /// 不走 [readInput] 的 decodeGenerateState(那要解参考图 blob,重)。
   Future<Map<String, dynamic>?> readInputRaw(String id) async {
+    final other = temporarySource?.call(id);
+    if (other != null) return other.readInputRaw(id);
     try {
       final f = _inputFile(id);
       if (!await f.exists()) return null;
@@ -1006,6 +1021,10 @@ class GalleryStore {
   /// 参数快照(重新生成/重绘/导入用),blob 缺失字段按可用降级。
   /// [presetFallback]:快照里没记提示词预设的老图用哪一档(见 [decodeGenerateState])。
   Future<GenerateState?> readInput(String id, {String? presetFallback}) async {
+    final other = temporarySource?.call(id);
+    if (other != null) {
+      return other.readInput(id, presetFallback: presetFallback);
+    }
     try {
       final f = _inputFile(id);
       if (!await f.exists()) return null;

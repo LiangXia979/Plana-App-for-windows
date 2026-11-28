@@ -432,15 +432,15 @@ void main() {
       await mount(tester);
       expect(
         find.text('0 张作品'),
-        findsNWidgets(8),
-      ); // Six albums and two fixed entries.
+        findsNWidgets(9),
+      ); // Six albums and three fixed entries.
       expect(find.text('128 张作品'), findsOneWidget);
       expect(data.membershipChecks, 0);
       expect(data.membershipLookups, images.length);
 
       await tester.enterText(key('desktop-gallery-search'), 'Empty');
       await tester.pumpAndSettle();
-      expect(find.text('0 张作品'), findsNWidgets(8));
+      expect(find.text('0 张作品'), findsNWidgets(9));
       expect(data.membershipChecks, 0);
       expect(
         data.membershipLookups,
@@ -734,7 +734,7 @@ void main() {
       await tester.pumpAndSettle();
       tester.view.physicalSize = const Size(600, 650);
       await tester.pumpAndSettle();
-      expect(key('desktop-gallery-folder').hitTestable(), findsOneWidget);
+      expect(key('desktop-gallery-folder'), findsNothing);
       expect(key('desktop-gallery-date').hitTestable(), findsOneWidget);
       await finish(tester);
     },

@@ -108,7 +108,14 @@ void main() {
           child: fullWorkspace
               ? const PlanaApp()
               : MaterialApp(
-                  theme: AppTheme.light(),
+                  debugShowCheckedModeBanner: false,
+                  theme: Platform.environment['PLANA_DESKTOP_CAPTURE'] == '1'
+                      ? AppTheme.light().copyWith(
+                          textTheme: AppTheme.light().textTheme.apply(
+                            fontFamily: 'Microsoft YaHei',
+                          ),
+                        )
+                      : AppTheme.light(),
                   home: Scaffold(
                     body: Align(
                       alignment: Alignment.topLeft,
@@ -357,6 +364,19 @@ void main() {
       container.read(canvasWorkspaceProvider.notifier).select(ids[1]);
       await mount(tester, width: 1200);
       expect(key('desktop-canvas-close-${ids.first}'), findsNothing);
+      expect(
+        tester.getSize(key('desktop-canvas-close-${ids[1]}')),
+        const Size.square(20),
+      );
+      final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+      await mouse.addPointer(location: Offset.zero);
+      await mouse.moveTo(
+        tester.getCenter(key('desktop-canvas-close-${ids[1]}')),
+      );
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 200));
+      await screenshot(tester, 'canvas-close-hover');
+      await mouse.removePointer();
       await tester.tap(key('desktop-canvas-close-${ids[1]}'));
       await tester.pumpAndSettle();
       expect(find.text('删除「画布 1」？'), findsOneWidget);
@@ -435,7 +455,7 @@ void main() {
       expect(field.focusNode!.hasFocus, isTrue);
       expect(
         field.controller!.selection,
-        const TextSelection(baseOffset: 0, extentOffset: 4),
+        const TextSelection(baseOffset: 4, extentOffset: 0),
       );
       await tester.enterText(editor, '第二个草稿');
       await submitName(tester);
@@ -448,6 +468,45 @@ void main() {
         container.read(canvasWorkspaceProvider).find(ids[1])!.name,
         '画布 1',
       );
+      await finish(tester);
+    },
+  );
+
+  testWidgets(
+    'mouse double-click edits the label in place without moving the text or close button',
+    (tester) async {
+      await mount(tester, width: 1200);
+      final target = label('画布 1');
+      await tester.tap(target, kind: PointerDeviceKind.mouse);
+      await tester.pump(const Duration(milliseconds: 110));
+      expect(container.read(canvasWorkspaceProvider).activeId, ids[1]);
+      final paragraph = tester.renderObject<RenderParagraph>(find.text('画布 1'));
+      const firstLetter = TextSelection(baseOffset: 0, extentOffset: 1);
+      final glyph = paragraph
+          .getBoxesForSelection(
+            firstLetter,
+            boxHeightStyle: ui.BoxHeightStyle.tight,
+          )
+          .first;
+      final origin = paragraph.localToGlobal(Offset(glyph.start, glyph.bottom));
+      final close = key('desktop-canvas-close-${ids[1]}');
+      final closeRect = tester.getRect(close);
+      await tester.tap(target, kind: PointerDeviceKind.mouse);
+      await tester.pumpAndSettle();
+      expect(editor, findsOneWidget);
+      final editable = tester
+          .state<EditableTextState>(
+            find.descendant(of: editor, matching: find.byType(EditableText)),
+          )
+          .renderEditable;
+      final editingOrigin = editable.localToGlobal(
+        editable.getEndpointsForSelection(firstLetter).first.point,
+      );
+      expect(editingOrigin.dx, closeTo(origin.dx, 1));
+      expect(editingOrigin.dy, closeTo(origin.dy, 1));
+      expect(tester.getRect(close), closeRect);
+      await screenshot(tester, 'polish-canvas-rename');
+      await shortcut(tester, LogicalKeyboardKey.escape);
       await finish(tester);
     },
   );
@@ -688,6 +747,19 @@ void main() {
             .read(themeSettingsProvider.notifier)
             .patch((s) => s.copyWith(textScale: scale));
         await tester.pumpAndSettle();
+        final divider = tester.getRect(key('desktop-canvas-bar-divider'));
+        expect(
+          divider.top,
+          closeTo(tester.getRect(key('desktop-canvas-tabs')).bottom, 1),
+        );
+        expect(
+          divider.width,
+          closeTo(tester.getRect(key('desktop-controls')).width, 1),
+        );
+        expect(
+          tester.getRect(key('desktop-controls-scrollbar')).top,
+          greaterThanOrEqualTo(divider.bottom),
+        );
         final viewport = find
             .descendant(
               of: key('desktop-canvas-tabs'),
@@ -707,9 +779,19 @@ void main() {
         expect(
           field.controller!.selection,
           TextSelection(
-            baseOffset: 0,
-            extentOffset: field.controller!.text.length,
+            baseOffset: field.controller!.text.length,
+            extentOffset: 0,
           ),
+        );
+        final editable = tester
+            .state<EditableTextState>(
+              find.descendant(of: editor, matching: find.byType(EditableText)),
+            )
+            .renderEditable;
+        expect(
+          editable.offset.pixels,
+          0,
+          reason: 'A long name must still start at its first character',
         );
         await screenshot(tester, 'windows51-rename-${(scale * 100).round()}');
         expect(tester.takeException(), isNull);

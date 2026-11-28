@@ -89,6 +89,9 @@ class SettingsRow extends StatelessWidget {
     this.dropdown = false,
   });
 
+  static const horizontalInset = 16.0;
+  static const chevronSize = 18.0;
+
   final IconData icon;
   final String title;
   final String? value;
@@ -108,7 +111,10 @@ class SettingsRow extends StatelessWidget {
     return InkWell(
       onTap: onTap,
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 13),
+        padding: const EdgeInsets.symmetric(
+          horizontal: horizontalInset,
+          vertical: 13,
+        ),
         child: Row(
           children: [
             Icon(icon, size: 20, color: scheme.onSurfaceVariant),
@@ -126,14 +132,14 @@ class SettingsRow extends StatelessWidget {
                 ),
               ),
             ),
-              if (onTap != null || dropdown) ...[
-                const SizedBox(width: 4),
-                Icon(
-                  dropdown ? Icons.expand_more : Icons.chevron_right,
-                  size: 18,
-                  color: scheme.outline,
-                ),
-              ],
+            if (onTap != null || dropdown) ...[
+              const SizedBox(width: 4),
+              Icon(
+                dropdown ? Icons.expand_more : Icons.chevron_right,
+                size: chevronSize,
+                color: scheme.outline,
+              ),
+            ],
           ],
         ),
       ),

@@ -5,6 +5,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:plana_app/features/inspiration/widgets/tag_filter_sheet.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:plana_app/core/net/network_proxy.dart';
+import 'package:plana_app/core/util/runtime_diagnostics.dart';
 import 'package:plana_app/features/inspiration/external/oc_catalog.dart';
 import 'package:plana_app/features/inspiration/external/oc_browser.dart';
 import 'package:plana_app/features/inspiration/widgets/tag_filter_chips.dart';
@@ -15,11 +17,28 @@ import 'package:plana_app/features/inspiration/widgets/sidebar_inspiration.dart'
 
 class _Network extends HttpOverrides {}
 
+class _UnavailableNetwork extends NetworkProxyOverrides {
+  _UnavailableNetwork(this.failure) : super(const NetworkProxySettings());
+  final Exception failure;
+
+  @override
+  HttpClient createHttpClient(SecurityContext? context) =>
+      super.createHttpClient(context)
+        ..connectionFactory = (_, _, _) async => throw failure;
+}
+
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
   late Directory dir;
   late Map<String, String> secret;
   late OcRepository repo;
+  RuntimeDiagnostics enableLog() {
+    final log = RuntimeDiagnostics.open(dir, shareable: true)!;
+    RuntimeDiagnostics.current = log;
+    addTearDown(log.dispose);
+    return log;
+  }
+
   OcRepository open({DateTime Function() clock = DateTime.now}) => OcRepository(
     Directory('${dir.path}/libraries'),
     now: clock,
@@ -40,6 +59,110 @@ void main() {
     repo.close();
     await dir.delete(recursive: true);
   });
+  test(
+    'connection failures identify the network stage without recording private input',
+    () async {
+      final log = enableLog();
+      const privateText = 'private-test-value';
+      final url = Uri.parse('http://localhost/$privateText?key=$privateText');
+      for (final (failure, reason, hint) in <(Exception, String, String)>[
+        (
+          const SocketException(
+            'Failed host lookup: $privateText',
+            osError: OSError(privateText, 11001),
+          ),
+          'dns',
+          '域名',
+        ),
+        (
+          const SocketException(
+            privateText,
+            osError: OSError(privateText, 10061),
+          ),
+          'refused',
+          '被拒绝',
+        ),
+        (const HandshakeException(privateText), 'tls', 'HTTPS'),
+        (TimeoutException(privateText), 'timeout', '超时'),
+      ]) {
+        await HttpOverrides.runWithHttpOverrides(() async {
+          final offline = open();
+          try {
+            await expectLater(
+              offline.connect(url, label: privateText, password: privateText),
+              throwsA(
+                isA<OcAccessError>().having(
+                  (e) => e.message,
+                  'message',
+                  contains(hint),
+                ),
+              ),
+            );
+          } finally {
+            offline.close();
+          }
+        }, _UnavailableNetwork(failure));
+        final contents = await log.file.readAsString();
+        final last = jsonDecode(contents.trim().split('\n').last) as Map;
+        expect(last['event'], 'external-oc');
+        expect(
+          last['detail'],
+          contains('stage=landing result=failed reason=$reason'),
+        );
+        expect(last['detail'], contains('route=environment'));
+        expect(contents, isNot(contains(privateText)));
+      }
+      expect(await log.file.readAsString(), contains('os=10061'));
+      expect(() => ocWebLocation(privateText), throwsA(isA<OcAccessError>()));
+      expect(
+        await log.file.readAsString(),
+        contains('stage=address result=failed reason=invalidAddress'),
+      );
+      log.dispose();
+      final before = await log.file.readAsString();
+      expect(() => ocWebLocation(privateText), throwsA(isA<OcAccessError>()));
+      expect(await log.file.readAsString(), before);
+    },
+  );
+
+  test(
+    'HTML service errors and visitor session errors report the actual HTTP stage',
+    () async {
+      final log = enableLog();
+      await HttpOverrides.runWithHttpOverrides(() async {
+        repo.close();
+        repo = open();
+        final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+        addTearDown(() => server.close(force: true));
+        var guestPage = false;
+        server.listen((r) async {
+          r.response.headers.contentType = ContentType.html;
+          if (!guestPage || r.uri.path == '/api/session') {
+            r.response.statusCode = guestPage ? 429 : 503;
+            r.response.write('<html>private-server-message</html>');
+          } else {
+            r.response.write('<body data-auth="guest"></body>');
+          }
+          await r.response.close();
+        });
+        final url = Uri.parse('http://127.0.0.1:${server.port}/');
+        for (final (phase, status) in [('landing', 503), ('session', 429)]) {
+          await expectLater(
+            repo.connect(url, password: 'private-password'),
+            throwsA(
+              isA<OcAccessError>().having((e) => e.status, 'status', status),
+            ),
+          );
+          final contents = await log.file.readAsString();
+          final last = jsonDecode(contents.trim().split('\n').last) as Map;
+          expect(last['detail'], contains('stage=$phase result=failed'));
+          expect(last['detail'], contains('http=$status'));
+          expect(contents, isNot(contains('private-')));
+          guestPage = true;
+        }
+      }, _Network());
+    },
+  );
   test(
     'author counts match grouped cards across libraries, search, tags and favorites',
     () async {
@@ -348,6 +471,7 @@ void main() {
   test(
     'visitor catalog signs in, loads per-form details lazily and sends the cookie only to its origin',
     () async {
+      final log = enableLog();
       await HttpOverrides.runWithHttpOverrides(() async {
         repo.close();
         repo = open();
@@ -435,13 +559,37 @@ void main() {
         );
         expect(await repo.sources(), isEmpty);
         expect(secret, isEmpty);
+        final failure = await log.file.readAsString();
+        expect(
+          failure,
+          contains('stage=guestLogin result=failed reason=guestRejected'),
+        );
+        expect(failure, contains('http=403'));
+        requests.clear();
         final src = await repo.connect(
           url,
           label: 'Visitor library',
           password: 'test-only',
         );
         expect(detailCalls, 0);
-        expect(requests, contains('/api/catalog'));
+        expect(requests, [
+          '/',
+          '/login',
+          '/api/session',
+          '/api/session/guest',
+          '/api/catalog',
+        ]);
+        final contents = await log.file.readAsString();
+        expect(contents, contains('result=success'));
+        for (final value in [
+          'test-only',
+          'wrong',
+          'Visitor library',
+          '127.0.0.1',
+          'csrfToken',
+        ]) {
+          expect(contents, isNot(contains(value)));
+        }
         final snapshot = File('${repo.root.path}/${src.id}/source.json');
         expect(await snapshot.readAsString(), isNot(contains('test-only')));
         final fresh = open();
@@ -452,6 +600,17 @@ void main() {
         expect(texts.single.previews, isEmpty);
         expect(detailCalls, 2);
         expect(imageCalls, 0);
+        final cover = await fresh.character(
+          actual,
+          actual.catalog.characters.single,
+          coverEntryId: texts.single.id,
+        );
+        expect(await File(cover.single.previews.single).readAsBytes(), [
+          1,
+          2,
+          3,
+        ]);
+        expect(imageCalls, 1);
         final results = await Future.wait([
           for (var i = 0; i < 2; i++)
             fresh.character(actual, actual.catalog.characters.single),
@@ -462,6 +621,31 @@ void main() {
         await fresh.character(actual, actual.catalog.characters.single);
         expect(detailCalls, 2);
         expect(imageCalls, 2);
+
+        final unavailableVault = OcRepository(
+          Directory('${dir.path}/separate-profile'),
+          readSecret: (_) async => null,
+          saveSecret: (_, _) async => throw StateError('private-vault-details'),
+          deleteSecret: (_) async {},
+        );
+        addTearDown(unavailableVault.close);
+        await expectLater(
+          unavailableVault.connect(url, password: 'test-only'),
+          throwsA(
+            isA<OcAccessError>().having(
+              (e) => e.message,
+              'message',
+              contains('保存访客凭据'),
+            ),
+          ),
+        );
+        final storageFailure = await log.file.readAsString();
+        expect(
+          storageFailure,
+          contains('stage=saveCredentials result=failed reason=credentials'),
+        );
+        expect(storageFailure, isNot(contains('private-vault-details')));
+        expect(await unavailableVault.sources(), isEmpty);
       }, _Network());
     },
   );
@@ -469,6 +653,7 @@ void main() {
   test(
     'hourly atlas refresh resumes the issued session, coalesces a reset and keeps its cached catalog on failure',
     () async {
+      final log = enableLog();
       await HttpOverrides.runWithHttpOverrides(() async {
         repo.close();
         final watch = Stopwatch()..start();
@@ -651,6 +836,14 @@ void main() {
         unavailable = true;
         await repo.refreshDue();
         expect(await snapshot.readAsString(), snapshotBeforeError);
+        final failure = await log.file.readAsString();
+        expect(
+          failure,
+          contains('action=hourly source=web stage=catalog result=failed'),
+        );
+        expect(failure, contains('http=503'));
+        expect(failure, isNot(contains('fixture-pass')));
+        expect(failure, isNot(contains('visitor-1')));
         expect(logins, 3);
         unavailable = false;
         deny = true;

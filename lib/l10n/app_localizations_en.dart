@@ -9,6 +9,43 @@ class AppLocalizationsEn extends AppLocalizations {
   AppLocalizationsEn([String locale = 'en']) : super(locale);
 
   @override
+  String get updateReleaseNotes => 'What’s new';
+
+  @override
+  String get updateNotesUnavailable => 'No release notes were provided.';
+
+  @override
+  String get updateReleasePage => 'View release';
+
+  @override
+  String get updateDownload => 'Download update';
+
+  @override
+  String get updateDownloading => 'Downloading and verifying the update';
+
+  @override
+  String get updateRunInstaller => 'Open installer';
+
+  @override
+  String get updateOpenPackageFolder => 'Show portable package';
+
+  @override
+  String get updatePackageMissing =>
+      'No verifiable Windows package is available. See the release page for its files.';
+
+  @override
+  String get updateIntegrityFailed =>
+      'Package verification failed. Download the update again.';
+
+  @override
+  String get updateDownloadFailed =>
+      'Download did not finish. Check your connection and available disk space, then retry.';
+
+  @override
+  String get updateLaunchFailed =>
+      'Could not open the downloaded update. Retry or visit the release page.';
+
+  @override
   String get downloadWindowsPackage => 'Download for Windows';
 
   @override
@@ -381,7 +418,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get rulesLocalOnly =>
-      'When enabled for a model, these notes follow the regular rules on Plana channels and custom APIs. Subscription connections such as Codex and Antigravity skip this section.';
+      'When enabled for a model, these notes follow the regular rules on custom APIs only. The Plana backend and subscriptions such as Codex and Antigravity skip this section.';
 
   @override
   String get refCharacterStyle => 'Char & Style';
@@ -8522,6 +8559,57 @@ class AppLocalizationsEn extends AppLocalizations {
   String get editInspirationBlock => 'Edit inspiration';
 
   @override
+  String get completionPlacement => 'Prompt completion position';
+
+  @override
+  String get studioCompletionPlacement =>
+      'Full-screen prompt completion position';
+
+  @override
+  String get studioCompletionPlacementHint =>
+      'Show suggestions near the caret or below the inspector in the full-screen editor.';
+
+  @override
+  String get completionPlacementHint =>
+      'Show suggestions near the caret or beside the prompt card.';
+
+  @override
+  String get completionFollow => 'Follow';
+
+  @override
+  String get completionSide => 'Fixed to side';
+
+  @override
+  String get increaseTagWeight => 'Increase weight';
+
+  @override
+  String get decreaseTagWeight => 'Decrease weight';
+
+  @override
+  String get danbooruWiki => 'Danbooru Wiki';
+
+  @override
+  String get deleteWholeBlock => 'Delete block';
+
+  @override
+  String get wholeBlock => 'Block';
+
+  @override
+  String get disableBlock => 'Disable block';
+
+  @override
+  String get enableBlock => 'Enable block';
+
+  @override
+  String get unpackBlock => 'Unpack into tags';
+
+  @override
+  String get selectBlockTag => 'Select a tag in the block to edit it';
+
+  @override
+  String get pairedPromptBlock => 'Paired prompts';
+
+  @override
   String get foldAfterInspirationSave => 'Merge into a block after saving';
 
   @override
@@ -8997,4 +9085,650 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get compareMetadataHint =>
       'Use an original with metadata to compare its prompts';
+
+  @override
+  String get studioSearchLibrary => 'Search names, pinyin or prompt tags…';
+
+  @override
+  String get studioNoMatches => 'No matching inspirations';
+
+  @override
+  String get studioOriginalWeights => 'Original';
+
+  @override
+  String get studioBlockWeight => 'Block weight';
+
+  @override
+  String get studioIndependentWeights => 'Preserves individual tag weights';
+
+  @override
+  String get studioCopyBlock => 'Copy block';
+
+  @override
+  String get studioParent => 'Back to parent';
+
+  @override
+  String get temporaryBatchPick => 'Select images for batch actions…';
+
+  @override
+  String get temporaryBatchTarget => 'Destination gallery';
+
+  @override
+  String get temporaryBatchFile => 'Add to gallery';
+
+  @override
+  String get temporaryBatchZip => 'ZIP selected images';
+
+  @override
+  String temporaryBatchAll(int count, String name) {
+    return 'Add all $count uncollected images to “$name”';
+  }
+
+  @override
+  String temporaryBatchCount(int count, int total) {
+    return '$count / $total selected';
+  }
+
+  @override
+  String temporaryBatchFiled(int count) {
+    return '$count images added';
+  }
+
+  @override
+  String get studioMain => 'Main prompt';
+
+  @override
+  String get studioSections => 'Main prompt and sections';
+
+  @override
+  String get studioPosOnly => 'Positive only';
+
+  @override
+  String get studioNegOnly => 'Negative only';
+
+  @override
+  String get studioGlobal => 'Main scope';
+
+  @override
+  String get studioWritePositive => 'Add to positive';
+
+  @override
+  String get studioWriteNegative => 'Add to negative';
+
+  @override
+  String get studioSection => 'Section';
+
+  @override
+  String get studioFocusHere => 'Type in this pane';
+
+  @override
+  String get studioPack => 'Group into a block';
+
+  @override
+  String get studioBoth => 'Both';
+
+  @override
+  String get studioExpand => 'Edit in center pane';
+
+  @override
+  String get studioBlock => 'Block editor';
+
+  @override
+  String get studioCopyComplete => 'Copy full prompt';
+
+  @override
+  String get studioFocused => 'Active input';
+
+  @override
+  String get studioOutline => 'Prompt outline';
+
+  @override
+  String get studioNoLocal => 'No local inspirations available';
+
+  @override
+  String get studioTranslateFailed =>
+      'Translation is unavailable. You can insert the original text.';
+
+  @override
+  String get studioLoading => 'Loading inspirations…';
+
+  @override
+  String get studioNoPositive => 'This block has no positive prompt';
+
+  @override
+  String get studioNoNegative => 'This block has no negative prompt';
+
+  @override
+  String get studioLibrary => 'Insert from inspirations';
+
+  @override
+  String get studioInspectHint =>
+      'Select a tag to adjust its weight. Double-click a block to edit it.';
+
+  @override
+  String get studioPosition => 'Canvas position';
+
+  @override
+  String get studioRemoveBlock => 'Remove block';
+
+  @override
+  String get studioInspector => 'Tag and block inspector';
+
+  @override
+  String get studioNegative => 'Negative prompt';
+
+  @override
+  String get studioAddTags => 'Type an English or Chinese tag';
+
+  @override
+  String get studioUp => 'Back to parent';
+
+  @override
+  String get studioRedo => 'Redo';
+
+  @override
+  String get studioResetWeight => 'Reset weight';
+
+  @override
+  String get studioManual => 'Manual';
+
+  @override
+  String get studioCopyTag => 'Copy tag';
+
+  @override
+  String get studioDisableTag => 'Disable tag';
+
+  @override
+  String get studioDeleteTag => 'Delete tag';
+
+  @override
+  String get studioCompleting => 'Completing';
+
+  @override
+  String get studioReturnInspector => 'Inspector';
+
+  @override
+  String get temporaryName => 'Temporary gallery';
+
+  @override
+  String get temporaryScope => 'This canvas · cleaned up on exit';
+
+  @override
+  String get temporaryCollectSaved => 'Collect downloads in Saved';
+
+  @override
+  String get temporaryCollectHint =>
+      'Keep a gallery copy when saving an individual image to a folder.';
+
+  @override
+  String get temporaryExitPolicy => 'Temporary gallery on exit';
+
+  @override
+  String get temporaryPolicyHint =>
+      'Apply the rule to uncollected images on each canvas. Favorites and gallery copies are kept.';
+
+  @override
+  String get temporaryClearAll => 'Clear all';
+
+  @override
+  String get temporaryKeepLatest => 'Keep latest';
+
+  @override
+  String get temporaryKeepCount => 'Latest uncollected images per canvas';
+
+  @override
+  String get temporaryKeepHint =>
+      'Each canvas retains up to this many temporary images.';
+
+  @override
+  String get temporaryConfirmExit => 'Action on exit';
+
+  @override
+  String get temporaryConfirmHint =>
+      'Ask before clearing uncollected images, with an option to export one ZIP per canvas.';
+
+  @override
+  String get temporaryDirectHint =>
+      'Apply the cleanup rule to uncollected images on exit.';
+
+  @override
+  String get temporaryArchiveHint =>
+      'On exit, export a ZIP per canvas to your save folder, then apply the cleanup rule.';
+
+  @override
+  String get temporaryHistoryCount => 'Initial filmstrip history';
+
+  @override
+  String get temporaryHistoryHint =>
+      'Load all history when opening or switching galleries. New images are appended.';
+
+  @override
+  String get temporaryHistoryHelp =>
+      'Enter 0 to load all images. This controls the creation filmstrip.';
+
+  @override
+  String get temporaryFolder => 'Choose the individual save folder';
+
+  @override
+  String get temporaryPacking => 'Creating ZIP archives';
+
+  @override
+  String get temporaryCancelPack => 'Cancel export';
+
+  @override
+  String get temporaryDeleteQuestion =>
+      'Delete this canvas and its temporary images?';
+
+  @override
+  String get temporaryExitQuestion => 'Temporary gallery before exit';
+
+  @override
+  String get temporarySkipPrompt => 'Remember this choice for future exits';
+
+  @override
+  String get temporaryZipDelete => 'Export ZIP and delete canvas';
+
+  @override
+  String get temporaryZipExit => 'Export ZIPs by canvas and exit';
+
+  @override
+  String get temporaryCleanDelete => 'Clear and delete canvas';
+
+  @override
+  String get temporaryCleanExit => 'Clean up and exit';
+
+  @override
+  String get temporaryStar => 'Add to favorites';
+
+  @override
+  String get temporaryFile => 'Add to a standard gallery';
+
+  @override
+  String get temporaryFiled => 'Added to the selected gallery';
+
+  @override
+  String get temporaryRecoveryQuestion =>
+      'Clear temporary images from the interrupted session?';
+
+  @override
+  String get temporaryRecoveryHint =>
+      'Collected images remain in their galleries.';
+
+  @override
+  String get temporaryLoadError => 'Temporary gallery unavailable · Retry';
+
+  @override
+  String temporaryCount(int n) {
+    String _temp0 = intl.Intl.pluralLogic(
+      n,
+      locale: localeName,
+      other: '$n images',
+      one: '1 image',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String temporaryMore(int n) {
+    return 'Load more (+$n)';
+  }
+
+  @override
+  String temporaryCloseCounts(int total, int collected, int kept, int removed) {
+    return 'Of $total images, $collected are in your galleries, $kept will be kept here and $removed will be cleared.';
+  }
+
+  @override
+  String temporaryRecovered(int n) {
+    return '$n temporary images were recovered after an interrupted session';
+  }
+
+  @override
+  String temporaryPacked(int n) {
+    return 'Exported $n canvas ZIP archives';
+  }
+
+  @override
+  String get temporaryBusy =>
+      'Temporary gallery work is still in progress. Finish or cancel it and try again.';
+
+  @override
+  String temporaryOpenFailed(String error) {
+    return 'Could not open the temporary gallery: $error';
+  }
+
+  @override
+  String temporaryActionFailed(String error) {
+    return 'Action failed: $error';
+  }
+
+  @override
+  String temporarySavedPath(String path) {
+    return 'Saved to $path';
+  }
+
+  @override
+  String temporaryCleanupFailed(String error) {
+    return 'Temporary gallery cleanup did not finish: $error';
+  }
+
+  @override
+  String get temporaryAsk => 'Ask each time';
+
+  @override
+  String get temporaryDirectClean => 'Clean up directly';
+
+  @override
+  String get temporaryArchiveThenClean => 'Export ZIP then clean up';
+
+  @override
+  String get temporaryInitialCountLabel =>
+      'Initial images when opening a gallery';
+
+  @override
+  String temporaryLimitedHistory(int n) {
+    return 'Load the latest $n images when opening or switching galleries. New images are appended.';
+  }
+
+  @override
+  String temporarySingleLead(String quantity) {
+    return 'This will clear $quantity from the uncollected temporary images.';
+  }
+
+  @override
+  String temporaryMultiLead(int canvases, String quantity) {
+    return 'Across $canvases canvases, $quantity will be cleared from the uncollected temporary images.';
+  }
+
+  @override
+  String temporaryCleanStat(int n) {
+    return '$n to clear';
+  }
+
+  @override
+  String temporaryCollectedStat(int n) {
+    return '$n in galleries';
+  }
+
+  @override
+  String temporaryKeptStat(int n) {
+    return '$n kept for next time';
+  }
+
+  @override
+  String temporarySingleDetail(String name) {
+    return 'Canvas: $name. Favorites and gallery copies are kept.';
+  }
+
+  @override
+  String temporaryMultiDetail(String details) {
+    return 'By canvas: $details. Each ZIP is named after its canvas.';
+  }
+
+  @override
+  String temporaryCanvasCountDetail(String name, String status) {
+    return '$name ($status)';
+  }
+
+  @override
+  String get temporaryRememberHint =>
+      'Exporting a ZIP remembers “Export ZIP then clean up”. Cleaning up remembers “Clean up directly”.';
+
+  @override
+  String get temporarySingleZipExit => 'Export ZIP and exit';
+
+  @override
+  String get guideBrowseManual => 'Open user manual';
+
+  @override
+  String get guideBanner =>
+      'New to Plana? Set up image generation and choose where to save images.';
+
+  @override
+  String get guideOpen => 'Open setup guide';
+
+  @override
+  String get guideWelcome => 'Welcome';
+
+  @override
+  String get guideAppearance => 'Appearance';
+
+  @override
+  String get guideGeneration => 'Image generation';
+
+  @override
+  String get guideBotStep => 'Bot authorization';
+
+  @override
+  String get guideStorage => 'Saving and galleries';
+
+  @override
+  String get guideFinish => 'Finish and quick tips';
+
+  @override
+  String get guideWelcomeSub => 'Explore the workspace';
+
+  @override
+  String get guideAppearanceSub => 'Theme and colors';
+
+  @override
+  String get guideAccessSub => 'Accounts and endpoints';
+
+  @override
+  String get guideBotSub => 'Generation or optional features';
+
+  @override
+  String get guideStorageSub => 'Folder, gallery and format';
+
+  @override
+  String get guideFinishSub => 'Review your settings';
+
+  @override
+  String guideProgress(int step, int total, String title) {
+    return 'Step $step of $total · $title';
+  }
+
+  @override
+  String get guideLater => 'You can change these settings later in Profile.';
+
+  @override
+  String get guideCompleteBack => 'Finish and return';
+
+  @override
+  String get guideStart => 'Start creating';
+
+  @override
+  String get guideSkipExtensions => 'Skip extensions';
+
+  @override
+  String get guideNeedAccess => 'Save a token or skip account setup for now.';
+
+  @override
+  String get guideNeedBot => 'Authorize a Bot account to generate with it.';
+
+  @override
+  String get guideIntroLead =>
+      'Set up your theme, image generation and saving preferences.';
+
+  @override
+  String get guideWrite => 'Write prompts';
+
+  @override
+  String get guideWriteBody =>
+      'Edit sections and characters with autocomplete and quick inserts. The AI Assistant can draft prompts using an API or a ChatGPT subscription.';
+
+  @override
+  String get guideCanvases => 'Work with multiple canvases';
+
+  @override
+  String get guideCanvasesBody =>
+      'Use + to create a canvas and double-click its tab to rename it. Each canvas keeps its prompts, dimensions and temporary images.';
+
+  @override
+  String get guideContinueImage => 'Continue from an image';
+
+  @override
+  String get guideImageBody =>
+      'Drop an image with generation metadata to choose prompts, characters and parameters to import. Use other images as references or image-to-image inputs.';
+
+  @override
+  String get guideThemeLead =>
+      'See your theme and accent color in the canvas preview.';
+
+  @override
+  String get guideThemePreview => 'Canvas preview';
+
+  @override
+  String get guideOfficial => 'Official token';
+
+  @override
+  String get guideOfficialHint => 'Use a NovelAI access token';
+
+  @override
+  String get guideEmailHint => 'Sign in with a NovelAI account';
+
+  @override
+  String get guideThirdHint => 'NovelAI or OpenAI-compatible format';
+
+  @override
+  String get guideBotHint => 'Authorize an invited account in the next step';
+
+  @override
+  String get guideAccessLead =>
+      'Choose how to generate images, or skip this step to explore the workspace.';
+
+  @override
+  String get guideLocalProxy => 'Configure a local proxy';
+
+  @override
+  String get guideAuthorize => 'Authorize a Bot to generate images';
+
+  @override
+  String get guideOptional => 'Optional features';
+
+  @override
+  String get guideOptionalBody =>
+      'Invited accounts can enable these features. Skip this step when generating through an official or third-party endpoint.';
+
+  @override
+  String get guidePerks =>
+      'Additional models including Anima and Krea 2, public Vibes, artist lists and characters, and WD Tagger image tagging.';
+
+  @override
+  String get guideBackupOptions =>
+      'Plana cloud backup uses Bot authorization for Inspirations and Vibes. Google Drive uses a Google account. Local file backup needs no sign-in.';
+
+  @override
+  String get guideStorageLead =>
+      'Choose a folder for exports, a gallery for this canvas and an image format.';
+
+  @override
+  String get guideDirectory => 'Export folder';
+
+  @override
+  String get guideDirectoryHint =>
+      'Single-image exports and temporary gallery ZIPs use this folder.';
+
+  @override
+  String get guideUnset => 'Choose on first export';
+
+  @override
+  String get guidePickFolder => 'Choose folder';
+
+  @override
+  String get guideClearFolder => 'Clear folder choice';
+
+  @override
+  String get guideCurrentGallery => 'Gallery for this canvas';
+
+  @override
+  String get guideStandard => 'Standard gallery';
+
+  @override
+  String get guideStandardHint =>
+      'Automatically archive images and generation parameters.';
+
+  @override
+  String get guideTempHint =>
+      'Keep images per canvas. Archive them or export a ZIP before exit cleanup.';
+
+  @override
+  String get guideNewTemp => 'Use a temporary gallery for new canvases';
+
+  @override
+  String get guideFormat => 'Default image export format';
+
+  @override
+  String get guideJpgHint =>
+      'JPG discards generation parameters. To restore them from an export, use PNG or WebP and keep the original metadata in save settings.';
+
+  @override
+  String get guideReady => 'Your generation connection is configured.';
+
+  @override
+  String get guideNotReady =>
+      'Preferences saved. Add an account in Profile → Accounts when you are ready to generate.';
+
+  @override
+  String get guideNoAccess => 'Not configured';
+
+  @override
+  String get guideSavedOfficial => 'Official token · saved';
+
+  @override
+  String get guideBotReady => 'Bot account · authorized';
+
+  @override
+  String get guideNoBot => 'Not authorized · optional';
+
+  @override
+  String get guideSaveFormat => 'Folder and format';
+
+  @override
+  String get guideMode => 'Gallery mode';
+
+  @override
+  String get guideTips => 'Desktop quick tips';
+
+  @override
+  String get guideImportTip => 'Import generation parameters';
+
+  @override
+  String get guideImportTipBody =>
+      'Drop the original image on Create and select the parts to apply in the import preview.';
+
+  @override
+  String get guideStudioTip => 'Open the prompt workbench';
+
+  @override
+  String get guideStudioTipBody =>
+      'Expand a prompt card for the three-pane workbench. Select a named block to edit the block or its tags.';
+
+  @override
+  String get guideTempTip => 'Archive or ZIP selected images';
+
+  @override
+  String get guideTempTipBody =>
+      'Open the arrow beside ZIP in a temporary gallery to select images for a standard gallery or a ZIP.';
+
+  @override
+  String get guideToolsTip => 'Compare images and inspect metadata';
+
+  @override
+  String get guideToolsTipBody =>
+      'Drop two originals into slots A and B in Image Compare. Open Image Metadata to inspect, edit or export copies in batches.';
+
+  @override
+  String get temporaryNewCanvas => 'Use temporary gallery for new canvases';
+
+  @override
+  String get temporaryNewCanvasHint =>
+      'Start newly created, duplicated, or restored canvases in a temporary gallery; existing canvases keep their choice.';
+
+  @override
+  String get guideTempDetail =>
+      'Favorites and images moved to a standard gallery stay in Plana. Individual saves and ZIP exports go to your chosen folder (individual saves also stay in Plana when Collect downloads in Saved is on). Exporting a ZIP does not skip exit cleanup.';
+
+  @override
+  String get guideNewTempShort => 'new canvases default to temporary';
 }

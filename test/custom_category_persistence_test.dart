@@ -10,7 +10,8 @@ import 'package:plana_app/core/store/ui_prefs.dart';
 import 'package:plana_app/features/inspiration/codex/codex_block.dart';
 import 'package:plana_app/features/inspiration/tag_library.dart';
 import 'package:plana_app/features/inspiration/tag_models.dart';
-import 'package:plana_app/features/inspiration/widgets/char_pick_sheet.dart';
+import 'package:plana_app/features/generate/widgets/section_save.dart'
+    show sectionSaveCategories;
 
 class _DelayedLibrary extends TagLibrary {
   _DelayedLibrary(this.ready, this.loaded);
@@ -188,10 +189,10 @@ void main() {
       expect(state.entries.map((e) => e.id), ['char']);
       expect(state.pools.containsKey(c.key), isFalse);
       expect(state.usage.containsKey(c.key), isFalse);
-      expect(panelTagCats(state), isNot(contains(TagCategory.scene)));
+      expect(sectionSaveCategories(state), isNot(contains(TagCategory.scene)));
       await container.read(tagLibraryProvider.notifier).restoreBuiltin('scene');
       state = await reopen();
-      expect(panelTagCats(state), contains(TagCategory.scene));
+      expect(sectionSaveCategories(state), contains(TagCategory.scene));
     },
   );
 

@@ -1,5 +1,7 @@
 import '../../../l10n/l10n.dart';
 import 'package:flutter/material.dart';
+
+import '../../../core/ui/desktop_text_selection.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/theme/app_theme.dart';
@@ -110,6 +112,8 @@ class _AnimaNlCardState extends ConsumerState<AnimaNlCard> {
           const SizedBox(height: 10),
           TextField(
             controller: _extra,
+            contextMenuBuilder: DesktopTextSelection.contextMenu,
+            inputFormatters: [DesktopSelectionFormatter(_extra)],
             onChanged: notifier.setExtra,
             maxLines: 2,
             minLines: 1,
@@ -118,7 +122,8 @@ class _AnimaNlCardState extends ConsumerState<AnimaNlCard> {
               isDense: true,
               filled: true,
               fillColor: scheme.surfaceContainerHigh.withValues(alpha: .5),
-              hintText: l10nNow.desktopOptionalInstructionsEGEmphasizeTheRainSoaked,
+              hintText:
+                  l10nNow.desktopOptionalInstructionsEGEmphasizeTheRainSoaked,
               hintStyle: context.texts.bodySmall!.copyWith(
                 color: scheme.outline,
               ),
@@ -153,7 +158,10 @@ class _AnimaNlCardState extends ConsumerState<AnimaNlCard> {
                     ),
                   ),
                 ),
-                TextButton(onPressed: notifier.cancel, child: Text(l10nNow.cancel)),
+                TextButton(
+                  onPressed: notifier.cancel,
+                  child: Text(l10nNow.cancel),
+                ),
               ],
             ),
           ],
@@ -188,7 +196,8 @@ class _AnimaNlCardState extends ConsumerState<AnimaNlCard> {
                   Icons.delete_outline,
                   size: 30,
                   iconSize: 17,
-                  tooltip: l10nNow.desktopClearResultsAndKeepSentencesAlreadyInThe,
+                  tooltip:
+                      l10nNow.desktopClearResultsAndKeepSentencesAlreadyInThe,
                   color: scheme.onSurfaceVariant,
                   onTap: notifier.clearResult,
                 ),

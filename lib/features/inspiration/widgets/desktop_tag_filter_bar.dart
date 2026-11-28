@@ -242,6 +242,7 @@ class _DesktopTagFilterBarState extends State<DesktopTagFilterBar> {
         child: HorizontalScrollStrip.scrollable(
           controller: _scroll,
           shiftWheelOnly: true,
+          dragWithMouse: false,
           showTrack: _overflow,
           child: SingleChildScrollView(
             key: const ValueKey('inspiration-tag-strip'),
@@ -346,7 +347,7 @@ class _SelectedInspirationTagsState extends State<SelectedInspirationTags> {
         Expanded(
           child: HorizontalScrollStrip(
             controller: _scroll,
-            shiftWheelOnly: true,
+            dragWithMouse: false,
             child: Row(
               children: [
                 for (final tag in widget.tags)

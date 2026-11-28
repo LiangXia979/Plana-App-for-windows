@@ -2,9 +2,25 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/theme/app_theme.dart';
+import '../../../core/theme/editor_theme.dart';
 import '../../../core/ui/setting_row.dart';
 import '../editor_settings.dart';
 import '../../../l10n/l10n.dart';
+
+Future<void> showDesktopEditorSettings(BuildContext context) =>
+    showDialog<void>(
+      context: context,
+      builder: (ctx) => Dialog(
+        clipBehavior: Clip.antiAlias,
+        child: SizedBox(
+          width: 480,
+          child: Theme(
+            data: editorTheme(ctx),
+            child: const EditorSettingsSheet(desktop: true),
+          ),
+        ),
+      ),
+    );
 
 /// 编辑器设置弹层:行为开关 + 档位选择 + 加减调节,改动即时生效并持久化。
 /// 按模块分组;子项跟随所属功能开关置灰(补全关了实体/逗号无意义)。

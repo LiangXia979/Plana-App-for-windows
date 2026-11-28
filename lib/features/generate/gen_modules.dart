@@ -67,7 +67,7 @@ const kGenModuleDefs = <GenModuleDef>[
   GenModuleDef(
     GenModule.charRef,
     Icons.face_retouching_natural,
-    '角色参考',
+    '精确参考',
     supports: crSupportsModel,
   ),
   GenModuleDef(GenModule.img2img, Icons.image_outlined, '图生图'),

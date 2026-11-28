@@ -32,7 +32,7 @@ void main() {
   }
 
   bool sameRow(WidgetTester tester, String id) =>
-      tester.getRect(key('character-fullscreen-$id')).top <
+      tester.getRect(key('character-position-$id')).top <
       tester.getRect(key('character-avatar-$id')).bottom;
 
   testWidgets(

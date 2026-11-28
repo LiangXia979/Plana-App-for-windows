@@ -14,6 +14,8 @@ import 'package:plana_app/features/import/import_panel.dart';
 import 'package:plana_app/features/tools/tools_page.dart';
 import 'package:plana_app/l10n/l10n.dart';
 
+import 'support/desktop_capture.dart';
+
 class _Files extends FilePicker {
   _Files(this.pair);
   final List<Uint8List> pair;
@@ -41,6 +43,8 @@ class _Files extends FilePicker {
 void main() {
   final binding = TestWidgetsFlutterBinding.ensureInitialized();
   final l = l10nNow;
+  final capture = GlobalKey();
+  setUpAll(loadDesktopCaptureFonts);
   Future<void> open(WidgetTester tester, Size size) async {
     tester.view.physicalSize = size;
     tester.view.devicePixelRatio = 1;
@@ -51,7 +55,18 @@ void main() {
           desktopModeProvider.overrideWithValue(true),
           appStoresProvider.overrideWithValue(AppStores.ephemeral()),
         ],
-        child: MaterialApp(theme: AppTheme.light(), home: const ToolsPage()),
+        child: RepaintBoundary(
+          key: capture,
+          child: MaterialApp(
+            debugShowCheckedModeBanner: false,
+            theme: AppTheme.light(const Color(0xFF00897B)).copyWith(
+              textTheme: AppTheme.light(
+                const Color(0xFF00897B),
+              ).textTheme.apply(fontFamily: 'Microsoft YaHei'),
+            ),
+            home: const ToolsPage(),
+          ),
+        ),
       ),
     );
     await tester.pumpAndSettle();
@@ -59,47 +74,105 @@ void main() {
     await tester.pumpAndSettle();
   }
 
-  testWidgets('desktop toolbox tabs keep the same header and action row', (
-    tester,
-  ) async {
-    await open(tester, const Size(1800, 900));
-    final title = find.text(l.toolbox);
-    final tabs = find.ancestor(
-      of: find.text(l.compareImages),
-      matching: find.byType(SegmentedButton<int>),
-    );
-    final modes = find.ancestor(
-      of: find.text(l.desktopSingleImage),
-      matching: find.byType(SegmentedButton<int>),
-    );
-    final clear = find.widgetWithText(OutlinedButton, l.compareClear);
-    for (final size in [const Size(1800, 900), const Size(1060, 720)]) {
-      tester.view.physicalSize = size;
-      await tester.pumpAndSettle();
-      await tester.tap(find.text(l.imageMetadata));
-      await tester.pumpAndSettle();
-      final titleRect = tester.getRect(title);
-      final tabsRect = tester.getRect(tabs);
-      final modesRect = tester.getRect(modes);
-      expect(tabsRect.top, greaterThan(titleRect.bottom));
-      for (final label in [l.weightConverter, l.compareImages]) {
-        await tester.tap(find.text(label));
-        await tester.pumpAndSettle();
-        expect(tester.getRect(title), titleRect);
-        expect(tester.getRect(tabs), tabsRect);
-      }
-      final swap = tester.getRect(
-        find.widgetWithText(OutlinedButton, l.swapAB),
+  testWidgets(
+    'desktop tools use the window width and align their controls in the top row',
+    (tester) async {
+      await open(tester, const Size(1720, 900));
+      final tabs = find.widgetWithText(SegmentedButton<int>, l.compareImages);
+      final modes = find.widgetWithText(
+        SegmentedButton<int>,
+        l.desktopSingleImage,
       );
-      final clearRect = tester.getRect(clear);
-      expect(swap.center.dy, clearRect.center.dy);
-      expect(swap.right, lessThan(clearRect.left));
-      expect(clearRect.top, greaterThan(tabsRect.bottom));
-      expect(clearRect.right, closeTo(modesRect.right, 0.5));
-      expect(clearRect.center.dy, closeTo(modesRect.center.dy, 2));
-    }
-    expect(tester.takeException(), isNull);
-  });
+      final remove = find.widgetWithText(
+        SegmentedButton<bool>,
+        l.desktopRemoveLoRA,
+      );
+      final clear = find.widgetWithText(OutlinedButton, l.compareClear);
+
+      Rect card(String title) => tester.getRect(
+        find
+            .ancestor(of: find.text(title), matching: find.byType(Material))
+            .first,
+      );
+      for (final size in [
+        const Size(1720, 900),
+        const Size(2560, 1200),
+        const Size(1060, 720),
+      ]) {
+        tester.view.physicalSize = size;
+        await tester.pumpAndSettle();
+        await tester.tap(find.text(l.imageMetadata));
+        await tester.pumpAndSettle();
+        final tabsRect = tester.getRect(tabs);
+        final right = size.width - 16;
+        expect(find.text(l.toolbox), findsNothing);
+        expect(
+          find.text(l.desktopReadAndEditGenerationSettingsThenExportThe),
+          findsNothing,
+        );
+        expect(tabsRect.left, 16);
+        expect(tabsRect.top, lessThanOrEqualTo(16));
+        expect(tester.getRect(modes).right, closeTo(right, .1));
+        expect(tester.getCenter(modes).dy, closeTo(tabsRect.center.dy, 1));
+        expect(card('当前图片').left, 16);
+        expect(card('当前图片').right, right);
+        if (size.width == 1720) {
+          await tester.tap(find.text('更多参数'));
+          await tester.pumpAndSettle();
+          await captureDesktop(tester, capture, 'toolbox-full-width-metadata');
+          await tester.tap(find.text('更多参数'));
+          await tester.pumpAndSettle();
+        }
+
+        await tester.tap(find.text(l.weightConverter));
+        await tester.pumpAndSettle();
+        expect(tester.getRect(tabs), tabsRect);
+        expect(tester.getRect(remove).right, closeTo(right, .1));
+        expect(tester.getCenter(remove).dy, closeTo(tabsRect.center.dy, 1));
+        expect(
+          tester.getCenter(find.text('SD → NAI')).dy,
+          closeTo(tabsRect.center.dy, 2),
+        );
+        expect(card('SD 提示词').left, 16);
+        expect(card('NAI 转换结果').right, right);
+        if (size.width == 1720) {
+          await captureDesktop(tester, capture, 'toolbox-full-width-weights');
+        }
+
+        await tester.tap(find.text(l.compareImages));
+        await tester.pumpAndSettle();
+        expect(tester.getRect(tabs), tabsRect);
+        final swap = tester.getRect(
+          find.widgetWithText(OutlinedButton, l.swapAB),
+        );
+        final clearRect = tester.getRect(clear);
+        expect(swap.center.dy, clearRect.center.dy);
+        expect(swap.right, lessThan(clearRect.left));
+        expect(swap.left, greaterThan(tabsRect.right));
+        expect(clearRect.center.dy, closeTo(tabsRect.center.dy, 1));
+        expect(clearRect.right, closeTo(right, .1));
+        if (size.width == 1720) {
+          await captureDesktop(tester, capture, 'toolbox-full-width-compare');
+        }
+      }
+      tester.view.physicalSize = const Size(540, 650);
+      await tester.pumpAndSettle();
+      for (final (tab, actions) in [
+        (l.compareImages, clear),
+        (l.weightConverter, remove),
+        (l.imageMetadata, modes),
+      ]) {
+        await tester.tap(find.text(tab));
+        await tester.pumpAndSettle();
+        final actionRect = tester.getRect(actions);
+        final tabRect = tester.getRect(tabs);
+        expect(actionRect.overlaps(tabRect), isFalse);
+        expect(actionRect.right, lessThanOrEqualTo(540 - 16 + .1));
+        expect(actions.hitTestable(), findsOneWidget);
+      }
+      expect(tester.takeException(), isNull);
+    },
+  );
 
   testWidgets(
     'compare file pair at actual toolbox entry; swap, zoom, filter, copy and clear',

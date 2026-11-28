@@ -5,21 +5,22 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/theme/app_theme.dart';
+import '../../inspiration/tag_library.dart';
+import '../../inspiration/tag_models.dart';
 import '../data/suggestions.dart';
 import '../data/tag_completion.dart';
-import '../data/tag_favorites.dart';
 import '../editor_models.dart';
 import '../editor_settings.dart';
 import '../editor_state.dart';
 import 'annotated_field.dart';
 import 'desktop_tag_popover.dart';
+import 'editor_segments.dart';
 import 'prompt_fullscreen_dialog.dart';
 import 'rich_tag_controller.dart';
 import 'tag_panel.dart';
 
 /// Edits a block's body without replacing its reference in the parent prompt.
-/// Both levels of popover share a tap region, so member actions do not dismiss
-/// the inspector before their click is delivered.
+/// The sidebar keeps member tools in the inspector; other editors can float them.
 class FoldInspector extends ConsumerStatefulWidget {
   const FoldInspector({
     super.key,
@@ -30,12 +31,18 @@ class FoldInspector extends ConsumerStatefulWidget {
     this.onEditInspiration,
     this.initialPositive,
     this.fullscreen = false,
+    this.sidebar = false,
+    this.onUnpack,
+    this.charId,
+    this.sectionId,
   });
   final String name;
+  final String? charId, sectionId;
   final Object tapGroupId;
   final VoidCallback onClose, onDelete;
   final ValueChanged<String>? onEditInspiration;
-  final bool fullscreen;
+  final bool fullscreen, sidebar;
+  final VoidCallback? onUnpack;
   final bool? initialPositive;
 
   @override
@@ -49,6 +56,7 @@ class _FoldInspectorState extends ConsumerState<FoldInspector> {
   final _fieldKey = GlobalKey<AnnotatedFieldState>();
   late String _name;
   bool? _missingPositive;
+  late bool _positive;
   bool _attachingSide = false;
   String _previous = '';
   bool _muting = false;
@@ -64,12 +72,7 @@ class _FoldInspectorState extends ConsumerState<FoldInspector> {
   @override
   void initState() {
     super.initState();
-    _name = widget.name;
-    final link = ref.read(editorProvider).placementOf(_name)?.link;
-    if (link != null && widget.initialPositive != null) {
-      _selectSide(link, widget.initialPositive!);
-    }
-    _loadBody();
+    _initializeSide();
     _controller.addListener(_onController);
   }
 
@@ -77,10 +80,20 @@ class _FoldInspectorState extends ConsumerState<FoldInspector> {
   void didUpdateWidget(FoldInspector oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.name != widget.name) {
-      _name = widget.name;
-      _missingPositive = null;
-      _loadBody();
+      _initializeSide();
     }
+  }
+
+  void _initializeSide() {
+    final state = ref.read(editorProvider);
+    final placed = state.placementOf(widget.name);
+    _selectSide(
+      placed,
+      widget.initialPositive ??
+          (placed == null
+              ? state.activePositive
+              : placed.positive?.name == widget.name),
+    );
   }
 
   void _loadBody() {
@@ -94,7 +107,7 @@ class _FoldInspectorState extends ConsumerState<FoldInspector> {
       selection: const TextSelection.collapsed(offset: -1),
     );
     _previous = body;
-    _selected = null;
+    _selected = widget.sidebar ? parseToks(body).firstOrNull : null;
     _muting = false;
   }
 
@@ -114,7 +127,7 @@ class _FoldInspectorState extends ConsumerState<FoldInspector> {
         if (_previous.trim().isEmpty) return;
         _attachingSide = true;
         try {
-          final name = _editor.addTemporaryFoldSide(
+          final name = _editor.addFoldSide(
             widget.name,
             positive: positive,
             body: _previous,
@@ -173,10 +186,11 @@ class _FoldInspectorState extends ConsumerState<FoldInspector> {
     }
   }
 
-  void _selectSide(PromptFoldLink link, bool positive) {
-    final name = positive ? link.positiveName : link.negativeName;
-    _missingPositive = name.isEmpty ? positive : null;
-    _name = name.isEmpty ? widget.name : name;
+  void _selectSide(PlacedPromptFold? placed, bool positive) {
+    _positive = positive;
+    final name = (positive ? placed?.positive : placed?.negative)?.name;
+    _missingPositive = name == null ? positive : null;
+    _name = name ?? widget.name;
     _selected = null;
     _loadBody();
   }
@@ -184,35 +198,20 @@ class _FoldInspectorState extends ConsumerState<FoldInspector> {
   void _openFullscreen() {
     if (_openingFullscreen) return;
     _openingFullscreen = true;
-    final name = widget.name;
-    final link = ref.read(editorProvider).placementOf(name)?.link;
-    final side =
-        _missingPositive ?? (link == null ? null : link.positiveName == _name);
-    final delete = widget.onDelete;
-    final edit = widget.onEditInspiration;
-    final group = Object();
-    // The modal keeps this editor session, but replaces the small popover.
-    // Capture actions before dismissing: the parent no longer has a selection.
-    widget.onClose();
-    showPromptFullscreenDialog(
+    openPromptStudio(
       context,
-      builder: (context) => FoldInspector(
-        name: name,
-        initialPositive: side,
-        fullscreen: true,
-        tapGroupId: group,
-        onEditInspiration: edit,
-        onClose: () => Navigator.of(context).pop(),
-        onDelete: () {
-          delete();
-          Navigator.of(context).pop();
-        },
-      ),
+      charId: widget.charId,
+      sectionId: widget.sectionId,
+      foldName: widget.name,
+      positive: _positive,
     );
+    widget.onClose();
   }
 
   Widget _memberPanel(Tok tok, EditorSettings settings) => TagPanel(
     key: const ValueKey('fold-member-actions'),
+    strip: widget.sidebar ? DesktopTagStrip.member : null,
+    tapGroupId: widget.tapGroupId,
     tok: tok,
     count: countOf(tok.name),
     related: _related,
@@ -240,29 +239,17 @@ class _FoldInspectorState extends ConsumerState<FoldInspector> {
       _change(next.$1, next.$2, keepPanel: false);
     },
     onClose: () => setState(() => _selected = null),
-    favorited: ref.watch(tagFavoriteKeysProvider).contains(metaKey(tok.name)),
-    onToggleFavorite: () =>
-        ref.read(tagFavoritesProvider.notifier).toggle(tok.name),
   );
 
   @override
   Widget build(BuildContext context) {
     ref.listen(editorProvider, (_, next) {
       if (_attachingSide) return;
-      final link = next.foldLinks
-          .where(
-            (l) =>
-                l.positiveName == widget.name || l.negativeName == widget.name,
-          )
-          .firstOrNull;
-      if (_missingPositive == null &&
-          link != null &&
-          _name != widget.name &&
-          link.positiveName != _name &&
-          link.negativeName != _name) {
-        setState(() => _selectSide(link, link.positiveName.isEmpty));
-      } else if (_missingPositive == null &&
-          next.foldBodies[_name] != _controller.text) {
+      final placed = next.placementOf(widget.name);
+      final name = (_positive ? placed?.positive : placed?.negative)?.name;
+      if (name != (_missingPositive == null ? _name : null)) {
+        setState(() => _selectSide(placed, _positive));
+      } else if (name != null && next.foldBodies[name] != _controller.text) {
         setState(_loadBody);
       }
     });
@@ -270,11 +257,8 @@ class _FoldInspectorState extends ConsumerState<FoldInspector> {
     final settings =
         ref.watch(editorSettingsProvider).value ?? const EditorSettings();
     _controller.showTrans = settings.showTranslation;
-    final link = state.foldLinks
-        .where(
-          (l) => l.positiveName == widget.name || l.negativeName == widget.name,
-        )
-        .firstOrNull;
+    final placed = state.placementOf(widget.name);
+    final link = placed?.link;
     final tokens = parseToks(_controller.text);
     final mixed = tokens.any(
       (t) => (t.effMult - tokens.first.effMult).abs() > .0001,
@@ -304,75 +288,52 @@ class _FoldInspectorState extends ConsumerState<FoldInspector> {
       );
     }
 
-    final header = Padding(
-      padding: const EdgeInsets.symmetric(vertical: 12),
-      child: Wrap(
-        alignment: WrapAlignment.spaceBetween,
-        crossAxisAlignment: WrapCrossAlignment.center,
-        spacing: 12,
-        children: [
-          Text('内容 ${tokens.length} 项', style: context.texts.labelMedium),
-          if (link != null && (link.paired || link.temporaryCategory != null))
-            Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                for (final (positive, name, label) in [
-                  (true, link.positiveName, '正面'),
-                  (false, link.negativeName, '负面'),
-                ])
-                  TextButton(
-                    key: ValueKey('fold-inspector-$label'),
-                    style: TextButton.styleFrom(
-                      backgroundColor:
-                          (_missingPositive == null
-                              ? _name == name
-                              : _missingPositive == positive)
-                          ? context.scheme.primaryContainer
-                          : null,
-                    ),
-                    onPressed: () =>
-                        setState(() => _selectSide(link, positive)),
-                    child: Text(
-                      positive
-                          ? context.l10n.positiveShort
-                          : context.l10n.negativeShort,
-                    ),
-                  ),
-              ],
-            ),
-        ],
-      ),
+    final sides = EditorSegments<bool>(
+      options: {
+        for (final (positive, name) in [
+          (true, placed?.positive?.name),
+          (false, placed?.negative?.name),
+        ])
+          positive:
+              '${positive ? context.l10n.positiveShort : context.l10n.negativeShort} ${parseToks(state.foldBodies[name] ?? '').length}',
+      },
+      optionKey: (positive) =>
+          ValueKey(positive ? 'fold-inspector-正面' : 'fold-inspector-负面'),
+      value: _positive,
+      onPick: (positive) => setState(() => _selectSide(placed, positive)),
     );
-    final content = DesktopTagPopover(
-      tapGroupId: widget.tapGroupId,
-      visible: _selected != null && !_cursorDragging,
-      anchor: () => _fieldKey.currentState?.selectionAnchor(),
-      anchorRevision: _anchorRevision,
-      onDismiss: () => setState(() => _selected = null),
-      panel: _selected == null
-          ? const SizedBox.shrink()
-          : _memberPanel(_selected!, settings),
-      child: AnnotatedField(
-        key: _fieldKey,
-        controller: _controller,
-        focusNode: _focus,
-        onCursorDrag: (dragging) => setState(() => _cursorDragging = dragging),
-        hint: switch (_missingPositive) {
-          true => context.l10n.emptyTemporaryPrompt(context.l10n.positiveShort),
-          false => context.l10n.emptyTemporaryPrompt(
-            context.l10n.negativeShort,
-          ),
-          null => '输入块内提示词…',
-        },
-        showTrans: settings.showTranslation,
-        showWeightWash: settings.showWeightWash,
-        fontSize: settings.fontSize,
-        scrollable: true,
-        scrollController: _scroll,
-        minLines: 3,
-        padding: const EdgeInsets.symmetric(vertical: 4),
-      ),
+    final field = AnnotatedField(
+      key: _fieldKey,
+      controller: _controller,
+      focusNode: _focus,
+      onCursorDrag: (dragging) => setState(() => _cursorDragging = dragging),
+      hint: switch (_missingPositive) {
+        true => context.l10n.emptyTemporaryPrompt(context.l10n.positiveShort),
+        false => context.l10n.emptyTemporaryPrompt(context.l10n.negativeShort),
+        null => '输入块内提示词…',
+      },
+      showTrans: settings.showTranslation,
+      showWeightWash: settings.showWeightWash,
+      fontSize: settings.fontSize,
+      scrollable: true,
+      scrollController: _scroll,
+      minLines: 3,
+      padding: const EdgeInsets.symmetric(vertical: 4),
     );
+    final content = widget.sidebar
+        ? field
+        : DesktopTagPopover(
+            yieldToControlDrag: true,
+            tapGroupId: widget.tapGroupId,
+            visible: _selected != null && !_cursorDragging,
+            anchor: () => _fieldKey.currentState?.selectionAnchor(),
+            anchorRevision: _anchorRevision,
+            onDismiss: () => setState(() => _selected = null),
+            panel: _selected == null
+                ? const SizedBox.shrink()
+                : _memberPanel(_selected!, settings),
+            child: field,
+          );
     final footer = Column(
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -400,45 +361,289 @@ class _FoldInspectorState extends ConsumerState<FoldInspector> {
         }
         return KeyEventResult.ignored;
       },
-      child: TagPanel(
-        key: const ValueKey('fold-inspector'),
-        tok: blockTok,
-        titleSpan: foldLabelSpan(
-          _name,
-          foldIconsOf(state.foldLinks)[_name],
-          hash: true,
-        ),
-        count: null,
-        related: const [],
-        showWiki: false,
-        copyText: _controller.text,
-        content: content,
-        contentHeader: header,
-        contentFooter: footer,
-        constrainContent: true,
-        expandContent: widget.fullscreen,
-        temporaryInspiration: link?.temporaryCategory != null,
-        onFullscreen: widget.fullscreen ? null : _openFullscreen,
-        onEditInspiration: widget.onEditInspiration == null
-            ? null
-            : () {
-                final name = _name;
-                if (widget.fullscreen) widget.onClose();
-                widget.onEditInspiration!(name);
-              },
-        mixedWeight: mixed,
-        weightStep: settings.weightStep,
-        onWrap: (up) =>
-            whole((text, first, last) => batchWrap(text, first, last, up: up)),
-        onSetMult: (mult) =>
-            whole((text, first, last) => batchSetMult(text, first, last, mult)),
-        onClear: () => whole(batchClearWeight),
-        onToggleDisabled: () => whole(
-          (text, first, last) => batchSetDisabled(text, first, last, !disabled),
-        ),
-        onDelete: widget.onDelete,
-        onClose: widget.onClose,
-        onAddRelated: (_) {},
+      child: widget.sidebar
+          ? _sidebarPanel(
+              context,
+              state,
+              link,
+              tokens,
+              settings,
+              field,
+              sides,
+              mult: mult,
+              mixed: mixed,
+              disabled: disabled,
+              whole: whole,
+            )
+          : TagPanel(
+              key: const ValueKey('fold-inspector'),
+              tok: blockTok,
+              titleSpan: foldLabelSpan(
+                _name,
+                foldIconsOf(state.foldLinks)[_name],
+                hash: true,
+              ),
+              count: null,
+              related: const [],
+              showWiki: false,
+              copyText: _controller.text,
+              content: content,
+              contentHeader: Align(
+                alignment: Alignment.centerRight,
+                child: sides,
+              ),
+              contentFooter: footer,
+              constrainContent: true,
+              expandContent: widget.fullscreen,
+              temporaryInspiration: link?.temporaryCategory != null,
+              onFullscreen: widget.fullscreen ? null : _openFullscreen,
+              onEditInspiration: widget.onEditInspiration == null
+                  ? null
+                  : () {
+                      final name = _name;
+                      if (widget.fullscreen) widget.onClose();
+                      widget.onEditInspiration!(name);
+                    },
+              mixedWeight: mixed,
+              weightStep: settings.weightStep,
+              onWrap: (up) => whole(
+                (text, first, last) => batchWrap(text, first, last, up: up),
+              ),
+              onSetMult: (mult) => whole(
+                (text, first, last) => batchSetMult(text, first, last, mult),
+              ),
+              onClear: () => whole(batchClearWeight),
+              onToggleDisabled: () => whole(
+                (text, first, last) =>
+                    batchSetDisabled(text, first, last, !disabled),
+              ),
+              onDelete: widget.onDelete,
+              onClose: widget.onClose,
+              onAddRelated: (_) {},
+            ),
+    );
+  }
+
+  Widget _sidebarPanel(
+    BuildContext context,
+    EditorState state,
+    PromptFoldLink? link,
+    List<Tok> tokens,
+    EditorSettings settings,
+    Widget field,
+    Widget sides, {
+    required double mult,
+    required bool mixed,
+    required bool disabled,
+    required void Function(String Function(String, int, int)) whole,
+  }) {
+    final l10n = context.l10n;
+    final scheme = context.scheme;
+    final temporaryIcon = foldIconsOf(state.foldLinks)[_name];
+    final sourceId = link?.sourceEntryId;
+    final category = sourceId == null
+        ? null
+        : ref.watch(
+            tagLibraryProvider.select(
+              (library) => library.value?.entries
+                  .where((entry) => entry.id == sourceId)
+                  .firstOrNull
+                  ?.category,
+            ),
+          );
+    final definition = category == null ? null : tagCategoryDef(category);
+    final source = sourceId?.startsWith('pub_') == true
+        ? l10n.publicLibrary
+        : definition == null
+        ? null
+        : l10n.myInCat(definition.label);
+    final sideLabel = _positive ? l10n.positiveShort : l10n.negativeShort;
+    final header = LayoutBuilder(
+      builder: (context, box) => Row(
+        children: [
+          Icon(
+            temporaryIcon ?? definition?.icon ?? Icons.view_module_outlined,
+            size: 18,
+            color: scheme.primary,
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  '#${temporaryIcon == null ? _name : _name.substring(1).trimLeft()}',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: context.texts.titleMedium?.copyWith(
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                Text(
+                  [
+                    ?source,
+                    '$sideLabel ${l10n.itemsCount(tokens.length)}',
+                    if (link?.paired == true) l10n.pairedPromptBlock,
+                  ].join(' · '),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: context.texts.bodySmall?.copyWith(
+                    color: scheme.onSurfaceVariant,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          ConstrainedBox(
+            constraints: BoxConstraints(maxWidth: box.maxWidth * .71),
+            child: FittedBox(
+              fit: BoxFit.scaleDown,
+              alignment: Alignment.centerRight,
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  sides,
+                  if (widget.onEditInspiration case final edit?)
+                    DesktopTagAction(
+                      icon: link?.temporaryCategory != null
+                          ? Icons.library_add_outlined
+                          : Icons.edit_outlined,
+                      label: link?.temporaryCategory != null
+                          ? l10n.saveSelectionAsInspiration
+                          : l10n.editInspirationBlock,
+                      onPressed: () => edit(_name),
+                    ),
+                  DesktopTagAction(
+                    icon: Icons.open_in_full,
+                    label: l10n.desktopOpenFullScreenPromptEditor,
+                    onPressed: _openFullscreen,
+                  ),
+                  DesktopTagAction(
+                    icon: Icons.content_copy,
+                    label: l10n.copy,
+                    onPressed: () => Clipboard.setData(
+                      ClipboardData(text: _controller.text),
+                    ),
+                  ),
+                  DesktopTagAction(
+                    icon: Icons.close,
+                    label: l10n.close,
+                    onPressed: widget.onClose,
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+    final action = _selected;
+    return Material(
+      key: const ValueKey('fold-inspector'),
+      color: scheme.surface,
+      child: LayoutBuilder(
+        builder: (context, bounds) {
+          final wholeButtons = <Widget>[
+            DesktopWeightControl(
+              prefix: l10n.wholeBlock,
+              multiplier: mult,
+              mixed: mixed,
+              enabled: tokens.isNotEmpty && !disabled,
+              onStep: (up) => whole(
+                (s, a, b) => batchSetMult(
+                  s,
+                  a,
+                  b,
+                  mult + (up ? settings.weightStep : -settings.weightStep),
+                ),
+              ),
+            ),
+            DesktopTagAction(
+              icon: disabled
+                  ? Icons.visibility_outlined
+                  : Icons.visibility_off_outlined,
+              label: disabled ? l10n.enableBlock : l10n.disableBlock,
+              showLabel:
+                  bounds.maxWidth >=
+                  410 * MediaQuery.textScalerOf(context).scale(14) / 14,
+              onPressed: tokens.isEmpty
+                  ? null
+                  : () => whole(
+                      (s, a, b) => batchSetDisabled(s, a, b, !disabled),
+                    ),
+            ),
+            DesktopTagAction(
+              icon: Icons.unfold_more,
+              label: l10n.unpackBlock,
+              showLabel:
+                  bounds.maxWidth >=
+                  410 * MediaQuery.textScalerOf(context).scale(14) / 14,
+              onPressed: widget.onUnpack,
+            ),
+            DesktopTagAction(
+              key: const ValueKey('fold-whole-clear-weight'),
+              icon: Icons.restart_alt,
+              label: l10n.studioResetWeight,
+              showLabel: true,
+              onPressed: tokens.isEmpty ? null : () => whole(batchClearWeight),
+            ),
+          ];
+          return Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 10,
+                ),
+                child: header,
+              ),
+              const Divider(height: 1),
+              Flexible(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 10, 16, 8),
+                  child: field,
+                ),
+              ),
+              const Divider(height: 1),
+              SizedBox(
+                height: 38 * MediaQuery.textScalerOf(context).scale(14) / 14,
+                child: action == null
+                    ? Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 14),
+                        child: Align(
+                          alignment: Alignment.centerLeft,
+                          child: Text(
+                            l10n.selectBlockTag,
+                            style: context.texts.bodySmall,
+                          ),
+                        ),
+                      )
+                    : _memberPanel(action, settings),
+              ),
+              const Divider(height: 1),
+              Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 7,
+                ),
+                child: Align(
+                  alignment: Alignment.centerLeft,
+                  child: FittedBox(
+                    fit: BoxFit.scaleDown,
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      spacing: 4,
+                      children: wholeButtons,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          );
+        },
       ),
     );
   }

@@ -326,7 +326,7 @@ void main() {
     await tester.pumpAndSettle();
     expect([for (final s in gen.state.sections) s.id], ['main', art.id]);
     expect(find.text('已合并到「画风」'), findsOneWidget);
-    expect(find.byTooltip('灵感库'), findsOneWidget); // 退回平时的卡头
+    expect(find.byTooltip('添加分区'), findsOneWidget); // 退回平时的卡头
 
     await tester.tap(find.text('撤销'));
     await tester.pumpAndSettle();
@@ -368,7 +368,7 @@ void main() {
     expect(find.text('已选 1'), findsOneWidget);
     await tester.tap(find.byTooltip('退出多选'));
     await tester.pumpAndSettle();
-    expect(find.byTooltip('灵感库'), findsOneWidget);
+    expect(find.byTooltip('添加分区'), findsOneWidget);
     expect(find.byIcon(Icons.drag_indicator), findsNothing);
     expect(find.text('已选 1'), findsNothing);
     await _settleTimers(tester);

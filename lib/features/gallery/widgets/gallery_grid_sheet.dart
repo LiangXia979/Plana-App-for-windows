@@ -1068,7 +1068,8 @@ class GalleryGridContentState extends ConsumerState<GalleryGridContent>
                   dropdown: true,
                 ),
               ),
-              const GalleryOutputFolderButton(),
+              if (_scope != null && !isFixedGallery(_scope))
+                GalleryOutputFolderButton(albumId: _scope),
             ],
           ),
           if (widget.browser == null)
@@ -2002,11 +2003,9 @@ class GalleryGridContentState extends ConsumerState<GalleryGridContent>
     );
     if (_filterKey != filterKey) {
       _filterKey = filterKey;
-      _scopeImages = scope == favoritesId
-          ? state.results.where((r) => r.favorite).toList()
-          : creationScope || scope == null
+      _scopeImages = creationScope
           ? state.results
-          : state.results.where((r) => albums.contains(scope, r.id)).toList();
+          : albums.imagesIn(scope, state.results);
       _filtered = filterGalleryImages(
         images: _scopeImages,
         date: _dateFilter,

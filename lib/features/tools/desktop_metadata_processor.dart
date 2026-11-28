@@ -11,13 +11,16 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/theme/app_theme.dart';
 import '../../core/store/app_stores.dart';
+import '../../core/ui/editable_combo_field.dart';
 import '../../core/ui/image_drop.dart';
 import '../../core/util/image_pick.dart';
 import '../gallery/gallery_state.dart';
 import '../gallery/widgets/history_image_picker.dart';
+import '../generate/models.dart' show noiseSchedules;
 import '../generate/widgets/common.dart' show hintSnack, sharedAxisRoute;
 import '../import/image_metadata.dart';
 import '../import/metadata_detail_page.dart';
+import 'desktop_tool_header.dart';
 import 'metadata_draft.dart';
 import 'metadata_export.dart';
 import 'metadata_processing.dart';
@@ -25,7 +28,9 @@ import 'metadata_tool_link.dart';
 import 'metadata_sampler_field.dart';
 
 class DesktopMetadataProcessor extends ConsumerStatefulWidget {
-  const DesktopMetadataProcessor({super.key});
+  const DesktopMetadataProcessor({super.key, this.desktopTabs});
+
+  final Widget? desktopTabs;
 
   @override
   ConsumerState<DesktopMetadataProcessor> createState() =>
@@ -331,6 +336,10 @@ class _DesktopMetadataProcessorState
       return draft.buildComment();
     } on MetadataFieldErrors catch (error) {
       _errors.addAll(error.fields);
+      if (!draft.advanced &&
+          error.fields.keys.any(_advancedLabels.containsKey)) {
+        _drafts.setAdvanced(true);
+      }
       setState(() => _tab = 0);
       hintSnack(context, l10nNow.desktopCheckTheHighlightedGenerationSettings);
       return null;
@@ -451,48 +460,27 @@ class _DesktopMetadataProcessorState
         key: const ValueKey('desktop-metadata-tool'),
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          LayoutBuilder(
-            builder: (context, constraints) {
-              final description = Text(
-                l10nNow.desktopReadAndEditGenerationSettingsThenExportThe,
-                style: context.texts.bodySmall!.copyWith(
-                  color: context.scheme.onSurfaceVariant,
+          DesktopToolHeader(
+            tabs: widget.desktopTabs,
+            actions: SegmentedButton<int>(
+              segments: [
+                ButtonSegment(
+                  value: 0,
+                  icon: const Icon(Icons.image_outlined, size: 18),
+                  label: Text(context.l10n.desktopSingleImage),
                 ),
-              );
-              final modes = SegmentedButton<int>(
-                segments: [
-                  ButtonSegment(
-                    value: 0,
-                    icon: Icon(Icons.image_outlined, size: 18),
-                    label: Text(l10nNow.desktopSingleImage),
-                  ),
-                  ButtonSegment(
-                    value: 1,
-                    icon: Icon(Icons.photo_library_outlined, size: 18),
-                    label: Text(l10nNow.desktopBatchProcessing),
-                  ),
-                ],
-                selected: {_tab},
-                showSelectedIcon: false,
-                onSelectionChanged: _busy
-                    ? null
-                    : (s) => setState(() => _tab = s.first),
-              );
-              final scale = MediaQuery.textScalerOf(context).scale(14) / 14;
-              if (constraints.maxWidth >= 760 * scale) {
-                return Row(
-                  children: [
-                    Expanded(child: description),
-                    const SizedBox(width: 16),
-                    modes,
-                  ],
-                );
-              }
-              return Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [description, const SizedBox(height: 12), modes],
-              );
-            },
+                ButtonSegment(
+                  value: 1,
+                  icon: const Icon(Icons.photo_library_outlined, size: 18),
+                  label: Text(context.l10n.desktopBatchProcessing),
+                ),
+              ],
+              selected: {_tab},
+              showSelectedIcon: false,
+              onSelectionChanged: _busy
+                  ? null
+                  : (s) => setState(() => _tab = s.first),
+            ),
           ),
           const SizedBox(height: 16),
           if (_loading) const LinearProgressIndicator(),
@@ -693,9 +681,14 @@ class _DesktopMetadataProcessorState
     );
   }
 
-  Widget _field(String name, String label, {int lines = 1}) {
+  Widget _field(
+    String name,
+    String label, {
+    int lines = 1,
+    bool labelAbove = false,
+  }) {
     final decoration = InputDecoration(
-      labelText: label,
+      labelText: labelAbove ? null : label,
       errorText: _errors[name],
       border: const OutlineInputBorder(),
       isDense: true,
@@ -710,6 +703,19 @@ class _DesktopMetadataProcessorState
         controller: _fields[name]!,
         enabled: !_busy,
         decoration: decoration,
+        onChanged: onChanged,
+      );
+    }
+    if (name == 'noise_schedule') {
+      return EditableComboField(
+        fieldKey: ValueKey('metadata-field-$name'),
+        controller: _fields[name]!,
+        decoration: decoration,
+        enabled: !_busy,
+        options: {
+          for (final value in ['native', ...noiseSchedules]) value: value,
+        },
+        emptyLabel: context.l10n.noMatchingInCat(label),
         onChanged: onChanged,
       );
     }
@@ -756,52 +762,104 @@ class _DesktopMetadataProcessorState
           },
         ),
         const SizedBox(height: 8),
-        Wrap(
+        const Divider(height: 1),
+        const SizedBox(height: 4),
+        OverflowBar(
+          alignment: MainAxisAlignment.spaceBetween,
+          overflowAlignment: OverflowBarAlignment.end,
           spacing: 8,
           children: [
-            FilterChip(
-              label: const Text('SMEA'),
-              selected: sm,
-              onSelected: _busy
-                  ? null
-                  : (v) =>
-                        _drafts.editFields({'sm': v, if (!v) 'sm_dyn': false}),
+            Wrap(
+              spacing: 8,
+              children: [
+                FilterChip(
+                  backgroundColor: context.scheme.surfaceContainerLow,
+                  disabledColor: context.scheme.surfaceContainerLow,
+                  label: const Text('SMEA'),
+                  selected: sm,
+                  onSelected: _busy
+                      ? null
+                      : (v) => _drafts.editFields({
+                          'sm': v,
+                          if (!v) 'sm_dyn': false,
+                        }),
+                ),
+                FilterChip(
+                  backgroundColor: context.scheme.surfaceContainerLow,
+                  disabledColor: context.scheme.surfaceContainerLow,
+                  label: const Text('SMEA Dynamic'),
+                  selected: sm && smDyn,
+                  onSelected: _busy || !sm
+                      ? null
+                      : (v) => _drafts.editFields({'sm_dyn': v}),
+                ),
+              ],
             ),
-            FilterChip(
-              label: const Text('SMEA Dynamic'),
-              selected: sm && smDyn,
-              onSelected: _busy || !sm
-                  ? null
-                  : (v) => _drafts.editFields({'sm_dyn': v}),
-            ),
-          ],
-        ),
-        ExpansionTile(
-          key: const PageStorageKey('metadata-advanced-parameters'),
-          initiallyExpanded: advanced,
-          onExpansionChanged: _drafts.setAdvanced,
-          tilePadding: EdgeInsets.zero,
-          title: Text(l10nNow.desktopMoreSettings),
-          childrenPadding: const EdgeInsets.only(top: 8, bottom: 8),
-          children: [
-            for (final entry in const {
-              'noise_schedule': '噪声调度',
-              'cfg_rescale': 'CFG Rescale',
-              'strength': '重绘强度',
-              'noise': '噪声强度',
-            }.entries)
-              Padding(
-                // EditableText restores its own horizontal scroll offset. It must
-                // not read the bool stored under the parent ExpansionTile key.
-                key: PageStorageKey('metadata-parameter-${entry.key}'),
-                padding: const EdgeInsets.only(bottom: 14),
-                child: _field(entry.key, entry.value),
+            Semantics(
+              expanded: advanced,
+              child: TextButton.icon(
+                iconAlignment: IconAlignment.end,
+                style: TextButton.styleFrom(
+                  foregroundColor: context.scheme.onSurface,
+                  textStyle: context.texts.titleSmall,
+                ),
+                onPressed: () => _drafts.setAdvanced(!advanced),
+                label: Text(context.l10n.desktopMoreSettings),
+                icon: Icon(
+                  advanced ? Icons.expand_less : Icons.expand_more,
+                  size: 18,
+                ),
               ),
+            ),
           ],
         ),
+        if (advanced) ...[const SizedBox(height: 8), _advancedFields()],
       ],
     );
   }
+
+  static const _advancedLabels = {
+    'noise_schedule': '噪声调度',
+    'cfg_rescale': 'CFG Rescale',
+    'strength': '重绘强度',
+    'noise': '噪声强度',
+  };
+
+  Widget _advancedFields() => LayoutBuilder(
+    builder: (context, constraints) {
+      const gap = 12.0;
+      final minWidth = 144 * (MediaQuery.textScalerOf(context).scale(14) / 14);
+      final columns = constraints.maxWidth >= minWidth * 4 + gap * 3
+          ? 4
+          : constraints.maxWidth >= minWidth * 2 + gap
+          ? 2
+          : 1;
+      final width = (constraints.maxWidth - gap * (columns - 1)) / columns;
+      return Wrap(
+        spacing: gap,
+        runSpacing: gap,
+        children: [
+          for (final entry in _advancedLabels.entries)
+            SizedBox(
+              width: width,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  ExcludeSemantics(
+                    child: Text(entry.value, style: context.texts.titleSmall),
+                  ),
+                  const SizedBox(height: 5),
+                  Semantics(
+                    label: entry.value,
+                    child: _field(entry.key, entry.value, labelAbove: true),
+                  ),
+                ],
+              ),
+            ),
+        ],
+      );
+    },
+  );
 
   Widget _directoryField({required bool input}) => Row(
     children: [

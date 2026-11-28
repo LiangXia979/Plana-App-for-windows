@@ -402,25 +402,28 @@ void main() {
       expect(s.promptRaw, '', reason: '草稿是画布那份的,留着会和定稿对不上');
     });
 
-    test('四个图像模块只留 Vibe', () {
-      // 角色参考、图生图、重绘是冲着某张具体的图、某个具体的角色配的,
-      // 套到 AI 写的新画面上只会拧在一起;Vibe 管的是画风,套谁都成立。
+    test('助手提议沿用画布的精确参考与图生图', () {
       final withModules = canvas.copyWith(
         vibes: const [VibeItem(id: 'v1', name: 'style')],
         charRefs: const [CharRefItem(id: 'r1')],
         img2img: const Img2ImgConfig(strength: 0.5),
       );
       var i = 0;
-      final s = proposalSendState(
-        withModules,
-        const DrawProposal(positive: '1girl'),
-        SectionImport.main,
-        newId: () => 'p${i++}',
-      );
-      expect(s.vibes.single.id, 'v1');
-      expect(s.charRefs, isEmpty);
-      expect(s.img2img, isNull);
-      expect(s.inpaint, isNull);
+      for (final model in ['NAI 4.0 Full', 'NAI 4.5 Full', 'NAI 5.0 Full']) {
+        final current = withModules.copyWith(
+          params: withModules.params.copyWith(model: model),
+        );
+        final s = proposalSendState(
+          current,
+          const DrawProposal(positive: '1girl'),
+          SectionImport.main,
+          newId: () => 'p${i++}',
+        );
+        expect(s.vibes.single.id, 'v1');
+        expect(s.charRefs, same(current.charRefs));
+        expect(s.img2img, same(current.img2img));
+        expect(s.inpaint, isNull);
+      }
     });
 
     test('尺寸、步数这些参数沿用创作页', () {

@@ -38,6 +38,7 @@ import '../save_pipeline.dart';
 import '../phone_gallery_save.dart';
 import '../result_clipboard.dart';
 import '../save_settings.dart';
+import '../temporary_gallery_actions.dart';
 import '../desktop_image_save.dart';
 import '../upscale_model.dart';
 import '../super_resolution.dart';
@@ -417,6 +418,10 @@ class ResultActions extends ConsumerStatefulWidget {
     this.detailsPanel = false,
     this.onInpaintOpened,
     this.canvasBar,
+    this.history,
+    this.temporaryCanvas,
+    this.temporaryBatchMenu,
+    this.onExpandHistory,
     this.enabled = true,
   }) : assert(result != null || canvasBar != null);
 
@@ -426,6 +431,10 @@ class ResultActions extends ConsumerStatefulWidget {
   final ResultImage? result;
   final double maxHeight;
   final CanvasActionBar? canvasBar;
+  final Widget? history;
+  final String? temporaryCanvas;
+  final Widget? temporaryBatchMenu;
+  final VoidCallback? onExpandHistory;
   final bool enabled;
 
   @override
@@ -434,6 +443,7 @@ class ResultActions extends ConsumerStatefulWidget {
 
 class _ActionRailState extends ConsumerState<ResultActions> {
   ResultImage get result => widget.result!;
+  bool _historyHovered = false;
   bool _saving = false;
   bool _choosingDirectory = false;
   bool _settingBaseImage = false;
@@ -690,154 +700,256 @@ class _ActionRailState extends ConsumerState<ResultActions> {
       shape: const WidgetStatePropertyAll(StadiumBorder()),
       side: const WidgetStatePropertyAll(BorderSide.none),
     );
-    return Material(
-      key: ValueKey(top ? 'canvas-top-actions' : 'canvas-bottom-actions'),
-      color: context.scheme.surface,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-        child: top
-            ? Center(
-                child: Wrap(
-                  key: const ValueKey('canvas-primary-tools'),
-                  alignment: WrapAlignment.center,
-                  spacing: 4,
-                  runSpacing: 2,
-                  children: [
-                    TextButton.icon(
-                      key: const ValueKey('canvas-inpaint'),
-                      style: style,
-                      onPressed: canAct ? () => _inpaint(context, ref) : null,
-                      icon: const Icon(Icons.brush_outlined, size: 18),
-                      label: Text(l10nNow.inpaint),
-                    ),
-                    TextButton.icon(
-                      key: const ValueKey('canvas-upscale'),
+    final actions = Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      child: top
+          ? Center(
+              child: Wrap(
+                key: const ValueKey('canvas-primary-tools'),
+                alignment: WrapAlignment.center,
+                spacing: 4,
+                runSpacing: 2,
+                children: [
+                  TextButton.icon(
+                    key: const ValueKey('canvas-inpaint'),
+                    style: style,
+                    onPressed: canAct ? () => _inpaint(context, ref) : null,
+                    icon: const Icon(Icons.brush_outlined, size: 18),
+                    label: Text(l10nNow.inpaint),
+                  ),
+                  TextButton.icon(
+                    key: const ValueKey('canvas-upscale'),
+                    style: style,
+                    onPressed: canAct && !_upscaling
+                        ? () => _upscale(
+                            context,
+                            ref,
+                            requestedMethod: UpscaleMethod.redraw,
+                          )
+                        : null,
+                    icon: const Icon(Icons.open_in_full, size: 18),
+                    label: Text(l10nNow.img2imgUpscale),
+                  ),
+                  Tooltip(
+                    message: _superResolutionTooltip,
+                    child: TextButton.icon(
+                      key: const ValueKey('canvas-super-resolution'),
                       style: style,
                       onPressed: canAct && !_upscaling
                           ? () => _upscale(
                               context,
                               ref,
-                              requestedMethod: UpscaleMethod.redraw,
+                              requestedMethod: UpscaleMethod.naiV5,
                             )
                           : null,
-                      icon: const Icon(Icons.open_in_full, size: 18),
-                      label: Text(l10nNow.img2imgUpscale),
-                    ),
-                    Tooltip(
-                      message: _superResolutionTooltip,
-                      child: TextButton.icon(
-                        key: const ValueKey('canvas-super-resolution'),
-                        style: style,
-                        onPressed: canAct && !_upscaling
-                            ? () => _upscale(
-                                context,
-                                ref,
-                                requestedMethod: UpscaleMethod.naiV5,
-                              )
-                            : null,
-                        icon: const Icon(
-                          Icons.photo_size_select_large,
-                          size: 18,
-                        ),
-                        label: Text(l10nNow.upscaleResolution),
-                      ),
-                    ),
-                    TextButton.icon(
-                      key: const ValueKey('canvas-import'),
-                      style: style,
-                      onPressed: canAct ? () => _import(context, ref) : null,
-                      icon: const Icon(Icons.input, size: 18),
-                      label: Text(l10nNow.importLabel),
-                    ),
-                    TextButton.icon(
-                      key: const ValueKey('canvas-director-tools'),
-                      style: style,
-                      onPressed: canAct
-                          ? () => openDirectorTools(context, ref, result)
-                          : null,
-                      icon: const Icon(Icons.movie_filter_outlined, size: 18),
-                      label: Text(l10nNow.desktopDirectorTools),
-                    ),
-                    _baseImageButton(style: style, enabled: canAct),
-                  ],
-                ),
-              )
-            : Row(
-                children: [
-                  Expanded(
-                    child: Wrap(
-                      spacing: 4,
-                      runSpacing: 4,
-                      crossAxisAlignment: WrapCrossAlignment.center,
-                      children: [
-                        Tooltip(
-                          message: l10nNow.desktopSaveToTheSelectedFolderRightClickOr,
-                          child: GestureDetector(
-                            onSecondaryTap: canAct
-                                ? () => _openSaveSheet(context, ref)
-                                : null,
-                            onLongPress: canAct
-                                ? () => _openSaveSheet(context, ref)
-                                : null,
-                            child: OutlinedButton.icon(
-                              key: const ValueKey('canvas-save'),
-                              style: capsuleStyle,
-                              onPressed:
-                                  canAct && !_saving && !_choosingDirectory
-                                  ? () => _saveInDirectory(context)
-                                  : null,
-                              icon: const Icon(
-                                Icons.download_outlined,
-                                size: 18,
-                              ),
-                              label: Text(_saving ? '保存中' : '保存'),
-                            ),
-                          ),
-                        ),
-                        Tooltip(
-                          message: directory == null
-                              ? '选择保存文件夹'
-                              : '保存到：$directory\n点击更换文件夹',
-                          child: TextButton.icon(
-                            key: const ValueKey('canvas-save-folder'),
-                            style: capsuleStyle,
-                            onPressed: _saving || _choosingDirectory
-                                ? null
-                                : () => _chooseDirectory(),
-                            icon: Icon(
-                              directory == null
-                                  ? Icons.folder_open_outlined
-                                  : Icons.folder_outlined,
-                              size: 18,
-                            ),
-                            label: Text(l10nNow.desktopFolder),
-                          ),
-                        ),
-                        TextButton.icon(
-                          key: const ValueKey('canvas-copy-image'),
-                          style: capsuleStyle,
-                          onPressed: canAct
-                              ? () =>
-                                    copyResultToClipboard(context, ref, result)
-                              : null,
-                          icon: const Icon(Icons.content_copy, size: 18),
-                          label: Text(l10nNow.desktopCopyImage),
-                        ),
-                      ],
+                      icon: const Icon(Icons.photo_size_select_large, size: 18),
+                      label: Text(l10nNow.upscaleResolution),
                     ),
                   ),
-                  const SizedBox(width: 8),
-                  FilledButton.icon(
-                    key: const ValueKey('canvas-regenerate'),
-                    onPressed: canAct ? () => _regenerate(context, ref) : null,
-                    icon: const Icon(Icons.refresh, size: 18),
-                    label: Text(
-                      widget.result?.operation != null ? '继续处理' : '重新生成',
-                    ),
+                  TextButton.icon(
+                    key: const ValueKey('canvas-import'),
+                    style: style,
+                    onPressed: canAct ? () => _import(context, ref) : null,
+                    icon: const Icon(Icons.input, size: 18),
+                    label: Text(l10nNow.importLabel),
                   ),
+                  TextButton.icon(
+                    key: const ValueKey('canvas-director-tools'),
+                    style: style,
+                    onPressed: canAct
+                        ? () => openDirectorTools(context, ref, result)
+                        : null,
+                    icon: const Icon(Icons.movie_filter_outlined, size: 18),
+                    label: Text(l10nNow.desktopDirectorTools),
+                  ),
+                  _baseImageButton(style: style, enabled: canAct),
                 ],
               ),
-      ),
+            )
+          : LayoutBuilder(
+              builder: (context, bounds) {
+                final scale = MediaQuery.textScalerOf(context).scale(1);
+                final temporary = widget.temporaryCanvas;
+                final hasTemporaryActions =
+                    temporary != null && widget.result != null;
+                final compact =
+                    bounds.maxWidth < (hasTemporaryActions ? 640 : 550) * scale;
+                final toolStyle = capsuleStyle.copyWith(
+                  padding: const WidgetStatePropertyAll(
+                    EdgeInsets.symmetric(horizontal: 8),
+                  ),
+                  minimumSize: const WidgetStatePropertyAll(Size(32, 32)),
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                );
+                Widget toolbar(Widget? archive, Widget? imageActions) => Row(
+                  children: [
+                    Expanded(
+                      child: InkWell(
+                        onTap: widget.onExpandHistory,
+                        hoverColor: Colors.transparent,
+                        child: Row(
+                          children: [
+                            Flexible(
+                              child: widget.history ?? const SizedBox.shrink(),
+                            ),
+                            if (archive != null) ...[
+                              const SizedBox(width: 4),
+                              archive,
+                            ],
+                          ],
+                        ),
+                      ),
+                    ),
+                    if (imageActions != null) ...[
+                      imageActions,
+                      SizedBox(
+                        height: 18,
+                        child: VerticalDivider(
+                          width: 10,
+                          thickness: 1,
+                          color: context.scheme.outlineVariant,
+                        ),
+                      ),
+                    ],
+                    Tooltip(
+                      message:
+                          l10nNow.desktopSaveToTheSelectedFolderRightClickOr,
+                      child: GestureDetector(
+                        onSecondaryTap: canAct
+                            ? () => _openSaveSheet(context, ref)
+                            : null,
+                        onLongPress: canAct
+                            ? () => _openSaveSheet(context, ref)
+                            : null,
+                        child: OutlinedButton(
+                          key: const ValueKey('canvas-save'),
+                          style: toolStyle,
+                          onPressed: canAct && !_saving && !_choosingDirectory
+                              ? () => _saveInDirectory(context)
+                              : null,
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const Icon(Icons.download_outlined, size: 18),
+                              if (!compact) ...[
+                                const SizedBox(width: 4),
+                                Text(_saving ? '保存中' : '保存'),
+                              ],
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                    SizedBox(width: compact ? 2 : 5),
+                    Tooltip(
+                      message: directory == null
+                          ? '选择保存文件夹'
+                          : '保存到：$directory\n点击更换文件夹',
+                      child: TextButton(
+                        key: const ValueKey('canvas-save-folder'),
+                        style: toolStyle,
+                        onPressed: _saving || _choosingDirectory
+                            ? null
+                            : () => _chooseDirectory(),
+                        child: Icon(
+                          directory == null
+                              ? Icons.folder_open_outlined
+                              : Icons.folder_outlined,
+                          size: 18,
+                        ),
+                      ),
+                    ),
+                    SizedBox(width: compact ? 2 : 5),
+                    Tooltip(
+                      message: l10nNow.desktopCopyImage,
+                      child: TextButton(
+                        key: const ValueKey('canvas-copy-image'),
+                        style: toolStyle,
+                        onPressed: canAct
+                            ? () => copyResultToClipboard(context, ref, result)
+                            : null,
+                        child: const Icon(Icons.content_copy, size: 18),
+                      ),
+                    ),
+                    const SizedBox(width: 4),
+                    Tooltip(
+                      message: widget.result?.operation != null
+                          ? '继续处理'
+                          : '重新生成',
+                      child: FilledButton(
+                        key: const ValueKey('canvas-regenerate'),
+                        style: FilledButton.styleFrom(
+                          padding: EdgeInsets.symmetric(
+                            horizontal: compact ? 8 : 14,
+                          ),
+                          minimumSize: const Size(32, 32),
+                          visualDensity: VisualDensity.compact,
+                        ),
+                        onPressed: canAct
+                            ? () => _regenerate(context, ref)
+                            : null,
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Icon(Icons.refresh, size: 18),
+                            if (!compact) ...[
+                              const SizedBox(width: 4),
+                              Text(
+                                widget.result?.operation != null
+                                    ? '继续处理'
+                                    : '重新生成',
+                              ),
+                            ],
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
+                );
+                final row = hasTemporaryActions
+                    ? TemporaryFilmActions(
+                        canvas: temporary,
+                        image: result,
+                        compactZip: bounds.maxWidth < 490 * scale,
+                        batchMenu: widget.temporaryBatchMenu,
+                        builder: toolbar,
+                      )
+                    : toolbar(null, null);
+                final minWidth =
+                    (hasTemporaryActions
+                        ? (widget.temporaryBatchMenu == null ? 400 : 430)
+                        : 346) *
+                    scale;
+                if (bounds.maxWidth >= minWidth) return row;
+                return SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: SizedBox(width: minWidth, child: row),
+                );
+              },
+            ),
+    );
+    return Material(
+      key: ValueKey(top ? 'canvas-top-actions' : 'canvas-bottom-actions'),
+      shape: top
+          ? null
+          : Border(
+              top: BorderSide(
+                color: context.scheme.outlineVariant.withValues(alpha: .5),
+              ),
+            ),
+      color: _historyHovered && widget.onExpandHistory != null
+          ? Color.alphaBlend(
+              Theme.of(context).hoverColor,
+              context.scheme.surface,
+            )
+          : context.scheme.surface,
+      child: top || widget.history == null
+          ? actions
+          : MouseRegion(
+              onEnter: (_) => setState(() => _historyHovered = true),
+              onExit: (_) => setState(() => _historyHovered = false),
+              child: actions,
+            ),
     );
   }
 
@@ -901,7 +1013,11 @@ class _ActionRailState extends ConsumerState<ResultActions> {
         ..setImg2ImgImage(image: base.image, width: base.w, height: base.h);
       ref.read(shellIndexProvider.notifier).select(kTabCreate);
       ref.read(desktopImg2ImgRevealProvider.notifier).request();
-      hintSnack(context, l10nNow.desktopCurrentImageSetAsTheBaseImage, icon: Icons.image_outlined);
+      hintSnack(
+        context,
+        l10nNow.desktopCurrentImageSetAsTheBaseImage,
+        icon: Icons.image_outlined,
+      );
     } catch (error) {
       if (mounted) {
         hintSnack(context, '基础图像载入失败：$error', icon: Icons.error_outline);
@@ -937,21 +1053,28 @@ class _ActionRailState extends ConsumerState<ResultActions> {
     if (_saving) return;
     setState(() => _saving = true);
     final image = result;
+    final gallery = ref.read(galleryProvider.notifier);
+    final temporary = ref.read(appStoresProvider).temporaryGallery;
+    final release = temporary.holdImage(image.id);
     try {
       final directory =
           ref.read(desktopSaveDirectoryProvider) ?? await _chooseDirectory();
       if (!context.mounted || directory == null) return;
       final settings = await ref.read(saveSettingsProvider.future);
       if (!context.mounted) return;
-      final bytes = await _bytesOf(ref);
+      final bytes =
+          image.bytes ??
+          await ref.read(appStoresProvider).gallery.readImage(image.id);
       if (!context.mounted) return;
       if (bytes == null) throw StateError('图片尚未就绪');
+      await temporary.checkExportDirectory(directory);
       final file = await saveDesktopImage(
         directory: directory,
         image: image,
         bytes: bytes,
         settings: settings,
       );
+      await gallery.markSaved([image.id]);
       if (context.mounted) {
         hintSnack(
           context,
@@ -964,6 +1087,7 @@ class _ActionRailState extends ConsumerState<ResultActions> {
         hintSnack(context, '保存失败：$error', icon: Icons.error_outline);
       }
     } finally {
+      release();
       if (mounted) setState(() => _saving = false);
     }
   }
@@ -1020,7 +1144,10 @@ class _ActionRailState extends ConsumerState<ResultActions> {
                 children: [
                   Icon(Icons.compare, size: 17, color: context.scheme.primary),
                   const SizedBox(width: 4),
-                  Text(l10nNow.desktopOriginal, style: TextStyle(color: context.scheme.primary)),
+                  Text(
+                    l10nNow.desktopOriginal,
+                    style: TextStyle(color: context.scheme.primary),
+                  ),
                 ],
               ),
             ),
@@ -1066,14 +1193,22 @@ class _ActionRailState extends ConsumerState<ResultActions> {
       final bytes = await (_comparison ??= _loadComparison(image));
       if (!mounted || !active()) return;
       if (bytes == null) {
-        hintSnack(context, l10nNow.desktopNoOriginalInpaintDataIsAvailableForThis);
+        hintSnack(
+          context,
+          l10nNow.desktopNoOriginalInpaintDataIsAvailableForThis,
+        );
         return;
       }
       await precacheImage(MemoryImage(bytes), context);
       if (active()) _comparisonNotifier.show(image.id, bytes, this);
     } catch (_) {
       _comparison = null;
-      if (mounted && active()) hintSnack(context, l10nNow.desktopCouldNotReadThisImageSOriginalInpaint);
+      if (mounted && active()) {
+        hintSnack(
+          context,
+          l10nNow.desktopCouldNotReadThisImageSOriginalInpaint,
+        );
+      }
     }
   }
 
@@ -1189,7 +1324,11 @@ class _ActionRailState extends ConsumerState<ResultActions> {
     }
     final w = source.width, h = source.height;
     if (w <= 0 || h <= 0) {
-      hintSnack(context, l10nNow.desktopInvalidImageDimensions, icon: Icons.error_outline);
+      hintSnack(
+        context,
+        l10nNow.desktopInvalidImageDimensions,
+        icon: Icons.error_outline,
+      );
       return;
     }
     final naiV5Ok = naiV5UpscaleSupportsSize(w, h);
@@ -1408,6 +1547,8 @@ class _ActionRailState extends ConsumerState<ResultActions> {
 
   /// 点按保存:按默认保存设置处理后存相册(gal;Android 10+ 免权限走 MediaStore)。
   Future<void> _download(BuildContext context, WidgetRef ref) async {
+    final image = result;
+    final gallery = ref.read(galleryProvider.notifier);
     final bytes = await _bytesOf(ref);
     if (!context.mounted || bytes == null) return;
     try {
@@ -1415,7 +1556,7 @@ class _ActionRailState extends ConsumerState<ResultActions> {
         final settings = await ref.read(saveSettingsProvider.future);
         final path = await FilePicker.platform.saveFile(
           dialogTitle: '保存作品',
-          fileName: 'plana_${result.seed}.${settings.format.name}',
+          fileName: 'plana_${image.seed}.${settings.format.name}',
           type: FileType.custom,
           allowedExtensions: [settings.format.name],
         );
@@ -1424,8 +1565,13 @@ class _ActionRailState extends ConsumerState<ResultActions> {
           File(path),
           await processForSave(bytes, settings),
         );
+        await gallery.markSaved([image.id]);
         if (context.mounted) {
-          hintSnack(context, l10nNow.desktopImageSaved, icon: Icons.check_circle_outline);
+          hintSnack(
+            context,
+            l10nNow.desktopImageSaved,
+            icon: Icons.check_circle_outline,
+          );
         }
         return;
       }
@@ -1445,9 +1591,10 @@ class _ActionRailState extends ConsumerState<ResultActions> {
       final out = await processForSave(bytes, settings);
       await saveProcessedImageToPhone(
         out,
-        image: result,
+        image: image,
         format: settings.format,
       );
+      await gallery.markSaved([image.id]);
       if (context.mounted) {
         hintSnack(
           context,
@@ -1472,6 +1619,7 @@ class _ActionRailState extends ConsumerState<ResultActions> {
 
   /// 长按保存:进保存设置面板(格式/质量/元数据/预估大小,单次或设为默认)。
   Future<void> _openSaveSheet(BuildContext context, WidgetRef ref) async {
+    final image = result;
     final bytes = await _bytesOf(ref);
     if (!context.mounted) return;
     if (bytes == null) {
@@ -1482,7 +1630,7 @@ class _ActionRailState extends ConsumerState<ResultActions> {
       );
       return;
     }
-    await showSaveSheet(context, bytes: bytes, image: result);
+    await showSaveSheet(context, bytes: bytes, image: image);
   }
 
   /// 按本图参数、换随机种子出一张新图(不改用户当前编辑器状态)。

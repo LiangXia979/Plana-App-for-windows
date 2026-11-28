@@ -24,7 +24,7 @@ String samplingSpaceOf(String model) =>
 
 /// 推荐参数记下时的模型(展示名)。
 String recipeModelName(StyleRecipe r) => r.model == 'v5-full-medium'
-    ? 'NAI 5.0 Full Medium'
+    ? nai5FullMediumLabel
     : artistModelName(r.model);
 
 /// 这份推荐参数能不能套到 [model] 上。记下时的模型这边不认识(网页端后来才有
@@ -33,7 +33,7 @@ String recipeModelName(StyleRecipe r) => r.model == 'v5-full-medium'
 bool recipeFits(StyleRecipe r, String model) {
   final from = recipeModelName(r);
   final known =
-      from == 'NAI 5.0 Full Medium' ||
+      from == nai5FullMediumLabel ||
       GenProvider.values.any((p) => modelsOf(p, nai5: true).contains(from));
   return known && samplingSpaceOf(from) == samplingSpaceOf(model);
 }

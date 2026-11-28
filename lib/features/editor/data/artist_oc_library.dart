@@ -206,13 +206,14 @@ class ArtistOcLibrary {
   /// 不联网,离线词库模式也用它。
   static List<Suggestion> searchLocal(
     String query,
-    List<TagEntry> localOcs, {
+    List<TagEntry> entries, {
     int limit = 5,
+    SuggestionKind kind = SuggestionKind.oc,
   }) {
     final q = query.trim().toLowerCase();
     if (q.isEmpty) return const [];
     final out = <Suggestion>[];
-    for (final e in localOcs) {
+    for (final e in entries) {
       if (out.length >= limit) break;
       final name = e.name.trim(), group = e.positive.trim();
       if (name.isEmpty || group.isEmpty || !_ocHit(q, name, e.aliases)) {
@@ -221,10 +222,14 @@ class ArtistOcLibrary {
       out.add(
         Suggestion(
           text: name,
-          kind: SuggestionKind.oc,
-          source: l10nNow.localLibrary,
+          kind: kind,
+          source: kind == SuggestionKind.artist
+              ? '本地画风库'
+              : l10nNow.localLibrary,
           insertText: group,
           local: true,
+          previewUrl: e.previewUrl,
+          mosaic: e.mosaic,
         ),
       );
     }

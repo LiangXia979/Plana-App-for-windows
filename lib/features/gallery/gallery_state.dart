@@ -15,6 +15,7 @@ import '../generate/generation_controller.dart'
 import 'albums/album_models.dart';
 import 'albums/album_state.dart';
 import 'gallery_search.dart';
+import 'temporary_gallery_state.dart';
 import 'gallery_dates.dart';
 import 'models.dart';
 import '../../l10n/l10n.dart';
@@ -155,12 +156,29 @@ class GalleryNotifier extends Notifier<GalleryState> {
     );
   }
 
-  /// 图库上限裁剪:超出上限删最旧(列表尾部),文件一并删。
+  /// 上限以外的旧作品只清理未经用户保存的图片。
   Future<void> enforceCap() async {
     final cap = ref.read(storageSettingsProvider).value?.galleryCap ?? 0;
     if (cap <= 0 || state.results.length <= cap) return;
-    final drop = state.results.sublist(cap);
-    await deleteResultsVerified([for (final r in drop) r.id]);
+    final results = state.results;
+    final drop = [
+      for (final r in results.skip(cap))
+        if (!r.saved && !r.fromTemporaryGallery) r.id,
+    ];
+    if (drop.isEmpty) return;
+    await deleteResultsVerified(
+      drop,
+      canDelete: (id) {
+        if (!ref.mounted) return false;
+        final currentCap =
+            ref.read(storageSettingsProvider).value?.galleryCap ?? 0;
+        if (currentCap == cap && identical(state.results, results)) return true;
+        return currentCap > 0 &&
+            state.results
+                .skip(currentCap)
+                .any((r) => r.id == id && !r.saved && !r.fromTemporaryGallery);
+      },
+    );
   }
 
   void _persistIndex() {
@@ -181,6 +199,131 @@ class GalleryNotifier extends Notifier<GalleryState> {
     if (id == state.selectedId) return;
     state = state.copyWith(selectedId: id, clearSelection: id == null);
     ref.read(appStoresProvider).gallery.scheduleSelection(id);
+  }
+
+  Future<void> markSaved(Iterable<String> ids) async {
+    if (!ref.mounted) return;
+    final wanted = ids.toSet();
+    if (wanted.isEmpty) return;
+    if (ref.read(desktopModeProvider)) {
+      final collect = ref.read(temporaryOptionsProvider).collectSaved;
+      final temp = ref.read(appStoresProvider).temporaryGallery;
+      for (final id in wanted.where(temp.contains).toList()) {
+        await retainTemporary(id, exported: true, collect: collect);
+        wanted.remove(id);
+      }
+      if (!collect || wanted.isEmpty) return;
+    }
+    if (state.results.any((r) => !r.saved && wanted.contains(r.id))) {
+      state = state.copyWith(
+        results: [
+          for (final r in state.results)
+            wanted.contains(r.id) ? r.markSaved() : r,
+        ],
+      );
+      _persistIndex();
+    }
+    try {
+      await ref.read(appStoresProvider).gallery.flushIndex();
+    } catch (_) {
+      // The file was exported. GalleryStore keeps the index pending for retry.
+      if (ref.mounted) {
+        ref
+            .read(genNoticeProvider.notifier)
+            .show('作品文件已保存，图库标记暂未写入磁盘，请检查可用空间。');
+      }
+    }
+  }
+
+  Future<void> retainTemporary(
+    String id, {
+    bool exported = false,
+    bool collect = false,
+    bool? favorite,
+    GallerySaveTarget? destination,
+  }) async {
+    final stores = ref.read(appStoresProvider);
+    final temp = stores.temporaryGallery;
+    bool lastFavorite() {
+      final record = state.results.where((r) => r.id == id).firstOrNull;
+      return record != null &&
+          !record.saved &&
+          ref.read(albumsProvider).ofImage(id).isEmpty;
+    }
+
+    await temp.change(
+      id,
+      exported: exported,
+      retain: collect || favorite != null || destination != null,
+      filed: destination != null,
+      canReleaseFavorite: lastFavorite,
+      releaseFavorite: favorite != false
+          ? null
+          : () async {
+              if (!lastFavorite()) return false;
+              final removed = await stores.gallery.deleteResultFilesVerified([
+                id,
+              ]);
+              if (!removed.contains(id)) throw StateError('暂时无法取消收藏，请重试');
+              _removeResults([id]);
+              await stores.gallery.flushIndex();
+              return true;
+            },
+      commit: (entry) async {
+        final trashed = state.trash.where((t) => t.image.id == id).firstOrNull;
+        final existing =
+            state.results.where((r) => r.id == id).firstOrNull ??
+            trashed?.image;
+        var permanent = existing ?? entry.withSaved(false);
+        if (collect) permanent = permanent.markSaved();
+        if (favorite != null) permanent = permanent.withFavorite(favorite);
+        final input = existing == null
+            ? await stores.gallery.readInput(id)
+            : null;
+        final needsBytes = existing == null || destination != null;
+        if (needsBytes) {
+          final bytes = await stores.gallery.readImage(id);
+          if (bytes == null ||
+              (existing == null && entry.hasInput && input == null)) {
+            throw StateError('无法读取临时原图或生成参数');
+          }
+          permanent = permanent.withContent(bytes, input);
+          if (existing == null) await stores.gallery.persistResult(permanent);
+        }
+        final next = permanent.stripped();
+        final others = state.results;
+        state = state.copyWith(
+          trash: trashed == null
+              ? state.trash
+              : [
+                  for (final item in state.trash)
+                    if (item.image.id != id) item,
+                ],
+          results: !others.any((r) => r.id == id)
+              ? [next, ...others]
+              : [
+                  for (final r in others)
+                    if (r.id == id) next else r,
+                ],
+        );
+        _persistIndex();
+        await stores.gallery.flushIndex();
+        if (input != null) {
+          ref.read(gallerySearchProvider.notifier).put(id, input);
+        }
+        if (destination != null) {
+          final album = destination.albumId;
+          if (album != null) {
+            if (isDailyAlbum(album)) {
+              await ref.read(albumsProvider.notifier).ensureDailyAlbum(album);
+            }
+            await ref.read(albumsProvider.notifier).organize({id}, {album});
+          }
+          await stores.desktopOutput.save(permanent, albumId: album);
+        }
+        return next;
+      },
+    );
   }
 
   void toggleFavorite(String id) {
@@ -285,6 +428,34 @@ class GalleryNotifier extends Notifier<GalleryState> {
     ResultImage? retryResult,
   }) async {
     final revision = _selectionRevision;
+    final canvas = target.canvasId;
+    if (canvas != null) {
+      final temp = ref.read(appStoresProvider).temporaryGallery;
+      final result =
+          retryResult ??
+          ResultImage(
+            id: temp.newId(),
+            width: width,
+            height: height,
+            seed: seed,
+            badge: badge,
+            createdAt: DateTime.now().millisecondsSinceEpoch,
+            batchIndex: batchIndex,
+            inpaintFrom: inpaintFrom,
+            operation: operation,
+            input: input == null ? null : gallerySnapshotOf(input),
+            bytes: input == null
+                ? bytes
+                : withSectionLayout(bytes, input.composedSections),
+          );
+      await temp.add(
+        canvas,
+        target.canvasName ?? canvas,
+        result,
+        selectResult: () => select && (canSelect?.call() ?? true),
+      );
+      return result;
+    }
     if (retryResult != null &&
         !state.results.any((image) => image.id == retryResult.id)) {
       throw StateError('待保存的图片已被移除');
@@ -671,16 +842,22 @@ class GalleryNotifier extends Notifier<GalleryState> {
     bool Function(String id)? canDelete,
   }) async {
     final stores = ref.read(appStoresProvider);
-    await stores.gallery.idle;
-    final managedDeleted = await stores.desktopOutput.deleteResults(
-      images,
-      canDelete: canDelete,
-    );
-    final deleted = await stores.gallery.deleteResultFilesVerified(
-      managedDeleted.toList(),
-      canDelete: canDelete,
-    );
-    return deleted;
+    Future<Set<String>> delete() async {
+      await stores.gallery.idle;
+      final managedDeleted = await stores.desktopOutput.deleteResults(
+        images,
+        canDelete: canDelete,
+      );
+      return stores.gallery.deleteResultFilesVerified(
+        managedDeleted.toList(),
+        canDelete: canDelete,
+      );
+    }
+
+    final temp = stores.temporaryGallery;
+    return images.any((r) => temp.contains(r.id))
+        ? temp.deletePermanent(delete)
+        : delete();
   }
 
   void _removeResults(

@@ -1,4 +1,9 @@
+import 'dart:async';
+
+import 'package:flutter/foundation.dart'
+    show defaultTargetPlatform, TargetPlatform;
 import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -7,6 +12,7 @@ import '../../core/theme/app_theme.dart';
 import '../generate/widgets/common.dart' show hintSnack;
 import '../profile/widgets/settings_ui.dart';
 import 'update_service.dart';
+import 'windows_update_download.dart';
 import '../../l10n/l10n.dart';
 
 /// 「检查更新」行。放在关于页,按设置行规范:单行 + 右侧状态,不写副标题。
@@ -30,15 +36,13 @@ class _UpdateRowState extends ConsumerState<UpdateRow> {
       _result = null;
     });
     try {
-      final installed = await installedInfo();
-      final release = installed.isKnown
-          ? await fetchLatestRelease(installed.versionName)
-          : null;
+      final service = ref.read(updateServiceProvider);
+      final check = await service.check();
+      final installed = check.installed;
       if (!mounted) return;
-      final check = UpdateCheck(installed: installed, release: release);
       setState(() => _result = check);
       if (check.hasUpdate) {
-        await showUpdateSheet(context, check);
+        await showUpdateSheet(context, check, service);
       } else if (kGithubRepo.isEmpty || !installed.isKnown) {
         // 没填仓库 / 拿不到本机版本 —— 不是错误,别报红
         hintSnack(context, context.l10n.noUpdateInfo, icon: Icons.info_outline);
@@ -70,10 +74,10 @@ class _UpdateRowState extends ConsumerState<UpdateRow> {
         scheme.tertiary,
       ),
       _ when r != null && (!r.installed.isKnown || kGithubRepo.isEmpty) => (
-        '暂无更新信息',
+        context.l10n.noUpdateInfo,
         null,
       ),
-      _ when r != null => ('已是最新', null),
+      _ when r != null => (context.l10n.upToDate, null),
       _ => ('', null),
     };
     return SettingsRow(
@@ -86,14 +90,37 @@ class _UpdateRowState extends ConsumerState<UpdateRow> {
   }
 }
 
-/// 新版本提示。只提示 + 跳转,**不下载不安装** —— 那两步交给浏览器和系统。
-Future<void> showUpdateSheet(BuildContext context, UpdateCheck check) {
-  return showModalBottomSheet<void>(
-    context: context,
-    isScrollControlled: true,
-    builder: (_) =>
-        _UpdateSheet(release: check.release!, installed: check.installed),
-  );
+Future<void> showUpdateSheet(
+  BuildContext context,
+  UpdateCheck check,
+  UpdateService service, {
+  bool automatic = false,
+}) async {
+  final release = check.release;
+  if (release == null ||
+      !service.beginNotice(release.tag, automatic: automatic)) {
+    return;
+  }
+  try {
+    final dismissed = defaultTargetPlatform == TargetPlatform.windows
+        ? showDialog<void>(
+            context: context,
+            builder: (_) => _WindowsUpdateDialog(
+              release: release,
+              installed: check.installed,
+            ),
+          )
+        : showModalBottomSheet<void>(
+            context: context,
+            isScrollControlled: true,
+            builder: (_) =>
+                _UpdateSheet(release: release, installed: check.installed),
+          );
+    await service.rememberNotice(release.tag);
+    await dismissed;
+  } finally {
+    service.endNotice();
+  }
 }
 
 class _UpdateSheet extends StatelessWidget {
@@ -216,6 +243,199 @@ class _UpdateSheet extends StatelessWidget {
           ),
         ),
       ),
+    );
+  }
+}
+
+class _WindowsUpdateDialog extends StatefulWidget {
+  const _WindowsUpdateDialog({required this.release, required this.installed});
+  final GithubRelease release;
+  final InstalledInfo installed;
+
+  @override
+  State<_WindowsUpdateDialog> createState() => _WindowsUpdateDialogState();
+}
+
+class _WindowsUpdateDialogState extends State<_WindowsUpdateDialog> {
+  http.Client? _client;
+  DownloadedUpdate? _ready;
+  double? _progress;
+  String? _error;
+  bool _opening = false;
+
+  Future<void> _download() async {
+    if (_client != null) return;
+    final client = http.Client();
+    setState(() {
+      _client = client;
+      _error = null;
+      _progress = null;
+    });
+    try {
+      final update = await downloadWindowsUpdate(
+        widget.release,
+        client: client,
+        onProgress: (received, total) {
+          final progress = total != null && total > 0
+              ? (received * 100 ~/ total) / 100
+              : null;
+          if (mounted && progress != _progress) {
+            setState(() => _progress = progress);
+          }
+        },
+      );
+      if (!mounted) {
+        await update.discard();
+        return;
+      }
+      setState(() => _ready = update);
+    } catch (error) {
+      if (mounted) {
+        setState(
+          () => _error = error is UpdateException
+              ? error.message
+              : context.l10n.updateDownloadFailed,
+        );
+      }
+    } finally {
+      client.close();
+      if (mounted) setState(() => _client = null);
+    }
+  }
+
+  Future<void> _openPackage() async {
+    final update = _ready;
+    if (update == null || _opening) return;
+    setState(() {
+      _opening = true;
+      _error = null;
+    });
+    try {
+      await update.open();
+      // The installer or the user opening a portable package now owns the file.
+      _ready = null;
+      if (mounted) Navigator.pop(context);
+    } catch (error) {
+      if (!mounted || error is UpdateException) {
+        _ready = null;
+        await update.discard();
+      }
+      if (mounted) {
+        setState(
+          () => _error = error is UpdateException
+              ? error.message
+              : context.l10n.updateLaunchFailed,
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _opening = false);
+    }
+  }
+
+  Future<void> _openReleasePage() async {
+    try {
+      if (await launchUrl(
+        Uri.parse(widget.release.url),
+        mode: LaunchMode.externalApplication,
+      )) {
+        return;
+      }
+    } catch (_) {}
+    if (mounted) setState(() => _error = context.l10n.cantOpenBrowserShort);
+  }
+
+  @override
+  void dispose() {
+    _client?.close();
+    final ready = _ready;
+    if (ready != null && !_opening) unawaited(ready.discard());
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final l = context.l10n;
+    final release = widget.release;
+    final busy = _client != null;
+    final ready = _ready;
+    return AlertDialog(
+      key: const ValueKey('windows-update-dialog'),
+      title: Row(
+        children: [
+          Icon(Icons.system_update_alt, color: context.scheme.primary),
+          const SizedBox(width: 12),
+          Expanded(child: Text(l.newVersion(release.tag))),
+        ],
+      ),
+      content: SizedBox(
+        width: 520,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text(
+              l.currentVersion(widget.installed.versionName),
+              style: context.texts.bodySmall,
+            ),
+            const SizedBox(height: 16),
+            Text(l.updateReleaseNotes, style: context.texts.titleSmall),
+            const SizedBox(height: 8),
+            Flexible(
+              child: SingleChildScrollView(
+                child: SelectableText(
+                  release.notes.trim().isEmpty
+                      ? l.updateNotesUnavailable
+                      : release.notes,
+                  style: context.texts.bodyMedium?.copyWith(height: 1.5),
+                ),
+              ),
+            ),
+            if (busy) ...[
+              const SizedBox(height: 16),
+              LinearProgressIndicator(value: _progress),
+              const SizedBox(height: 4),
+              Text(l.updateDownloading, style: context.texts.bodySmall),
+            ],
+            if (_error case final message?) ...[
+              const SizedBox(height: 10),
+              Text(
+                message,
+                style: context.texts.bodySmall?.copyWith(
+                  color: context.scheme.error,
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: _openReleasePage,
+          child: Text(l.updateReleasePage),
+        ),
+        TextButton(
+          onPressed: _opening ? null : () => Navigator.pop(context),
+          child: Text(busy ? l.cancel : l.later),
+        ),
+        FilledButton.icon(
+          onPressed: busy || _opening
+              ? null
+              : ready == null
+              ? _download
+              : _openPackage,
+          icon: Icon(
+            ready == null ? Icons.download_outlined : Icons.open_in_new,
+            size: 18,
+          ),
+          label: Text(
+            ready == null
+                ? l.updateDownload
+                : ready.package.isInstaller
+                ? l.updateRunInstaller
+                : l.updateOpenPackageFolder,
+          ),
+        ),
+      ],
     );
   }
 }

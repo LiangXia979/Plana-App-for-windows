@@ -1061,27 +1061,33 @@ class _BackupPageState extends ConsumerState<BackupPage> {
                 value: _jobValue(job, 'drive-restore'),
                 onTap: idle ? _driveRestore : null,
               ),
-              ExpansionTile(
-                shape: const Border(),
-                collapsedShape: const Border(),
-                title: Text(context.l10n.advancedSettings),
-                children: [
-                  SettingsRow(
-                    icon: Icons.file_open_outlined,
-                    title: context.l10n.desktopDriveImportConfig,
-                    value: driveEmail == null ? null : context.l10n.desktopDriveDisconnectFirst,
-                    onTap: idle && driveEmail == null ? _importDriveClient : null,
+              IconTheme.merge(
+                data: const IconThemeData(size: SettingsRow.chevronSize),
+                child: ExpansionTile(
+                  tilePadding: const EdgeInsets.symmetric(
+                    horizontal: SettingsRow.horizontalInset,
                   ),
-                  if (ref.watch(bundledDriveClientProvider) != null && driveEmail == null)
+                  shape: const Border(),
+                  collapsedShape: const Border(),
+                  title: Text(context.l10n.advancedSettings),
+                  children: [
                     SettingsRow(
-                      icon: Icons.restore,
-                      title: context.l10n.useBundledDriveClient,
-                      onTap: !idle ? null : () async {
-                        await ref.read(googleDriveAuthProvider.notifier).useBundledClient();
-                        if (context.mounted) hintSnack(context, context.l10n.desktopDriveConfigSaved);
-                      },
+                      icon: Icons.file_open_outlined,
+                      title: context.l10n.desktopDriveImportConfig,
+                      value: driveEmail == null ? null : context.l10n.desktopDriveDisconnectFirst,
+                      onTap: idle && driveEmail == null ? _importDriveClient : null,
                     ),
-                ],
+                    if (ref.watch(bundledDriveClientProvider) != null && driveEmail == null)
+                      SettingsRow(
+                        icon: Icons.restore,
+                        title: context.l10n.useBundledDriveClient,
+                        onTap: !idle ? null : () async {
+                          await ref.read(googleDriveAuthProvider.notifier).useBundledClient();
+                          if (context.mounted) hintSnack(context, context.l10n.desktopDriveConfigSaved);
+                        },
+                      ),
+                  ],
+                ),
               ),
             ],
           ),
@@ -1099,10 +1105,17 @@ class _BackupPageState extends ConsumerState<BackupPage> {
                 SettingsRowTextTheme(
                   child: ListTile(
                     key: const ValueKey('backup-external-oc'),
+                    contentPadding: const EdgeInsets.symmetric(
+                      horizontal: SettingsRow.horizontalInset,
+                    ),
                     leading: const Icon(Icons.add_link),
                     title: Text(context.l10n.externalOcLibraries),
                     subtitle: Text(context.l10n.externalOcImportHint),
-                    trailing: const Icon(Icons.chevron_right),
+                    trailing: Icon(
+                      Icons.chevron_right,
+                      size: SettingsRow.chevronSize,
+                      color: context.scheme.outline,
+                    ),
                     onTap: idle
                         ? () => Navigator.of(context, rootNavigator: true)
                               .push<void>(

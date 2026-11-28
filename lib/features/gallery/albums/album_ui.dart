@@ -261,6 +261,8 @@ class AlbumCoverImage extends ConsumerWidget {
           child: Icon(
             albumId == favoritesId
                 ? Icons.favorite_border
+                : albumId == savedGalleryId
+                ? Icons.download_done
                 : Icons.delete_outline,
             size: 48,
             color: context.scheme.primary,

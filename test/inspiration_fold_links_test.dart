@@ -142,6 +142,27 @@ void main() {
   );
 
   test(
+    'creating the opposite side preserves the original editable block verbatim',
+    () {
+      gen.setPrompts(
+        positive: 'sky',
+        positiveRaw: '<#light: sky#>',
+        negative: 'fog',
+      );
+      load();
+      const formatted = '  sky,\n  soft light  ';
+      editor.editFoldBody('light', formatted, structural: true);
+      editor.addFoldSide('light', positive: false, body: 'haze');
+      final state = container.read(editorProvider);
+      expect(state.foldBodies['light'], formatted);
+      expect(state.foldLinks.single.positiveBody, formatted.trim());
+      expect(state.foldLinks.single.negativeBody, 'haze');
+      expect(gen.state.promptRaw, '<#light: $formatted#>');
+      expect(gen.state.negativePrompt, 'fog, haze');
+    },
+  );
+
+  test(
     'saving a library edit updates only the chosen placement and both of its sides',
     () {
       final first = PromptFoldLink.forEntry(

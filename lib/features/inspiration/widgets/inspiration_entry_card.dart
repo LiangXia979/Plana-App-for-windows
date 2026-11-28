@@ -330,7 +330,6 @@ class InspirationEntryCard extends StatelessWidget {
     this.onReveal,
     this.providerDecorator,
     this.onMenu,
-    this.onSecondaryTapDown,
   });
   final TagEntry entry;
   final String? preview;
@@ -340,7 +339,6 @@ class InspirationEntryCard extends StatelessWidget {
   final VoidCallback? onFavorite, onReveal;
   final RemoteImageProviderDecorator? providerDecorator;
   final ValueChanged<InspirationEntryAction>? onMenu;
-  final GestureTapDownCallback? onSecondaryTapDown;
 
   static double extent(
     TagCategoryDef category,
@@ -355,11 +353,10 @@ class InspirationEntryCard extends StatelessWidget {
         scale.scale(32);
   }
 
-  @override
-  Widget build(BuildContext context) {
+  List<PopupMenuEntry<InspirationEntryAction>> _menuItems(
+    BuildContext context,
+  ) {
     final scheme = context.scheme;
-    final tags = entry.tags;
-    final previewTags = [...tags.take(2), if (tags.length > 2) '…'].join(' · ');
     final actions = [
       (InspirationEntryAction.edit, Icons.edit_outlined, context.l10n.edit),
       (
@@ -373,6 +370,39 @@ class InspirationEntryCard extends StatelessWidget {
         context.l10n.viewPrompt,
       ),
     ];
+    return [
+      for (final (action, icon, label) in actions)
+        PopupMenuItem(
+          value: action,
+          height: 40,
+          child: Row(
+            children: [
+              Icon(icon, size: 18, color: scheme.onSurfaceVariant),
+              const SizedBox(width: 10),
+              Text(label),
+            ],
+          ),
+        ),
+    ];
+  }
+
+  Future<void> _openMenuAt(BuildContext context, Offset position) async {
+    final overlay =
+        Navigator.of(context).overlay!.context.findRenderObject()! as RenderBox;
+    final point = overlay.globalToLocal(position);
+    final action = await showMenu<InspirationEntryAction>(
+      context: context,
+      position: RelativeRect.fromSize(point & Size.zero, overlay.size),
+      items: _menuItems(context),
+    );
+    if (context.mounted && action != null) onMenu?.call(action);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = context.scheme;
+    final tags = entry.tags;
+    final previewTags = [...tags.take(2), if (tags.length > 2) '…'].join(' · ');
     return Material(
       key: ValueKey('inspiration-card-${entry.id}'),
       color: scheme.surfaceContainerLowest,
@@ -386,7 +416,9 @@ class InspirationEntryCard extends StatelessWidget {
       ),
       child: InkWell(
         onTap: onSelect,
-        onSecondaryTapDown: onSecondaryTapDown,
+        onSecondaryTapDown: onMenu == null
+            ? null
+            : (details) => _openMenuAt(context, details.globalPosition),
         onLongPress: onMenu == null
             ? null
             : () => onMenu!(InspirationEntryAction.view),
@@ -542,24 +574,7 @@ class InspirationEntryCard extends StatelessWidget {
                           tooltip: context.l10n.sidebarEntryMenu,
                           position: PopupMenuPosition.under,
                           onSelected: onMenu,
-                          itemBuilder: (_) => [
-                            for (final (action, icon, label) in actions)
-                              PopupMenuItem(
-                                value: action,
-                                height: 40,
-                                child: Row(
-                                  children: [
-                                    Icon(
-                                      icon,
-                                      size: 18,
-                                      color: scheme.onSurfaceVariant,
-                                    ),
-                                    const SizedBox(width: 10),
-                                    Text(label),
-                                  ],
-                                ),
-                              ),
-                          ],
+                          itemBuilder: _menuItems,
                           child: Padding(
                             padding: const EdgeInsets.symmetric(
                               horizontal: 3,

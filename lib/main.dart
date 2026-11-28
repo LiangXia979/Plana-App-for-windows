@@ -9,6 +9,7 @@ import 'core/auth/auth_mode.dart';
 import 'core/net/network_proxy.dart';
 import 'core/platform/desktop.dart';
 import 'core/platform/windows_diagnostics.dart';
+import 'core/platform/windows_semantics.dart';
 import 'core/store/app_stores.dart';
 import 'core/store/gen_settings.dart';
 import 'core/store/storage_lifecycle.dart';
@@ -17,18 +18,21 @@ import 'core/theme/app_text_scale.dart';
 import 'core/theme/theme_settings.dart';
 import 'core/ui/input_focus_guard.dart';
 import 'core/ui/image_drop.dart';
+import 'core/ui/desktop_text_selection.dart';
 import 'features/import/desktop_image_drop.dart';
 import 'features/onboarding/welcome_page.dart';
 import 'features/shell/app_shell.dart';
+import 'features/gallery/temporary_gallery_actions.dart';
 import 'core/util/haptics.dart';
 import 'core/util/runtime_diagnostics.dart';
 import 'features/editor/data/local_tag_db.dart';
 
 Future<void> main() async {
-  WidgetsFlutterBinding.ensureInitialized();
   if (Platform.isWindows) {
+    PlanaWindowsBinding();
     await windowsDiagnostics.initialize();
   } else {
+    WidgetsFlutterBinding.ensureInitialized();
     RuntimeDiagnostics.initialize();
   }
   try {
@@ -71,7 +75,14 @@ Future<void> _startApplication() async {
   );
   // 注册即挂到 binding 观察者列表(强引用,不会被 GC):
   // 退后台/失焦即刻冲刷防抖存档，桌面正常退出还会等待所有存储写入完成。
-  createStorageLifecycleListener(stores);
+  createStorageLifecycleListener(
+    stores,
+    beforeExit: () async {
+      final context = _rootNavigator.currentState?.overlay?.context;
+      if (!Platform.isWindows || context == null) return true;
+      return closeTemporaryGallery(context);
+    },
+  );
   RuntimeDiagnostics.current?.event('app-started');
   stores.postBootMaintenance(); // 选图器缓存清扫 + blob GC(延迟后台跑)
 }
@@ -79,6 +90,7 @@ Future<void> _startApplication() async {
 /// 弹层关掉后不把键盘顶出来(见 [InputFocusGuard])。放在外面:换主题时 MaterialApp
 /// 会重建,观察者得是同一个。
 final _inputFocusGuard = InputFocusGuard();
+final _rootNavigator = GlobalKey<NavigatorState>();
 
 class PlanaApp extends ConsumerWidget {
   const PlanaApp({super.key});
@@ -106,6 +118,7 @@ class PlanaApp extends ConsumerWidget {
     // 桌面关闭触感调用;移动端将触感设置同步到全局出口。
     Haptics.enabled = !desktop && ts.haptics;
     return MaterialApp(
+      navigatorKey: _rootNavigator,
       title: kAppName,
       debugShowCheckedModeBanner: false,
       theme: adapt(switch (ts.floatAccent) {
@@ -126,7 +139,9 @@ class PlanaApp extends ConsumerWidget {
         return desktop
             ? AppTextScale(
                 factor: ts.textScale,
-                child: DesktopImageDropHost(child: child!),
+                child: DesktopTextSelection(
+                  child: DesktopImageDropHost(child: child!),
+                ),
               )
             : child!;
       },

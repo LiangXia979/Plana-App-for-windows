@@ -147,7 +147,7 @@ void main() {
       await tester.pump();
       await tester.tap(key('weight-convert-run'));
       await tester.pumpAndSettle();
-      await tester.enterText(input, '1girl, forest');
+      await tester.enterText(input, '1girl, forest, <lora:trees:1>');
       await tester.pumpAndSettle();
       expect(key('weight-convert-output'), findsNothing);
       expect(
@@ -159,10 +159,25 @@ void main() {
       await tester.pump();
       await tester.tap(key('weight-convert-run'));
       await tester.pumpAndSettle();
-      await tester.tap(find.byType(Checkbox));
+      final remove = find.widgetWithText(SegmentedButton<bool>, '去除 LoRA');
+      String result() => tester
+          .widget<SelectableText>(key('weight-convert-output'))
+          .textSpan!
+          .toPlainText();
+      expect(tester.widget<SegmentedButton<bool>>(remove).selected, {true});
+      expect(result(), isNot(contains('<lora:')));
+      final bounds = tester.getRect(remove);
+      await tester.tap(remove);
       await tester.pumpAndSettle();
+      expect(tester.widget<SegmentedButton<bool>>(remove).selected, isEmpty);
+      expect(tester.getRect(remove), bounds);
       expect(key('weight-convert-output'), findsNothing);
+      await tester.tap(key('weight-convert-run'));
+      await tester.pumpAndSettle();
+      expect(result(), contains('<lora:trees:1>'));
       await tester.tap(find.text('NAI → SD'));
+      await tester.pumpAndSettle();
+      expect(remove, findsNothing);
       await tester.enterText(input, '1.2::cat ears::, solo');
       await tester.pump();
       await tester.tap(key('weight-convert-run'));

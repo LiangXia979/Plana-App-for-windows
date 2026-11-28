@@ -19,6 +19,7 @@ class MetadataDetailPage extends StatelessWidget {
     required this.bytes,
     required this.fileName,
     this.standalone = false,
+    this.onReturnToImport,
   });
 
   final ImageMetadata meta;
@@ -27,6 +28,7 @@ class MetadataDetailPage extends StatelessWidget {
 
   /// true = 从工具页独立打开:无「关闭导入」动作,底部给「去导入面板」。
   final bool standalone;
+  final VoidCallback? onReturnToImport;
 
   @override
   Widget build(BuildContext context) {
@@ -34,8 +36,17 @@ class MetadataDetailPage extends StatelessWidget {
     return Scaffold(
       appBar: AppBar(
         title: Text(context.l10n.fullMetadata),
+        leading: onReturnToImport == null
+            ? null
+            : BackButton(onPressed: onReturnToImport),
         actions: [
-          if (!standalone)
+          if (onReturnToImport != null && meta.raw != null)
+            IconButton(
+              tooltip: '复制完整元数据',
+              onPressed: () => _copy(context, _prettyRaw()),
+              icon: const Icon(Icons.copy_all_outlined),
+            ),
+          if (!standalone && onReturnToImport == null)
             IconButton(
               icon: const Icon(Icons.close),
               tooltip: context.l10n.closeImport,
@@ -142,65 +153,35 @@ class MetadataDetailPage extends StatelessWidget {
                 ),
               ),
               const SizedBox(height: 7),
-              _kv(
-                context,
-                scheme,
-                context.l10n.fileSize,
-                _fmtSize(bytes.length),
+              Table(
+                columnWidths: const {0: IntrinsicColumnWidth()},
+                children: [
+                  for (final (label, value) in [
+                    (context.l10n.fileSize, _fmtSize(bytes.length)),
+                    (context.l10n.size, '${meta.width}×${meta.height}'),
+                    (context.l10n.format, _sourceLabel(meta.sourceType)),
+                    (context.l10n.source, meta.source),
+                  ])
+                    TableRow(
+                      children: [
+                        Padding(
+                          padding: const EdgeInsets.only(right: 12, bottom: 3),
+                          child: Text(
+                            label,
+                            style: context.texts.bodyMedium?.copyWith(
+                              color: scheme.onSurfaceVariant,
+                            ),
+                          ),
+                        ),
+                        Text(value, style: context.texts.bodyMedium),
+                      ],
+                    ),
+                ],
               ),
-              _kv(
-                context,
-                scheme,
-                context.l10n.size,
-                '${meta.width}×${meta.height}',
-                mono: true,
-              ),
-              _kv(
-                context,
-                scheme,
-                context.l10n.format,
-                _sourceLabel(meta.sourceType),
-              ),
-              _kv(context, scheme, context.l10n.source, meta.source),
             ],
           ),
         ),
       ],
-    );
-  }
-
-  Widget _kv(
-    BuildContext context,
-    ColorScheme scheme,
-    String k,
-    String v, {
-    bool mono = false,
-  }) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 3),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          SizedBox(
-            width: 34,
-            child: Text(
-              k,
-              style: TextStyle(fontSize: 11, color: scheme.outline),
-            ),
-          ),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Text(
-              v,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: mono
-                  ? monoStyle(context, 11)
-                  : TextStyle(fontSize: 11, color: scheme.onSurface),
-            ),
-          ),
-        ],
-      ),
     );
   }
 
@@ -209,19 +190,18 @@ class MetadataDetailPage extends StatelessWidget {
     ColorScheme scheme,
     String text, {
     String? copyText,
+    bool danger = false,
   }) {
     return Row(
       children: [
-        Text(
-          text.toUpperCase(),
-          style: TextStyle(
-            fontSize: 10,
-            fontWeight: FontWeight.w700,
-            letterSpacing: 0.8,
-            color: scheme.onSurfaceVariant,
+        Expanded(
+          child: Text(
+            text,
+            style: context.texts.titleSmall?.copyWith(
+              color: danger ? scheme.error : null,
+            ),
           ),
         ),
-        const Spacer(),
         if (copyText != null)
           InkWell(
             onTap: () => _copy(context, copyText),
@@ -232,14 +212,13 @@ class MetadataDetailPage extends StatelessWidget {
                 children: [
                   Icon(
                     Icons.content_copy,
-                    size: 13,
+                    size: 16,
                     color: scheme.onSurfaceVariant,
                   ),
                   const SizedBox(width: 3),
                   Text(
                     context.l10n.copy,
-                    style: TextStyle(
-                      fontSize: 10,
+                    style: context.texts.labelMedium?.copyWith(
                       color: scheme.onSurfaceVariant,
                     ),
                   ),
@@ -261,7 +240,7 @@ class MetadataDetailPage extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        _sectionLabel(context, scheme, label, copyText: text),
+        _sectionLabel(context, scheme, label, copyText: text, danger: danger),
         const SizedBox(height: 7),
         Container(
           width: double.infinity,
@@ -273,9 +252,7 @@ class MetadataDetailPage extends StatelessWidget {
           // 可选中:整段复制走右上角按钮,这里是给"只要其中几个 tag"的场景
           child: SelectableText(
             text,
-            style: TextStyle(
-              fontSize: 11.5,
-              height: 1.6,
+            style: context.texts.bodyMedium?.copyWith(
               color: danger ? scheme.error : scheme.onSurface,
             ),
           ),
@@ -315,30 +292,20 @@ class MetadataDetailPage extends StatelessWidget {
         children: [
           Text(
             '${context.l10n.characterN(i + 1)}$coord',
-            style: TextStyle(
-              fontSize: 10.5,
-              fontWeight: FontWeight.w500,
+            style: context.texts.bodyMedium?.copyWith(
               color: scheme.onSurfaceVariant,
             ),
           ),
           const SizedBox(height: 5),
           SelectableText(
             c.prompt.isEmpty ? context.l10n.emptyParen : c.prompt,
-            style: TextStyle(
-              fontSize: 11.5,
-              height: 1.55,
-              color: scheme.onSurface,
-            ),
+            style: context.texts.bodyMedium,
           ),
           if ((c.uc ?? '').isNotEmpty) ...[
             const SizedBox(height: 5),
             SelectableText(
               'UC: ${c.uc}',
-              style: TextStyle(
-                fontSize: 11,
-                height: 1.5,
-                color: scheme.error.withValues(alpha: .85),
-              ),
+              style: context.texts.bodyMedium?.copyWith(color: scheme.error),
             ),
           ],
         ],
@@ -403,18 +370,12 @@ class MetadataDetailPage extends StatelessWidget {
                         children: [
                           Text(
                             k.toUpperCase(),
-                            style: TextStyle(
-                              fontSize: 9,
-                              color: scheme.outline,
+                            style: context.texts.bodyMedium?.copyWith(
+                              color: scheme.onSurfaceVariant,
                             ),
                           ),
                           const SizedBox(height: 2),
-                          Text(
-                            v,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: monoStyle(context, 11.5),
-                          ),
+                          Text(v, style: context.texts.bodyMedium),
                         ],
                       ),
                     ),
@@ -449,11 +410,11 @@ class MetadataDetailPage extends StatelessWidget {
                       l.name,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: TextStyle(fontSize: 11.5, color: scheme.onSurface),
+                      style: context.texts.bodyMedium,
                     ),
                   ),
                   const SizedBox(width: 12),
-                  Text(l.weight.toString(), style: monoStyle(context, 11.5)),
+                  Text(l.weight.toString(), style: context.texts.bodyMedium),
                 ],
               ),
             ),
@@ -493,9 +454,8 @@ class MetadataDetailPage extends StatelessWidget {
                         children: [
                           Text(
                             'Vibe ${i + 1}',
-                            style: TextStyle(
-                              fontSize: 9,
-                              color: scheme.outline,
+                            style: context.texts.bodyMedium?.copyWith(
+                              color: scheme.onSurfaceVariant,
                             ),
                           ),
                           const SizedBox(height: 2),
@@ -503,18 +463,14 @@ class MetadataDetailPage extends StatelessWidget {
                             context.l10n.vibeStrengthLabel(
                               meta.vibes[i].strength.toStringAsFixed(2),
                             ),
-                            style: TextStyle(
-                              fontSize: 11.5,
-                              color: scheme.onSurface,
-                            ),
+                            style: context.texts.bodyMedium,
                           ),
                           Text(
                             context.l10n.vibeExtractedLabel(
                               (meta.vibes[i].informationExtracted ?? 1.0)
                                   .toStringAsFixed(1),
                             ),
-                            style: TextStyle(
-                              fontSize: 11,
+                            style: context.texts.bodyMedium?.copyWith(
                               color: scheme.onSurfaceVariant,
                             ),
                           ),
@@ -548,7 +504,10 @@ class MetadataDetailPage extends StatelessWidget {
           child: SingleChildScrollView(
             child: SelectableText(
               text,
-              style: monoStyle(context, 10, color: scheme.onSurfaceVariant),
+              style: context.texts.bodyMedium?.copyWith(
+                fontFamily: 'monospace',
+                color: scheme.onSurfaceVariant,
+              ),
             ),
           ),
         ),
@@ -584,7 +543,3 @@ class MetadataDetailPage extends StatelessWidget {
     return '$bytes B';
   }
 }
-
-/// 等宽小字(复用 app_theme 的 mono 语义,但这里是无 context 依赖的薄封装)。
-TextStyle monoStyle(BuildContext context, double size, {Color? color}) =>
-    mono(context, size: size, color: color);

@@ -10,13 +10,16 @@ import '../generate/generate_state.dart';
 import '../generate/widgets/common.dart' show hintSnack;
 import '../shell/shell_state.dart';
 import '../../l10n/l10n.dart';
+import 'desktop_tool_header.dart';
 
 enum _Dir { sd2nai, nai2sd }
 
 /// 权重转换(工具箱页签):SD ↔ NAI 提示词语法整串互转,
 /// 结果带权重高亮;SD→NAI 可去 Lora、可一键导入创作页提示词。
 class WeightConvertView extends ConsumerStatefulWidget {
-  const WeightConvertView({super.key});
+  const WeightConvertView({super.key, this.desktopTabs});
+
+  final Widget? desktopTabs;
 
   @override
   ConsumerState<WeightConvertView> createState() => _WeightConvertViewState();
@@ -235,27 +238,34 @@ class _WeightConvertViewState extends ConsumerState<WeightConvertView> {
         return Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Wrap(
-              crossAxisAlignment: WrapCrossAlignment.center,
-              spacing: 16,
-              runSpacing: 8,
-              children: [
-                _directionSwitch(),
-                if (_dir == _Dir.sd2nai)
-                  Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Checkbox(
-                        value: _stripLora,
-                        onChanged: (value) => setState(() {
-                          _stripLora = value ?? true;
-                          _output = null;
-                        }),
-                      ),
-                      Text(l10nNow.desktopRemoveLoRA),
-                    ],
-                  ),
-              ],
+            DesktopToolHeader(
+              tabs: widget.desktopTabs,
+              actions: Wrap(
+                alignment: WrapAlignment.end,
+                crossAxisAlignment: WrapCrossAlignment.center,
+                spacing: 8,
+                runSpacing: 6,
+                children: [
+                  _directionSwitch(),
+                  if (_dir == _Dir.sd2nai)
+                    SegmentedButton<bool>(
+                      segments: [
+                        ButtonSegment(
+                          value: true,
+                          label: Text(context.l10n.desktopRemoveLoRA),
+                          icon: const Icon(Icons.filter_alt_outlined, size: 17),
+                        ),
+                      ],
+                      selectedIcon: const Icon(Icons.check, size: 17),
+                      selected: {if (_stripLora) true},
+                      emptySelectionAllowed: true,
+                      onSelectionChanged: (selected) => setState(() {
+                        _stripLora = selected.contains(true);
+                        _output = null;
+                      }),
+                    ),
+                ],
+              ),
             ),
             const SizedBox(height: 16),
             if (constraints.maxWidth >= 880 * scale)

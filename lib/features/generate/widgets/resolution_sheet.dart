@@ -19,6 +19,8 @@ const _mineTab = '我的';
 /// 内置档位与默认预设名按界面语言显示;自定义名原样。
 String _sizeLabel(AppLocalizations l, String name) => switch (name) {
   '小图' => l.sizeNormal,
+  _mineTab => l.sizeMine,
+  _customTab => l.sizeCustom,
   '大图' => l.sizeLarge,
   '壁纸' => l.sizeWallpaper,
   '竖图' => l.sizePortrait,
@@ -41,7 +43,7 @@ const _vizFree = FixedSemantic.ok;
 const _vizOver = FixedSemantic.danger;
 
 /// 分辨率 Sheet:预设三档(小图免费/大图/壁纸)+ 自定义档(拖拽画布)
-/// + 统一档位状态条(MP·比例·免费/付费/超限)+ 确认生效。数值/交互对齐 web 桌面端。
+/// 预设单击应用，自定义尺寸在本地编辑至应用时生效。
 Future<void> showResolutionSheet(BuildContext context) {
   if (ProviderScope.containerOf(
     context,
@@ -73,9 +75,6 @@ class _ResolutionSheet extends ConsumerStatefulWidget {
 class _ResolutionSheetState extends ConsumerState<_ResolutionSheet> {
   late String tab;
 
-  /// 最后停留的预设页签:自定义档下预设行仍要渲染(CrossFade 常驻两子树)。
-  late String lastPresetTab;
-  late SizePreset selected;
   late int customW;
   late int customH;
   late final TextEditingController _width;
@@ -86,38 +85,24 @@ class _ResolutionSheetState extends ConsumerState<_ResolutionSheet> {
   void initState() {
     super.initState();
     final p = ref.read(generateProvider).params;
-    tab = sizeTabs.keys.first;
-    selected = sizeTabs[tab]!.first;
     customW = snapDim(p.width);
     customH = snapDim(p.height);
     _width = TextEditingController(text: '$customW');
     _height = TextEditingController(text: '$customH');
-    final hit = _match(p.width, p.height);
-    if (hit != null) {
-      tab = hit.$1;
-      selected = hit.$2;
-    } else {
-      tab = _customTab;
-    }
-    lastPresetTab = _isCustom ? sizeTabs.keys.first : tab;
+    tab = _tabFor(p.width, p.height);
   }
 
   bool get _isCustom => tab == _customTab;
-  int get _effW => _isCustom ? customW : selected.width;
-  int get _effH => _isCustom ? customH : selected.height;
 
-  bool _isSel(SizePreset p) =>
-      p.width == selected.width && p.height == selected.height;
-  List<SizePreset> _presetsOf(String t, List<ResPreset> mine) =>
-      t == _mineTab ? [for (final p in mine) _asSize(p)] : sizeTabs[t]!;
-  (String, SizePreset)? _match(int w, int h) {
-    for (final e in sizeTabs.entries) {
-      for (final p in e.value) {
-        if (p.width == w && p.height == h) return (e.key, p);
+  String _tabFor(int w, int h) {
+    for (final entry in sizeTabs.entries) {
+      if (entry.value.any((p) => p.width == w && p.height == h)) {
+        return entry.key;
       }
     }
-    final p = ref.read(resPresetsProvider.notifier).find(w, h);
-    return p == null ? null : (_mineTab, _asSize(p));
+    return ref.read(resPresetsProvider.notifier).find(w, h) == null
+        ? _customTab
+        : _mineTab;
   }
 
   Future<void> _save() async {
@@ -129,15 +114,14 @@ class _ResolutionSheetState extends ConsumerState<_ResolutionSheet> {
     try {
       await ref.read(resPresetsProvider.notifier).add(w, h);
     } catch (_) {
-      if (mounted) hintSnack(context, l10nNow.desktopCouldNotSaveTheSizePresetCheckYour);
+      if (mounted) {
+        hintSnack(context, l10nNow.desktopCouldNotSaveTheSizePresetCheckYour);
+      }
     }
     if (!mounted) return;
     final p = ref.read(resPresetsProvider.notifier).find(w, h);
     if (p == null) return;
-    setState(() {
-      tab = lastPresetTab = _mineTab;
-      selected = _asSize(p);
-    });
+    setState(() => tab = _mineTab);
   }
 
   Future<void> _remove(SizePreset p) async {
@@ -146,37 +130,24 @@ class _ResolutionSheetState extends ConsumerState<_ResolutionSheet> {
         .remove(p.width, p.height);
     if (!mounted) return;
     final mine = ref.read(resPresetsProvider);
-    setState(() {
-      if (mine.isEmpty) {
+    if (mine.isEmpty) {
+      setState(() {
         customW = p.width;
         customH = p.height;
         _width.text = '$customW';
         _height.text = '$customH';
         _widthError = _heightError = null;
         tab = _customTab;
-        lastPresetTab = sizeTabs.keys.first;
-      } else if (_isSel(p)) {
-        selected = _asSize(mine.first);
-      }
-    });
+      });
+    }
     try {
       await saving;
     } catch (_) {
-      if (mounted) hintSnack(context, l10nNow.desktopCouldNotSaveTheDeletionCheckYourDisk);
+      if (mounted) {
+        hintSnack(context, l10nNow.desktopCouldNotSaveTheDeletionCheckYourDisk);
+      }
     }
   }
-
-  Widget _saveButton() => OutlinedButton.icon(
-    key: const ValueKey('resolution-save-preset'),
-    onPressed:
-        _widthError == null &&
-            _heightError == null &&
-            classifyPixels(customW, customH) != PixelTier.over
-        ? _save
-        : null,
-    icon: const Icon(Icons.bookmark_add_outlined, size: 18),
-    label: Text(l10nNow.desktopSaveSizePreset),
-  );
 
   @override
   void dispose() {
@@ -240,31 +211,26 @@ class _ResolutionSheetState extends ConsumerState<_ResolutionSheet> {
   }
 
   Widget _dimensionInput({required bool width}) {
-    final field = SizedBox(
-      width: widget.desktop ? 96 : 108,
-      child: TextField(
-        key: ValueKey(width ? 'resolution-width' : 'resolution-height'),
-        controller: width ? _width : _height,
-        keyboardType: const TextInputType.numberWithOptions(decimal: true),
-        textInputAction: TextInputAction.done,
-        style: mono(context, size: 16).copyWith(fontWeight: FontWeight.w700),
-        decoration: InputDecoration(
-          labelText: width ? context.l10n.width : context.l10n.height,
-          suffixText: 'px',
-          isDense: true,
-          contentPadding: widget.desktop
-              ? const EdgeInsets.symmetric(horizontal: 10, vertical: 12)
-              : null,
-          errorText: width ? _widthError : _heightError,
-          border: const OutlineInputBorder(),
-        ),
-        onChanged: (_) => _commitDimensions(normalize: false),
-        onSubmitted: (_) => _commitDimensions(),
-        onTapOutside: (_) {
-          _commitDimensions();
-          FocusManager.instance.primaryFocus?.unfocus();
-        },
+    final field = TextField(
+      key: ValueKey(width ? 'resolution-width' : 'resolution-height'),
+      controller: width ? _width : _height,
+      keyboardType: const TextInputType.numberWithOptions(decimal: true),
+      textInputAction: TextInputAction.done,
+      style: mono(context, size: 16).copyWith(fontWeight: FontWeight.w700),
+      decoration: InputDecoration(
+        labelText: width ? context.l10n.width : context.l10n.height,
+        suffixText: 'px',
+        isDense: true,
+        contentPadding: const EdgeInsets.symmetric(horizontal: 9, vertical: 10),
+        errorText: width ? _widthError : _heightError,
+        border: const OutlineInputBorder(),
       ),
+      onChanged: (_) => _commitDimensions(normalize: false),
+      onSubmitted: (_) => _commitDimensions(),
+      onTapOutside: (_) {
+        _commitDimensions();
+        FocusManager.instance.primaryFocus?.unfocus();
+      },
     );
     if (!widget.desktop) return field;
     return Listener(
@@ -286,22 +252,134 @@ class _ResolutionSheetState extends ConsumerState<_ResolutionSheet> {
     );
   }
 
-  void _apply() {
-    if (_isCustom && !_commitDimensions()) return;
-    if (classifyPixels(_effW, _effH) == PixelTier.over) return;
-    ref.read(generateProvider.notifier).setSize(_effW, _effH);
+  void _applySize(int width, int height) {
+    if (classifyPixels(width, height) == PixelTier.over) return;
+    ref.read(generateProvider.notifier).setSize(width, height);
     Navigator.pop(context);
   }
 
-  Widget _desktopPanel() {
-    final scheme = context.scheme;
-    final over = classifyPixels(_effW, _effH) == PixelTier.over;
+  bool get _dimensionsValid => _widthError == null && _heightError == null;
+  bool get _canApplyCustom =>
+      _dimensionsValid && classifyPixels(customW, customH) != PixelTier.over;
+
+  Widget _customGrid() {
+    final l = context.l10n;
+    final tier = classifyPixels(customW, customH);
+    final shrinkStyle = FilledButton.styleFrom(
+      minimumSize: const Size(0, 32),
+      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+      textStyle: context.texts.labelLarge?.copyWith(
+        fontWeight: FontWeight.w600,
+      ),
+    );
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Center(
+          child: LayoutBuilder(
+            builder: (context, box) => _CanvasEditor(
+              width: customW,
+              height: customH,
+              side: box.maxWidth.clamp(0.0, 164.0),
+              onChanged: _setCustom,
+            ),
+          ),
+        ),
+        const SizedBox(height: 6),
+        if (tier != PixelTier.free)
+          Wrap(
+            spacing: 6,
+            children: [
+              if (tier == PixelTier.over)
+                FilledButton.tonalIcon(
+                  onPressed: _dimensionsValid
+                      ? () {
+                          final size = clampToMaxPixels(customW, customH);
+                          _setCustom(size.w, size.h);
+                        }
+                      : null,
+                  style: shrinkStyle,
+                  icon: const Icon(Icons.compress, size: 15),
+                  label: Text(l.shrinkToLimit),
+                ),
+              FilledButton.tonalIcon(
+                onPressed: _dimensionsValid
+                    ? () {
+                        final size = scaleToFree(customW, customH);
+                        _setCustom(size.w, size.h);
+                      }
+                    : null,
+                style: shrinkStyle,
+                icon: const Icon(Icons.compress, size: 15),
+                label: Text(l.shrinkToFree),
+              ),
+            ],
+          ),
+        OutlinedButton.icon(
+          key: const ValueKey('resolution-save-preset'),
+          onPressed: _canApplyCustom ? _save : null,
+          style: OutlinedButton.styleFrom(
+            minimumSize: const Size(0, 32),
+            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+          ),
+          icon: const Icon(Icons.bookmark_add_outlined, size: 16),
+          label: Text(l.desktopSaveSizePreset),
+        ),
+      ],
+    );
+  }
+
+  Widget _dimensionRow() => Row(
+    children: [
+      Expanded(child: _dimensionInput(width: true)),
+      Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 5),
+        child: _SwapBtn(
+          onTap: () {
+            if (_commitDimensions()) _setCustom(customH, customW);
+          },
+        ),
+      ),
+      Expanded(child: _dimensionInput(width: false)),
+      const SizedBox(width: 10),
+      Tooltip(
+        message: '${context.l10n.applyLabel} $customW×$customH',
+        child: FilledButton(
+          key: const ValueKey('resolution-confirm'),
+          onPressed: _canApplyCustom
+              ? () {
+                  if (_commitDimensions()) _applySize(customW, customH);
+                }
+              : null,
+          style: FilledButton.styleFrom(
+            fixedSize: const Size.square(36),
+            minimumSize: Size.zero,
+            padding: EdgeInsets.zero,
+            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(9),
+            ),
+          ),
+          child: const Icon(Icons.check, size: 20),
+        ),
+      ),
+    ],
+  );
+
+  @override
+  Widget build(BuildContext context) {
     final mine = ref.watch(resPresetsProvider);
-    final canApply =
-        !over && (!_isCustom || (_widthError == null && _heightError == null));
+    final (w, h) = ref.watch(
+      generateProvider.select((s) => (s.params.width, s.params.height)),
+    );
+    final l = context.l10n;
+    final scheme = context.scheme;
+    final tabs = [...sizeTabs.keys, if (mine.isNotEmpty) _mineTab, _customTab];
     return SingleChildScrollView(
       key: const ValueKey('resolution-panel'),
-      padding: const EdgeInsets.all(14),
+      padding: EdgeInsets.all(widget.desktop ? 14 : 16),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -310,14 +388,14 @@ class _ResolutionSheetState extends ConsumerState<_ResolutionSheet> {
             children: [
               Expanded(
                 child: Text(
-                  context.l10n.chooseRatio,
+                  widget.desktop ? l.chooseRatio : l.resolution,
                   style: context.texts.titleMedium!.copyWith(
                     fontWeight: FontWeight.w700,
                   ),
                 ),
               ),
               IconButton(
-                tooltip: l10nNow.close,
+                tooltip: l.close,
                 onPressed: () => Navigator.pop(context),
                 constraints: const BoxConstraints.tightFor(
                   width: 32,
@@ -328,28 +406,18 @@ class _ResolutionSheetState extends ConsumerState<_ResolutionSheet> {
               ),
             ],
           ),
-          const Divider(height: 18),
+          const Divider(height: 16),
           Row(
             children: [
-              for (final t in [
-                ...sizeTabs.keys,
-                if (mine.isNotEmpty) _mineTab,
-                _customTab,
-              ])
+              for (final t in tabs)
                 Expanded(
                   child: Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 2),
                     child: TextButton(
-                      onPressed: () => setState(() {
-                        tab = t;
-                        if (!_isCustom) {
-                          lastPresetTab = t;
-                          selected = _presetsOf(t, mine).first;
-                        }
-                      }),
+                      onPressed: () => setState(() => tab = t),
                       style: TextButton.styleFrom(
                         padding: const EdgeInsets.symmetric(horizontal: 2),
-                        minimumSize: const Size(0, 34),
+                        minimumSize: const Size(0, 32),
                         tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                         backgroundColor: tab == t
                             ? scheme.primaryContainer
@@ -361,10 +429,9 @@ class _ResolutionSheetState extends ConsumerState<_ResolutionSheet> {
                           borderRadius: BorderRadius.circular(8),
                         ),
                       ),
-                      child: Text(
-                        t == _customTab
-                            ? context.l10n.sizeCustom
-                            : _sizeLabel(context.l10n, t),
+                      child: FittedBox(
+                        fit: BoxFit.scaleDown,
+                        child: Text(_sizeLabel(l, t), maxLines: 1),
                       ),
                     ),
                   ),
@@ -373,232 +440,44 @@ class _ResolutionSheetState extends ConsumerState<_ResolutionSheet> {
           ),
           const SizedBox(height: 12),
           if (_isCustom)
-            _CanvasEditor(
-              width: customW,
-              height: customH,
-              onChanged: _setCustom,
-              maxSide: 280,
-            )
+            _customGrid()
           else
             _PresetGrid(
-              presets: _presetsOf(tab, mine),
-              isSelected: _isSel,
-              onTap: (p) => setState(() => selected = p),
-              onLongPress: tab == _mineTab ? _remove : null,
+              presets: tab == _mineTab
+                  ? [for (final p in mine) _asSize(p)]
+                  : sizeTabs[tab]!,
+              isSelected: (p) => p.width == w && p.height == h,
+              onTap: (p) => _applySize(p.width, p.height),
+              onRemove: tab == _mineTab ? _remove : null,
             ),
-          if (_isCustom) _saveButton(),
-          const Divider(height: 24),
+          const Divider(height: 20),
           Tooltip(
-            message: l10nNow.desktopFreeTier105MPOpusCoversA,
-            child: _StatusStrip(width: _effW, height: _effH),
-          ),
-          const SizedBox(height: 16),
-          if (_isCustom) ...[
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                _dimensionInput(width: true),
-                Padding(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 6,
-                    vertical: 6,
-                  ),
-                  child: _SwapBtn(
-                    onTap: () {
-                      if (_commitDimensions()) _setCustom(customH, customW);
-                    },
-                  ),
-                ),
-                _dimensionInput(width: false),
-                const Spacer(),
-                Tooltip(
-                  message: over ? '超出像素上限' : '确认 · $_effW×$_effH',
-                  child: FilledButton(
-                    key: const ValueKey('resolution-confirm'),
-                    onPressed: canApply ? _apply : null,
-                    style: FilledButton.styleFrom(
-                      minimumSize: const Size(40, 42),
-                      padding: EdgeInsets.zero,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                    ),
-                    child: const Icon(Icons.check, size: 20),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 10),
-            Text(
-              over ? '超出像素上限' : '↑ / ↓ 或在输入框上滚轮：每次增减 64。小数取整后对齐 64 像素。',
-              style: context.texts.bodySmall!.copyWith(
-                fontSize: 11,
-                color: over ? scheme.error : scheme.onSurfaceVariant,
-              ),
-            ),
-          ] else
-            FilledButton(
-              key: const ValueKey('resolution-confirm'),
-              onPressed: canApply ? _apply : null,
-              child: Text('确认 · $_effW×$_effH'),
-            ),
-        ],
-      ),
-    );
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final mine = ref.watch(resPresetsProvider);
-    if (widget.desktop) return _desktopPanel();
-    final scheme = context.scheme;
-    final over = classifyPixels(_effW, _effH) == PixelTier.over;
-
-    return SingleChildScrollView(
-      padding: EdgeInsets.fromLTRB(16, widget.desktop ? 12 : 0, 16, 16),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Row(
-            children: [
-              Expanded(
-                child: Text(
-                  context.l10n.resolution,
-                  style: context.texts.titleMedium!.copyWith(
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-              ),
-              IconButton(
-                onPressed: () => Navigator.pop(context),
-                icon: const Icon(Icons.close, size: 20),
-                color: scheme.onSurfaceVariant,
-              ),
-            ],
-          ),
-          const SizedBox(height: 6),
-          SegmentedButton<String>(
-            // 英文段名长,五段时窄屏挤不下的那段缩字号
-            segments: [
-              for (final t in sizeTabs.keys)
-                ButtonSegment(
-                  value: t,
-                  label: _SegLabel(_sizeLabel(context.l10n, t)),
-                ),
-              if (mine.isNotEmpty)
-                ButtonSegment(
-                  value: _mineTab,
-                  label: _SegLabel(context.l10n.sizeMine),
-                ),
-              ButtonSegment(
-                value: _customTab,
-                label: _SegLabel(context.l10n.sizeCustom),
-              ),
-            ],
-            selected: {tab},
-            onSelectionChanged: (s) => setState(() {
-              tab = s.first;
-              if (!_isCustom) {
-                lastPresetTab = tab;
-                selected = _presetsOf(tab, mine).first;
-              }
-            }),
-            showSelectedIcon: false,
-            // 五段时窄屏放得下「自定义」
-            style: const ButtonStyle(
-              padding: WidgetStatePropertyAll(
-                EdgeInsets.symmetric(horizontal: 6),
-              ),
+            message: l.desktopFreeTier105MPOpusCoversA,
+            child: _StatusStrip(
+              width: _isCustom ? customW : w,
+              height: _isCustom ? customH : h,
             ),
           ),
-          const SizedBox(height: 14),
-          // CrossFade 同步动画高度与透明度:预设行(矮)↔ 画布(高)切换不跳变
-          AnimatedCrossFade(
-            duration: Motion.medium,
-            sizeCurve: Motion.emphasized,
-            crossFadeState: _isCustom
-                ? CrossFadeState.showSecond
-                : CrossFadeState.showFirst,
-            firstChild: _PresetGrid(
-              presets: _presetsOf(lastPresetTab, mine),
-              isSelected: _isSel,
-              onTap: (p) => setState(() => selected = p),
-              onLongPress: lastPresetTab == _mineTab ? _remove : null,
-            ),
-            secondChild: _CanvasEditor(
-              width: customW,
-              height: customH,
-              onChanged: _setCustom,
-              dimensions: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  _dimensionInput(width: true),
-                  const SizedBox(width: 8),
-                  _SwapBtn(
-                    onTap: () {
-                      if (_commitDimensions()) _setCustom(customH, customW);
-                    },
-                  ),
-                  const SizedBox(width: 8),
-                  _dimensionInput(width: false),
-                ],
-              ),
-            ),
-          ),
-          if (_isCustom) ...[
-            _saveButton(),
-            const SizedBox(height: 8),
-            Text(
-              l10nNow.desktopEnterWidthAndHeightDecimalsAreTruncatedAnd,
-              style: context.texts.bodySmall,
-            ),
-          ],
-          const SizedBox(height: 12),
-          _StatusStrip(width: _effW, height: _effH),
-          const SizedBox(height: 10),
-          const InfoNote(
-            '免费档(≤1.05MP)· Opus ≤28 步单张免费;更大按张扣 Anlas',
-            icon: Icons.info_outline,
-          ),
-          const SizedBox(height: 14),
-          FilledButton(
-            key: const ValueKey('resolution-confirm'),
-            onPressed:
-                over ||
-                    (_isCustom && (_widthError != null || _heightError != null))
-                ? null
-                : _apply,
-            style: FilledButton.styleFrom(
-              minimumSize: const Size.fromHeight(48),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(24),
-              ),
-            ),
-            child: Text(
-              over ? '超出像素上限' : '确认 · $_effW×$_effH',
-              style: const TextStyle(fontWeight: FontWeight.w700),
-            ),
-          ),
+          if (_isCustom) ...[const SizedBox(height: 12), _dimensionRow()],
         ],
       ),
     );
   }
 }
 
-/// 档位状态条:MP · 比例 + 免费/付费/超限徽章(与 web classifyPixelStatus 同义)。
+/// Built-in and saved resolutions share the same three-column card grid.
 class _PresetGrid extends StatelessWidget {
   const _PresetGrid({
     required this.presets,
     required this.isSelected,
     required this.onTap,
-    this.onLongPress,
+    this.onRemove,
   });
 
   final List<SizePreset> presets;
   final bool Function(SizePreset) isSelected;
   final ValueChanged<SizePreset> onTap;
-  final ValueChanged<SizePreset>? onLongPress;
+  final ValueChanged<SizePreset>? onRemove;
 
   static const _cols = 3;
   static const _gap = 10.0;
@@ -631,7 +510,7 @@ class _PresetGrid extends StatelessWidget {
     preset: p,
     selected: isSelected(p),
     onTap: () => onTap(p),
-    onLongPress: onLongPress == null ? null : () => onLongPress!(p),
+    onRemove: onRemove == null ? null : () => onRemove!(p),
   );
 }
 
@@ -697,15 +576,12 @@ class _CanvasEditor extends StatelessWidget {
     required this.width,
     required this.height,
     required this.onChanged,
-    this.dimensions,
-    this.maxSide = 300,
+    required this.side,
   });
 
-  final int width;
-  final int height;
+  final int width, height;
   final void Function(int w, int h) onChanged;
-  final Widget? dimensions;
-  final double maxSide;
+  final double side;
 
   void _fromLocal(Offset local, double side) {
     final fx = (local.dx / side).clamp(0.0, 1.0);
@@ -716,78 +592,22 @@ class _CanvasEditor extends StatelessWidget {
   }
 
   @override
-  Widget build(BuildContext context) {
-    final scheme = context.scheme;
-    final tier = classifyPixels(width, height);
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        Center(
-          child: LayoutBuilder(
-            builder: (context, cons) {
-              final side = (cons.maxWidth.isFinite ? cons.maxWidth : 280.0)
-                  .clamp(0.0, maxSide)
-                  .toDouble();
-              return SizedBox(
-                width: side,
-                height: side,
-                child: GestureDetector(
-                  // 用手势识别器抢占竞技场,避免竖向拖被底部浮层的「下拉关闭」偷走。
-                  behavior: HitTestBehavior.opaque,
-                  onPanDown: (d) => _fromLocal(d.localPosition, side),
-                  onPanUpdate: (d) => _fromLocal(d.localPosition, side),
-                  child: CustomPaint(
-                    painter: _ResCanvasPainter(
-                      width: width,
-                      height: height,
-                      scheme: scheme,
-                    ),
-                  ),
-                ),
-              );
-            },
-          ),
+  Widget build(BuildContext context) => SizedBox.square(
+    key: const ValueKey('resolution-canvas'),
+    dimension: side,
+    child: GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onPanDown: (d) => _fromLocal(d.localPosition, side),
+      onPanUpdate: (d) => _fromLocal(d.localPosition, side),
+      child: CustomPaint(
+        painter: _ResCanvasPainter(
+          width: width,
+          height: height,
+          scheme: context.scheme,
         ),
-        if (dimensions != null || tier != PixelTier.free) ...[
-          const SizedBox(height: 10),
-          // 读数 + 动作:交换钮挪到长宽之间(替代 ×)省出横向空间;动作组用 Wrap,
-          // 数值很大又同时出两个 chip 时整组自动换行,不再把「缩到免费」挤出界。
-          Wrap(
-            alignment: WrapAlignment.spaceBetween,
-            crossAxisAlignment: WrapCrossAlignment.center,
-            spacing: 10,
-            runSpacing: 8,
-            children: [
-              ?dimensions,
-              Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  if (tier == PixelTier.over) ...[
-                    _QuickChip(
-                      '缩到上限',
-                      onTap: () {
-                        final r = clampToMaxPixels(width, height);
-                        onChanged(r.w, r.h);
-                      },
-                    ),
-                    const SizedBox(width: 8),
-                  ],
-                  if (tier != PixelTier.free)
-                    _QuickChip(
-                      '缩到免费',
-                      onTap: () {
-                        final r = scaleToFree(width, height);
-                        onChanged(r.w, r.h);
-                      },
-                    ),
-                ],
-              ),
-            ],
-          ),
-        ],
-      ],
-    );
-  }
+      ),
+    ),
+  );
 }
 
 class _ResCanvasPainter extends CustomPainter {
@@ -964,71 +784,19 @@ class _SwapBtn extends StatelessWidget {
   }
 }
 
-/// 分段按钮的段名:放不下时缩字号,不折行。
-class _SegLabel extends StatelessWidget {
-  const _SegLabel(this.text);
-
-  final String text;
-
-  @override
-  Widget build(BuildContext context) =>
-      FittedBox(fit: BoxFit.scaleDown, child: Text(text, maxLines: 1));
-}
-
-class _QuickChip extends StatelessWidget {
-  const _QuickChip(this.label, {required this.onTap});
-
-  final String label;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final scheme = context.scheme;
-    return Material(
-      color: scheme.secondaryContainer,
-      borderRadius: BorderRadius.circular(10),
-      clipBehavior: Clip.antiAlias,
-      child: InkWell(
-        onTap: onTap,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(
-                Icons.compress,
-                size: 15,
-                color: scheme.onSecondaryContainer,
-              ),
-              const SizedBox(width: 5),
-              Text(
-                label,
-                style: context.texts.bodySmall!.copyWith(
-                  fontWeight: FontWeight.w600,
-                  color: scheme.onSecondaryContainer,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
 class _PresetCard extends StatelessWidget {
   const _PresetCard({
     super.key,
     required this.preset,
     required this.selected,
     required this.onTap,
-    this.onLongPress,
+    this.onRemove,
   });
 
   final SizePreset preset;
   final bool selected;
   final VoidCallback onTap;
-  final VoidCallback? onLongPress;
+  final VoidCallback? onRemove;
 
   @override
   Widget build(BuildContext context) {
@@ -1053,69 +821,91 @@ class _PresetCard extends StatelessWidget {
         color: Colors.transparent,
         borderRadius: BorderRadius.circular(12),
         clipBehavior: Clip.antiAlias,
-        child: InkWell(
-          onTap: onTap,
-          onLongPress: onLongPress,
-          onSecondaryTap: onLongPress,
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(8, 12, 8, 10),
-            child: Column(
-              children: [
-                SizedBox(
-                  width: box,
-                  height: box,
-                  child: Center(
-                    child: AnimatedContainer(
-                      duration: Motion.fast,
-                      width: w,
-                      height: h,
-                      decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(5),
-                        border: Border.all(
-                          color: selected ? scheme.primary : scheme.outline,
-                          width: 2,
+        child: Stack(
+          children: [
+            InkWell(
+              onTap:
+                  classifyPixels(preset.width, preset.height) == PixelTier.over
+                  ? null
+                  : onTap,
+              onLongPress: onRemove,
+              onSecondaryTap: onRemove,
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(8, 12, 8, 10),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    SizedBox(
+                      width: box,
+                      height: box,
+                      child: Center(
+                        child: AnimatedContainer(
+                          duration: Motion.fast,
+                          width: w,
+                          height: h,
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(5),
+                            border: Border.all(
+                              color: selected ? scheme.primary : scheme.outline,
+                              width: 2,
+                            ),
+                          ),
                         ),
                       ),
                     ),
-                  ),
+                    const SizedBox(height: 8),
+                    Text(
+                      _sizeLabel(context.l10n, preset.name),
+                      textAlign: TextAlign.center,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: context.texts.bodySmall!.copyWith(
+                        fontWeight: FontWeight.w600,
+                        color: selected
+                            ? scheme.onSecondaryContainer
+                            : scheme.onSurface,
+                      ),
+                    ),
+                    Text(
+                      preset.ratio,
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        fontSize: 10,
+                        color: scheme.onSurfaceVariant,
+                      ),
+                    ),
+                    Text(
+                      '${preset.width}×${preset.height}',
+                      textAlign: TextAlign.center,
+                      style: mono(
+                        context,
+                        size: 9.5,
+                        weight: FontWeight.w500,
+                      ).copyWith(color: scheme.outline),
+                    ),
+                  ],
                 ),
-                const SizedBox(height: 8),
-                Text(
-                  _sizeLabel(context.l10n, preset.name),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: context.texts.bodySmall!.copyWith(
-                    fontWeight: FontWeight.w600,
-                    color: selected
-                        ? scheme.onSecondaryContainer
-                        : scheme.onSurface,
-                  ),
-                ),
-                if (onLongPress != null)
-                  IconButton(
-                    tooltip: l10nNow.desktopDeleteSizePreset,
-                    onPressed: onLongPress,
-                    visualDensity: VisualDensity.compact,
-                    icon: const Icon(Icons.delete_outline, size: 18),
-                  ),
-                Text(
-                  preset.ratio,
-                  style: TextStyle(
-                    fontSize: 10,
-                    color: scheme.onSurfaceVariant,
-                  ),
-                ),
-                Text(
-                  '${preset.width}×${preset.height}',
-                  style: mono(
-                    context,
-                    size: 9.5,
-                    weight: FontWeight.w500,
-                  ).copyWith(color: scheme.outline),
-                ),
-              ],
+              ),
             ),
-          ),
+            if (onRemove != null)
+              PositionedDirectional(
+                top: 0,
+                end: 0,
+                child: IconButton(
+                  tooltip: context.l10n.desktopDeleteSizePreset,
+                  onPressed: onRemove,
+                  constraints: const BoxConstraints.tightFor(
+                    width: 26,
+                    height: 26,
+                  ),
+                  padding: EdgeInsets.zero,
+                  style: IconButton.styleFrom(
+                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  ),
+                  icon: const Icon(Icons.delete_outline, size: 15),
+                ),
+              ),
+          ],
         ),
       ),
     );

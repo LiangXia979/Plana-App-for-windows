@@ -274,7 +274,11 @@ class _DesktopProfilePageState extends ConsumerState<DesktopProfilePage>
                             ? Alignment.topCenter
                             : Alignment.topLeft,
                         child: ConstrainedBox(
-                          constraints: const BoxConstraints(maxWidth: 1000),
+                          constraints: BoxConstraints(
+                            maxWidth: _selected == _Section.tools
+                                ? double.infinity
+                                : 1000,
+                          ),
                           child: IndexedStack(
                             key: const ValueKey('profile-content'),
                             index: _selected.index,

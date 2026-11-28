@@ -114,7 +114,7 @@ void main() {
       tester.view.physicalSize = Size(width, 900);
       await tester.pumpAndSettle();
       final headerClear = tester.getRect(find.byTooltip('清空全部角色'));
-      final headerLibrary = tester.getRect(find.byTooltip('角色库'));
+      expect(find.byTooltip('角色库'), findsNothing);
       final headerAdd = tester.getRect(find.byTooltip('添加角色'));
       final position = tester.getRect(find.byTooltip('设置角色位置：AUTO').first);
       final toggle = tester.getRect(find.byTooltip('停用(保留配置)').first);
@@ -122,7 +122,7 @@ void main() {
       final name = tester.getRect(find.text('角色 1'));
 
       expect(position.size, headerClear.size);
-      expect(toggle.size, headerLibrary.size);
+      expect(toggle.size, headerAdd.size);
       expect(remove.size, headerAdd.size);
       expect(position.width, position.height);
       expect(toggle.height, position.height);
@@ -131,11 +131,8 @@ void main() {
       expect(remove.width, position.width);
       expect(toggle.center.dy, position.center.dy);
       expect(remove.center.dy, position.center.dy);
-      expect(
-        toggle.left - position.right,
-        headerLibrary.left - headerClear.right,
-      );
-      expect(remove.left - toggle.right, headerAdd.left - headerLibrary.right);
+      expect(toggle.left - position.right, headerAdd.left - headerClear.right);
+      expect(remove.left - toggle.right, headerAdd.left - headerClear.right);
       expect(name.center.dy, position.center.dy);
       expect(name.right, lessThan(position.left));
       expect(tester.takeException(), isNull);
@@ -147,7 +144,10 @@ void main() {
     final gen = await _pumpCard(tester);
     final id = gen.state.characters.first.id;
     final tile = find.byKey(ValueKey('char$id'));
-    final avatar = find.descendant(of: tile, matching: find.byTooltip('从角色库选'));
+    final avatar = find.descendant(
+      of: tile,
+      matching: find.byKey(ValueKey('character-avatar-$id')),
+    );
     final emptyTile = tester.getRect(tile);
     final emptyAvatar = tester.getRect(avatar);
     expect(emptyAvatar.width / emptyAvatar.height, closeTo(832 / 1216, 1e-9));

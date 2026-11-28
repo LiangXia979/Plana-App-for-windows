@@ -308,6 +308,8 @@ TagCategory? tagCategoryByWebId(String webId) {
 /// 公共条目的本地副本(app 暂不做发布,解析备份时保留该态)。
 enum TagOrigin { local, favorited, created }
 
+typedef CharacterLibrarySource = ({String id, String? preview});
+
 /// 统一条目模型(web TagFile / ArtistData / OCData / CustomTagData 的归一)。
 /// [extra] 透传 web 备份里 app 不认识的字段(恢复时收下、上传时原样带回),
 /// 避免 app 恢复→再上传的整体覆盖冲掉 web 端数据;base64 预览不进 extra

@@ -1,3 +1,4 @@
+import '../onboarding/desktop_guide_entry.dart';
 import '../../core/net/nai_status.dart';
 
 import '../../core/net/bot_socket.dart';
@@ -6,6 +7,8 @@ import 'package:url_launcher/url_launcher.dart';
 
 import 'dart:async';
 
+import 'package:flutter/foundation.dart'
+    show defaultTargetPlatform, TargetPlatform;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -16,7 +19,6 @@ import '../../core/auth/token_store.dart';
 import '../../core/net/backend_config.dart';
 import '../../core/platform/desktop.dart';
 import '../../core/store/app_stores.dart';
-import '../../core/store/prefs_store.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/theme/theme_settings.dart';
 import '../assistant/assistant_page.dart';
@@ -192,37 +194,28 @@ class _AppShellState extends ConsumerState<AppShell> {
     } catch (_) {}
   }
 
-  /// 冷启动静默查一次更新(24h 节流)。
-  ///
-  /// 延后 3 秒:启动那几帧要留给首页和鉴权预热,更新弹层不是急事。计时器**必须
-  /// 存下来并在 dispose 取消** —— 裸 `Future.delayed` 在页面提前销毁后照样会醒,
-  /// 属于真实泄漏(widget 冒烟测试会直接报 pending timer)。
   void _scheduleAutoCheck() {
-    if (ref.read(desktopModeProvider)) return;
-    final prefs = ref.read(prefsStoreProvider);
-    if (!shouldAutoCheck(prefs)) return;
+    final windows = defaultTargetPlatform == TargetPlatform.windows;
+    if (!windows && ref.read(desktopModeProvider)) return;
+    if (!windows && !shouldAutoCheck(ref.read(prefsStoreProvider))) return;
     _updateTimer = Timer(
-      const Duration(seconds: 3),
-      () => _autoCheckUpdate(prefs),
+      Duration(seconds: windows ? 1 : 3),
+      () => _autoCheckUpdate(windows: windows),
     );
   }
 
-  /// **只在真有新版时弹**,查不到/网络不通一律无声吞掉 —— 用户没主动要求检查,
-  /// 不该为此看到任何失败提示。
-  Future<void> _autoCheckUpdate(PrefsStore prefs) async {
+  Future<void> _autoCheckUpdate({required bool windows}) async {
     if (!mounted) return;
     try {
-      final installed = await installedInfo();
-      if (!installed.isKnown) return; // 非 Android / 通道缺失
-      final release = await fetchLatestRelease(installed.versionName);
-      await markUpdateChecked(prefs);
-      if (release == null || !mounted) return;
-      await showUpdateSheet(
-        context,
-        UpdateCheck(installed: installed, release: release),
-      );
-    } catch (_) {
-      // 静默:后台检查失败不打扰
+      final service = ref.read(updateServiceProvider);
+      final check = await service.check();
+      if (!windows && check.installed.isKnown) {
+        await markUpdateChecked(service.prefs);
+      }
+      if (!mounted || !check.hasUpdate) return;
+      await showUpdateSheet(context, check, service, automatic: true);
+    } on Exception {
+      // The About page reports errors when a user explicitly requests a check.
     }
   }
 
@@ -415,7 +408,12 @@ class _AppShellState extends ConsumerState<AppShell> {
       // Keep visited panes mounted so the tool navigator can move between the
       // navigation and settings in the same frame, including its detail routes.
       final pages = [
-        const DesktopWorkspace(),
+        Column(
+          children: [
+            DesktopGuideEntry(active: index == kTabCreate),
+            const Expanded(child: DesktopWorkspace()),
+          ],
+        ),
         const DesktopGalleryPage(),
         const AssistantPage(),
         const InspirationPage(),
@@ -542,7 +540,10 @@ class _AppShellState extends ConsumerState<AppShell> {
                             enabled: index == i,
                             child: ExcludeFocus(
                               excluding: index != i,
-                              child: pages[i],
+                              // Keep a tab's overlay portals in the same
+                              // accessibility subtree as their anchors when
+                              // the IndexedStack hides and restores the tab.
+                              child: Overlay.wrap(child: pages[i]),
                             ),
                           )
                         : const SizedBox.shrink(),

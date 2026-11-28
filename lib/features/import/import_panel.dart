@@ -8,7 +8,7 @@ import 'dart:convert';
 import 'dart:math' as math;
 
 import 'package:crypto/crypto.dart';
-import 'package:flutter/foundation.dart' show compute;
+import 'package:flutter/foundation.dart' show compute, setEquals;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -24,6 +24,9 @@ import '../../core/util/image_ops.dart';
 import '../../core/util/image_pick.dart';
 import '../../core/util/prompt_convert.dart' show convertSdToNai;
 import '../char_library/char_library.dart';
+import '../inspiration/tag_library.dart';
+import '../inspiration/tag_models.dart';
+import '../inspiration/widgets/tag_card.dart';
 import '../gallery/gallery_state.dart';
 import '../gallery/super_resolution.dart';
 import '../generate/auto_text.dart';
@@ -137,11 +140,24 @@ class ImportImagePanel extends ConsumerStatefulWidget {
   ConsumerState<ImportImagePanel> createState() => _ImportImagePanelState();
 }
 
+enum _ImportPick {
+  prompts('仅提示词'),
+  characters('词 + 角色'),
+  full('完整复现'),
+  none('清空');
+
+  const _ImportPick(this.label);
+  final String label;
+}
+
 class _ImportImagePanelState extends ConsumerState<ImportImagePanel> {
   ImportAlbumChoice _albumChoice = const ImportAlbumChoice();
   bool _loading = true;
   bool _upscaling = false;
+  bool _metadataOpen = false;
+  _ImportPick? _lastPick;
   ImageMetadata? _meta;
+  (int, int)? _previewSize;
 
   /// 上一次导入用过的偏好([_parse] 里取到,[_initSelections] 据此还原)。
   /// 取不到就是默认值 —— 与加这个功能之前的行为逐项一致。
@@ -173,7 +189,6 @@ class _ImportImagePanelState extends ConsumerState<ImportImagePanel> {
   /// 预设卡的详情(会被剥掉的那段文本 + 说明)默认收起 —— 那段文本重度档能有
   /// 二十来个词,常驻着会把下面的角色/Vibe/参数全顶出屏幕。点头部展开。
   bool _presetExpanded = false;
-
 
   // 正向按分区逐行列出(图里存的分区拼出来对得上时;否则只有一行主体)
   List<PromptSection>? _layout;
@@ -228,6 +243,18 @@ class _ImportImagePanelState extends ConsumerState<ImportImagePanel> {
 
   Future<void> _parse() async {
     final m = await extractImageMetadata(widget.bytes);
+    if (!mounted) return;
+    if (ref.read(desktopModeProvider)) {
+      _previewSize = imageSizeOf(widget.bytes);
+      if (_previewSize == null) {
+        try {
+          _previewSize = await decodeImageSize(widget.bytes);
+        } catch (_) {
+          // A damaged or unsupported image can still contain readable metadata.
+        }
+        if (!mounted) return;
+      }
+    }
     // 偏好要在 _initSelections 之前到手,否则还原不上。读失败(首次/文件坏)
     // 走默认值,不影响解析出来的元数据。
     try {
@@ -289,7 +316,10 @@ class _ImportImagePanelState extends ConsumerState<ImportImagePanel> {
         // Civitai 上有的一并勾:导入后先占位挂着、后台下载,不在这页做决策。
         // 上次整区清空过就不预勾(见 [ImportPrefs.loraImport])。
         _loraChecked.clear();
-        if (_prefs.loraImport) {
+        if (_lastPick == null
+            ? _prefs.loraImport
+            : _lastPick == _ImportPick.full ||
+                  _lastPick == _ImportPick.characters) {
           _loraChecked.addAll([
             for (var i = 0; i < _loraHits.length; i++)
               if (_loraHits[i]?.isLocal == true ||
@@ -504,6 +534,7 @@ class _ImportImagePanelState extends ConsumerState<ImportImagePanel> {
     ref.read(generateProvider.notifier).setModel(model);
     setState(() {
       _target = target;
+      _lastPick = null;
       _initSelections(m);
     });
     hintSnack(
@@ -807,10 +838,13 @@ class _ImportImagePanelState extends ConsumerState<ImportImagePanel> {
   bool get _positiveOn => _posOn.isNotEmpty;
 
   /// 正向那几行里勾着的(行序)。
-  List<int> get _posOn => [
-    for (var i = 0; i < _posRows.length; i++)
-      if (!_secOff.contains(i)) i,
-  ];
+  List<int> get _posOn {
+    final count = _posRows.length;
+    return [
+      for (var i = 0; i < count; i++)
+        if (!_secOff.contains(i)) i,
+    ];
+  }
 
   /// 正向那几行:图里存的分区(主体没词就不列),对不上 / 没存就一行主体放整串。
   List<PromptSection> get _posRows {
@@ -849,7 +883,9 @@ class _ImportImagePanelState extends ConsumerState<ImportImagePanel> {
   bool get _hasAnySelection {
     if (_positiveOn || _useNegative) return true;
     if (_charChecked.isNotEmpty) return true;
-    if (_vibeChecked.isNotEmpty) return true;
+    if (_vibeChecked.isNotEmpty || (_inLora && _loraChecked.isNotEmpty)) {
+      return true;
+    }
     if (_settingsUnsupportedReason == null &&
         _settingItems.any((e) => e.on && e.unsupportedReason == null)) {
       return true;
@@ -949,24 +985,42 @@ class _ImportImagePanelState extends ConsumerState<ImportImagePanel> {
       }
     }
 
-    if (secRows != null && pos != null && _prefs.promptMode == ImagePromptImportMode.replaceMain &&
+    if (secRows != null &&
+        pos != null &&
+        _prefs.promptMode == ImagePromptImportMode.replaceMain &&
         _posOn.length != _posRows.length) {
       final selected = [for (final i in _posOn) _posRows[i]];
-      pos = joinSections(selected, selected.where((r) => r.isMain).firstOrNull?.positive ?? '', positive: true);
+      pos = joinSections(
+        selected,
+        selected.where((r) => r.isMain).firstOrNull?.positive ?? '',
+        positive: true,
+      );
     }
 
-    if (secRows != null && pos != null && _prefs.promptMode != ImagePromptImportMode.replaceMain) {
-      final withNeg = neg != null && sectionLayoutMatches(secRows, neg, positive: false);
+    if (secRows != null &&
+        pos != null &&
+        _prefs.promptMode != ImagePromptImportMode.replaceMain) {
+      final withNeg =
+          neg != null && sectionLayoutMatches(secRows, neg, positive: false);
       final rows = _posRows;
-      ref.read(canvasWorkspaceProvider.notifier).updatePrompts(before.canvasId, (current) {
-        final updated = importSectionsInto(current.applyTo(ref.read(generateProvider)),
-          [for (final i in _posOn) withNeg ? rows[i] : rows[i].copyWith(negative: '')],
-          mainNegative: withNeg ? secRows.where((r) => r.isMain).firstOrNull?.negative ?? '' : neg,
-          append: _prefs.promptMode == ImagePromptImportMode.addSection,
-          newId: notifier.allocateItemId,
-        );
-        return CanvasPrompts.of(updated);
-      });
+      ref.read(canvasWorkspaceProvider.notifier).updatePrompts(
+        before.canvasId,
+        (current) {
+          final updated = importSectionsInto(
+            current.applyTo(ref.read(generateProvider)),
+            [
+              for (final i in _posOn)
+                withNeg ? rows[i] : rows[i].copyWith(negative: ''),
+            ],
+            mainNegative: withNeg
+                ? secRows.where((r) => r.isMain).firstOrNull?.negative ?? ''
+                : neg,
+            append: _prefs.promptMode == ImagePromptImportMode.addSection,
+            newId: notifier.allocateItemId,
+          );
+          return CanvasPrompts.of(updated);
+        },
+      );
     } else {
       _writeImagePrompts(before.canvasId, positive: pos, negative: neg);
     }
@@ -1346,122 +1400,583 @@ class _ImportImagePanelState extends ConsumerState<ImportImagePanel> {
     );
   }
 
+  Widget _albumOptions() => ImportAlbumOptions(
+    origin: widget.origin,
+    choice: _albumChoice,
+    onChanged: (choice) => setState(() => _albumChoice = choice),
+  );
+
+  List<int> get _mountableLoras => [
+    for (var i = 0; i < _loraHits.length; i++)
+      if (_loraHits[i]?.isLocal == true || _loraHits[i]?.isCivitai == true) i,
+  ];
+
+  // Compare the actual checks so a manual change also updates the highlighted preset.
+  Set<String> _checkedItems(ImageMetadata m, [_ImportPick? pick]) {
+    final all = pick == _ImportPick.full;
+    final characters = all || pick == _ImportPick.characters;
+    final prompts = pick != _ImportPick.none;
+    final rows = _posRows;
+    return {
+      for (var i = 0; i < rows.length; i++)
+        if (pick == null ? !_secOff.contains(i) : prompts) 'pos$i',
+      if (m.negativePrompt.isNotEmpty &&
+          (pick == null ? _useNegative : prompts))
+        'neg',
+      if (_inNai &&
+          (pick != null || _useNegative || _positiveOn) &&
+          _presetMatch != null &&
+          (pick == null ? _usePreset : prompts))
+        'preset',
+      if (_inNai)
+        for (var i = 0; i < m.characters.length; i++)
+          if (pick == null ? _charChecked.contains(i) : characters) 'char$i',
+      if (_inNai)
+        for (var i = 0; i < m.vibes.length; i++)
+          if (_vibeImportable(m, i) &&
+              (pick == null ? _vibeChecked.contains(i) : all))
+            'vibe$i',
+      if (_inLora)
+        for (final i in _mountableLoras)
+          if (pick == null ? _loraChecked.contains(i) : characters) 'lora$i',
+      if (_settingsUnsupportedReason == null)
+        for (final e in _settingItems)
+          if (e.unsupportedReason == null &&
+              (pick == null
+                  ? e.on
+                  : all ||
+                        characters &&
+                            const {
+                              '分辨率',
+                              'Steps',
+                              'CFG',
+                              'Sampler',
+                            }.contains(e.label)))
+            'param:${e.label}',
+    };
+  }
+
+  void _applyPick(_ImportPick pick) {
+    final m = _meta!;
+    setState(() {
+      _lastPick = pick;
+      _metadataOpen = false;
+      _usePreset = _inNai && m.isNovelAI && pick != _ImportPick.none;
+      if (pick == _ImportPick.full) _presetImport = true;
+      final chosen = _checkedItems(m, pick);
+      _secOff.clear();
+      final rowCount = _posRows.length;
+      for (var i = 0; i < rowCount; i++) {
+        if (!chosen.contains('pos$i')) _secOff.add(i);
+      }
+      _useNegative = chosen.contains('neg');
+      _charChecked
+        ..clear()
+        ..addAll([
+          for (var i = 0; i < m.characters.length; i++)
+            if (chosen.contains('char$i')) i,
+        ]);
+      _vibeChecked
+        ..clear()
+        ..addAll([
+          for (var i = 0; i < m.vibes.length; i++)
+            if (chosen.contains('vibe$i')) i,
+        ]);
+      _loraChecked
+        ..clear()
+        ..addAll(_mountableLoras.where((i) => chosen.contains('lora$i')));
+      for (final e in _settingItems) {
+        e.set(chosen.contains('param:${e.label}'));
+      }
+    });
+  }
+
   Widget _desktop(ColorScheme scheme) {
     final m = _meta;
     final reverse = _reverseTags != null;
-    final body = _loading
-        ? const Center(child: CircularProgressIndicator())
-        : reverse
-        ? _reverseBody(scheme, desktop: true)
-        : m != null
-        ? _mainBody(scheme, desktop: true)
-        : ListView(
-            padding: const EdgeInsets.all(20),
-            children: [
-              ImportAlbumOptions(
-                origin: widget.origin,
-                choice: _albumChoice,
-                onChanged: (v) => setState(() => _albumChoice = v),
-              ),
-              const SizedBox(height: 24),
-              const InfoNote('未在这张图里找到生成参数，可使用图片操作按钮将图片用作参考、反推提示词或进行 2× 超分辨率。'),
-            ],
-          );
+    final checked = m == null || reverse ? <String>{} : _checkedItems(m);
+    bool matchesPick(_ImportPick candidate) =>
+        m != null &&
+        setEquals(checked, _checkedItems(m, candidate)) &&
+        (candidate != _ImportPick.full ||
+            !_usePreset ||
+            !checked.contains('preset') ||
+            _presetImport);
+    final selectedPick = m == null || reverse
+        ? null
+        : [
+            ?_lastPick,
+            _ImportPick.characters,
+            _ImportPick.prompts,
+            _ImportPick.full,
+            _ImportPick.none,
+          ].where(matchesPick).firstOrNull;
+    final count = reverse
+        ? (_useReverse ? 1 : 0)
+        : checked.where((key) => key != 'preset').length;
+    final pos = _posOn.length;
+    final params = checked.where((key) => key.startsWith('param:')).length;
+    final summary = <String>[
+      if (reverse && _useReverse) '反推提示词',
+      if (!reverse) ...[
+        if (pos > 0) '正向 $pos 分区',
+        if (checked.contains('neg')) '负向提示词',
+        if (checked.contains('preset')) _presetImport ? '导入预设' : '剥离预设',
+        if (_inNai && _charChecked.isNotEmpty) '${_charChecked.length} 个角色',
+        if (_inNai && _vibeChecked.isNotEmpty) '${_vibeChecked.length} 个 Vibe',
+        if (_inLora && _loraChecked.isNotEmpty) '${_loraChecked.length} 个 LoRA',
+        if (params > 0) '$params 项参数',
+      ],
+      if (_albumChoice.enabled && _albumChoice.target != null)
+        '切换到${ref.watch(albumsProvider).name(_albumChoice.target!.albumId)}',
+    ];
     return DesktopImportLayout(
       bytes: widget.bytes,
       fileName: widget.fileName,
+      fileSize: _sizeText,
       title: reverse ? 'AI 反推结果' : '导入图片',
+      sourceLabel: m == null ? null : _sourceLabel(m.sourceType),
       source: _loading ? '正在读取图片…' : m?.source ?? '参考图片',
-      summary: m == null ? _sizeText : '${m.width} × ${m.height} · $_sizeText',
+      dimensions: _previewSize == null
+          ? null
+          : '${_previewSize!.$1} × ${_previewSize!.$2}',
+      album: _albumOptions(),
+      summary: summary,
+      quickPicks: m == null || reverse
+          ? null
+          : SegmentedButton<_ImportPick>(
+              style: SegmentedButton.styleFrom(
+                visualDensity: VisualDensity.compact,
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                padding: const EdgeInsets.symmetric(horizontal: 10),
+              ),
+              segments: [
+                for (final pick in _ImportPick.values)
+                  ButtonSegment(value: pick, label: Text(pick.label)),
+              ],
+              selected: {?selectedPick},
+              emptySelectionAllowed: true,
+              showSelectedIcon: false,
+              onSelectionChanged: (set) {
+                if (set.isNotEmpty) _applyPick(set.single);
+              },
+            ),
       details: KeyedSubtree(
         key: const ValueKey('desktop-import-details'),
-        child: body,
+        child: _metadataOpen && m != null
+            ? MetadataDetailPage(
+                meta: m,
+                bytes: widget.bytes,
+                fileName: widget.fileName,
+                onReturnToImport: () => setState(() => _metadataOpen = false),
+              )
+            : _loading
+            ? const Center(child: CircularProgressIndicator())
+            : reverse
+            ? _reverseBody(scheme, desktop: true)
+            : m != null
+            ? _mainBody(scheme, desktop: true)
+            : ListView(
+                padding: const EdgeInsets.all(24),
+                children: const [
+                  InfoNote('这张图片没有生成参数。可以直接用作参考图，也可以用 AI 反推提示词。'),
+                ],
+              ),
       ),
       referenceActions: _desktopReferences(scheme, reverse: reverse),
       onClose: () => Navigator.of(context).pop(),
+      onEscape: () {
+        if (_metadataOpen) {
+          setState(() => _metadataOpen = false);
+        } else {
+          Navigator.of(context).pop();
+        }
+      },
       onMetadata: m == null
           ? null
-          : () => Navigator.of(context).push(
-              sharedAxisRoute(
-                MetadataDetailPage(
-                  meta: m,
-                  bytes: widget.bytes,
-                  fileName: widget.fileName,
-                ),
-              ),
-            ),
+          : () => setState(() => _metadataOpen = !_metadataOpen),
       confirm: _loading || (!reverse && m == null)
           ? null
           : FilledButton.icon(
               key: const ValueKey('desktop-import-confirm'),
-              onPressed: reverse
-                  ? (_useReverse ? _importReverse : null)
-                  : (_hasAnySelection ? _import : null),
-              icon: const Icon(Icons.input, size: 18),
-              label: Text(l10nNow.importSelected),
+              onPressed: count == 0
+                  ? null
+                  : reverse
+                  ? _importReverse
+                  : _import,
+              icon: const Icon(Icons.download_outlined, size: 18),
+              label: Text(reverse ? '导入反推提示词' : '导入所选（$count 项）'),
             ),
+    );
+  }
+
+  Widget _desktopPromptGroup(ColorScheme scheme, ImageMetadata m) {
+    final rows = _posRows;
+    final modes = [
+      ImagePromptImportMode.replaceAll,
+      ImagePromptImportMode.replaceMain,
+      ImagePromptImportMode.addSection,
+    ];
+    final imported = _importTexts(m);
+    final singlePrompt = _secRows == null;
+    final total = rows.length + (m.negativePrompt.isNotEmpty ? 1 : 0);
+    final selected = _posOn.length + (_useNegative ? 1 : 0);
+    return _desktopGroup(
+      scheme,
+      title: '提示词',
+      icon: Icons.notes,
+      count: '$selected / $total',
+      control: KeyedSubtree(
+        key: const ValueKey('image-prompt-import-mode'),
+        child: _SlideSeg(
+          options: [for (final mode in modes) mode.label],
+          index: modes.indexOf(_prefs.promptMode),
+          enabled: selected > 0,
+          optWidth: 64,
+          textStyle: context.texts.labelLarge,
+          onChanged: (i) =>
+              setState(() => _prefs = _prefs.copyWith(promptMode: modes[i])),
+        ),
+      ),
+      children: [
+        Text(_prefs.promptMode.description, style: context.texts.bodySmall),
+        if (_showConvert) _convertRow(scheme),
+        for (var i = 0; i < rows.length; i++)
+          _desktopChoiceRow(
+            scheme,
+            id: 'pos$i',
+            title: rows.length == 1 && rows[i].isMain
+                ? context.l10n.positivePrompt
+                : '正向 · ${rows[i].name}',
+            value: singlePrompt ? imported.positive : rows[i].positive,
+            selected: !_secOff.contains(i),
+            toggle: () => setState(() {
+              if (!_secOff.remove(i)) _secOff.add(i);
+            }),
+          ),
+        if (m.negativePrompt.isNotEmpty)
+          _desktopChoiceRow(
+            scheme,
+            id: 'neg',
+            title: context.l10n.negativePrompt,
+            value: imported.negative,
+            selected: _useNegative,
+            danger: true,
+            toggle: () => setState(() => _useNegative = !_useNegative),
+          ),
+        if (_inNai && m.isNovelAI && _presetRecognized) _presetRow(scheme),
+      ],
+    );
+  }
+
+  Widget _desktopGroup(
+    ColorScheme scheme, {
+    required String title,
+    required IconData icon,
+    required String count,
+    Widget? control,
+    required List<Widget> children,
+  }) => Container(
+    decoration: BoxDecoration(
+      color: scheme.surface,
+      border: Border.all(color: scheme.outlineVariant),
+      borderRadius: BorderRadius.circular(12),
+    ),
+    clipBehavior: Clip.antiAlias,
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        ColoredBox(
+          color: scheme.surfaceContainerLow,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            child: Wrap(
+              alignment: WrapAlignment.spaceBetween,
+              spacing: 12,
+              runSpacing: 6,
+              crossAxisAlignment: WrapCrossAlignment.center,
+              children: [
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(icon, size: 18, color: scheme.primary),
+                    const SizedBox(width: 8),
+                    Text(title, style: context.texts.titleSmall),
+                    const SizedBox(width: 8),
+                    Text(count, style: context.texts.labelSmall),
+                  ],
+                ),
+                ?control,
+              ],
+            ),
+          ),
+        ),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(12, 4, 12, 12),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              for (final child in children)
+                Padding(padding: const EdgeInsets.only(top: 8), child: child),
+            ],
+          ),
+        ),
+      ],
+    ),
+  );
+
+  Widget _desktopChoiceRow(
+    ColorScheme scheme, {
+    required String id,
+    required String title,
+    required String value,
+    required bool selected,
+    required VoidCallback toggle,
+    bool danger = false,
+    String? negative,
+    String? avatar,
+    bool mosaic = false,
+    String? position,
+  }) {
+    final expanded = _expandedRows.contains(id);
+    final fullText = [
+      value,
+      if (negative?.isNotEmpty == true) '负向提示词\n$negative',
+    ].join('\n\n');
+    return _desktopChoiceCard(
+      scheme,
+      title: [
+        ?position,
+        title,
+        if (negative?.isNotEmpty == true) '含负面词',
+      ].join('  ·  '),
+      selectionLabel: title,
+      selected: selected,
+      toggle: toggle,
+      expanded: expanded,
+      onExpand: () => setState(() {
+        if (!_expandedRows.remove(id)) _expandedRows.add(id);
+      }),
+      color: danger ? scheme.error : null,
+      leading: avatar == null
+          ? null
+          : SizedBox.square(
+              dimension: 28,
+              child: TagCardPreview(
+                url: avatar,
+                mosaic: mosaic,
+                name: title,
+                decodeWidth: 36,
+              ),
+            ),
+      action: _copyButton(scheme, text: value, what: title, size: 30),
+      preview: value,
+      detail: SelectableText(fullText, style: context.texts.bodyMedium),
+    );
+  }
+
+  Widget _desktopChoiceCard(
+    ColorScheme scheme, {
+    required String title,
+    required String selectionLabel,
+    required bool selected,
+    required VoidCallback? toggle,
+    required bool expanded,
+    required VoidCallback onExpand,
+    required Widget action,
+    required String preview,
+    required Widget detail,
+    Widget? leading,
+    Color? color,
+  }) {
+    return Material(
+      color: scheme.surface,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(9),
+        side: BorderSide(
+          color: selected
+              ? scheme.primary.withValues(alpha: .34)
+              : scheme.outlineVariant,
+        ),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          InkWell(
+            onTap: onExpand,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+              child: Row(
+                children: [
+                  Checkbox(
+                    key: ValueKey('import-select-$selectionLabel'),
+                    semanticLabel: selectionLabel,
+                    value: selected,
+                    onChanged: toggle == null ? null : (_) => toggle(),
+                    visualDensity: VisualDensity.compact,
+                  ),
+                  if (leading != null)
+                    Padding(
+                      padding: const EdgeInsets.only(right: 6),
+                      child: leading,
+                    ),
+                  Expanded(
+                    child: Text(
+                      title,
+                      style: context.texts.titleSmall?.copyWith(color: color),
+                    ),
+                  ),
+                  action,
+                  Icon(
+                    expanded ? Icons.expand_less : Icons.expand_more,
+                    size: 18,
+                  ),
+                ],
+              ),
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(38, 0, 12, 10),
+            child: expanded
+                ? detail
+                : Text(
+                    preview,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: context.texts.bodySmall?.copyWith(
+                      color: color ?? scheme.onSurfaceVariant,
+                      height: 1.45,
+                    ),
+                  ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _desktopCharacters(ColorScheme scheme, ImageMetadata m) {
+    final indexes = Iterable<int>.generate(m.characters.length);
+    final entries =
+        ref.watch(tagLibraryProvider).value?.of(TagCategory.character) ??
+        const <TagEntry>[];
+    final matches = [
+      for (final c in m.characters)
+        entries.where((e) => e.positive.trim() == c.prompt.trim()).singleOrNull,
+    ];
+    final positions = importPositions(m.characters);
+    return _desktopGroup(
+      scheme,
+      title: context.l10n.characterPrompts,
+      icon: Icons.group_outlined,
+      count: '${_charChecked.length} / ${m.characters.length}',
+      control: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Checkbox(
+            semanticLabel: '全选角色',
+            value: _charChecked.length == m.characters.length,
+            onChanged: (v) => setState(() {
+              _charChecked.clear();
+              if (v == true) _charChecked.addAll(indexes);
+            }),
+            visualDensity: VisualDensity.compact,
+          ),
+          _SlideSeg(
+            options: [context.l10n.importReplace, context.l10n.importAppend],
+            index: _charAppend ? 1 : 0,
+            optWidth: 68,
+            textStyle: context.texts.labelLarge,
+            onChanged: (i) => setState(() => _charAppend = i == 1),
+          ),
+        ],
+      ),
+      children: [
+        for (final i in indexes)
+          _desktopChoiceRow(
+            scheme,
+            id: 'char$i',
+            title: matches[i]?.name ?? '角色 ${i + 1}',
+            position: m.useCoords == true
+                ? positionChipLabel(positions[i])
+                : 'AUTO',
+            avatar: matches[i]?.previewUrl,
+            mosaic: matches[i]?.mosaic ?? false,
+            value: m.characters[i].prompt,
+            negative: m.characters[i].uc,
+            selected: _charChecked.contains(i),
+            toggle: () => setState(() {
+              if (!_charChecked.remove(i)) _charChecked.add(i);
+            }),
+          ),
+      ],
     );
   }
 
   Widget _desktopReferences(ColorScheme scheme, {required bool reverse}) {
     final actions = [
       (
-        label: context.l10n.img2img,
-        icon: Icons.image_outlined,
-        action: _useAsImg2img,
-        blocked: _moduleBlocked(GenModule.img2img),
+        context.l10n.img2img,
+        Icons.image_outlined,
+        _useAsImg2img,
+        _moduleBlocked(GenModule.img2img),
       ),
       (
-        label: l10nNow.desktopStyleReference,
-        icon: Icons.palette_outlined,
-        action: _useAsVibe,
-        blocked: _moduleBlocked(GenModule.vibe),
+        l10nNow.preciseReference,
+        Icons.face_retouching_natural,
+        _useAsCharRef,
+        _moduleBlocked(GenModule.charRef),
       ),
       (
-        label: l10nNow.preciseReference,
-        icon: Icons.face_retouching_natural,
-        action: _useAsCharRef,
-        blocked: _moduleBlocked(GenModule.charRef),
+        l10nNow.desktopStyleReference,
+        Icons.palette_outlined,
+        _useAsVibe,
+        _moduleBlocked(GenModule.vibe),
+      ),
+      (
+        '2× ${l10nNow.upscaleResolution}',
+        Icons.open_in_full,
+        _superResolve,
+        _upscaling ? '正在超分辨率…' : null,
       ),
       if (!reverse)
         (
-          label: l10nNow.desktopExtractPrompt,
-          icon: Icons.auto_awesome,
-          action: _reverse,
-          blocked: null,
+          'AI ${l10nNow.desktopExtractPrompt}',
+          Icons.auto_awesome,
+          _reverse,
+          null,
         ),
-      (
-        label: l10nNow.upscaleResolution,
-        icon: Icons.blur_on,
-        action: _superResolve,
-        blocked: _upscaling ? '正在超分辨率…' : null,
-      ),
     ];
-    return Wrap(
-      spacing: 6,
-      runSpacing: 6,
-      children: [
-        for (final item in actions)
-          Tooltip(
-            message:
-                item.blocked ??
-                (item.label == '超分辨率'
-                    ? 'NAI 固定 2× · 1–4 点 · 保存到当前选定图库'
-                    : item.label),
-            child: OutlinedButton.icon(
-              key: item.label == '超分辨率'
-                  ? const ValueKey('desktop-import-upscale')
-                  : null,
-              style: OutlinedButton.styleFrom(
-                padding: const EdgeInsets.symmetric(horizontal: 10),
-                visualDensity: VisualDensity.compact,
+    return LayoutBuilder(
+      builder: (context, bounds) => Wrap(
+        spacing: 6,
+        runSpacing: 6,
+        children: [
+          for (var i = 0; i < actions.length; i++)
+            SizedBox(
+              width: i == 4 ? bounds.maxWidth : (bounds.maxWidth - 6) / 2,
+              child: Tooltip(
+                message:
+                    actions[i].$4 ??
+                    (i == 3 ? 'NAI 固定 2× · 1–4 点 · 保存到当前选定图库' : actions[i].$1),
+                child: OutlinedButton.icon(
+                  key: i == 3 ? const ValueKey('desktop-import-upscale') : null,
+                  style: OutlinedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(horizontal: 5),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(9),
+                    ),
+                  ),
+                  onPressed: _loading || actions[i].$4 != null
+                      ? null
+                      : actions[i].$3,
+                  icon: Icon(actions[i].$2, size: 16),
+                  label: Text(actions[i].$1),
+                ),
               ),
-              onPressed: _loading || item.blocked != null ? null : item.action,
-              icon: Icon(item.icon, size: 16),
-              label: Text(item.label),
             ),
-          ),
-      ],
+        ],
+      ),
     );
   }
 
@@ -1472,11 +1987,12 @@ class _ImportImagePanelState extends ConsumerState<ImportImagePanel> {
       padding: const EdgeInsets.fromLTRB(14, 10, 14, 8),
       children: [
         if (!desktop) _infoCard(scheme, reverse: true),
-        ImportAlbumOptions(
-          origin: widget.origin,
-          choice: _albumChoice,
-          onChanged: (v) => setState(() => _albumChoice = v),
-        ),
+        if (!desktop)
+          ImportAlbumOptions(
+            origin: widget.origin,
+            choice: _albumChoice,
+            onChanged: (v) => setState(() => _albumChoice = v),
+          ),
         const SizedBox(height: 16),
         Text(
           l10nNow.desktopExtractedPrompt,
@@ -1555,15 +2071,18 @@ class _ImportImagePanelState extends ConsumerState<ImportImagePanel> {
   Widget _mainBody(ColorScheme scheme, {bool desktop = false}) {
     final m = _meta!;
     return ListView(
-      padding: const EdgeInsets.fromLTRB(14, 10, 14, 8),
+      padding: desktop
+          ? const EdgeInsets.all(20)
+          : const EdgeInsets.fromLTRB(14, 10, 14, 8),
       children: [
         if (!desktop) _infoCard(scheme),
-        ImportAlbumOptions(
-          origin: widget.origin,
-          choice: _albumChoice,
-          onChanged: (v) => setState(() => _albumChoice = v),
-        ),
-        const SizedBox(height: 16),
+        if (!desktop)
+          ImportAlbumOptions(
+            origin: widget.origin,
+            choice: _albumChoice,
+            onChanged: (v) => setState(() => _albumChoice = v),
+          ),
+        if (!desktop) const SizedBox(height: 16),
         // 跨家族:说清这是哪个模型的图,给一键切过去;不切就只导提示词
         if (_crossCategory) ...[
           _crossCategoryBanner(scheme, m),
@@ -1576,61 +2095,76 @@ class _ImportImagePanelState extends ConsumerState<ImportImagePanel> {
           _foreignModelBanner(scheme),
           const SizedBox(height: 14),
         ],
-        Text(
-          context.l10n.importToCreate,
-          style: context.texts.titleMedium!.copyWith(
-            fontWeight: FontWeight.w600,
+        if (desktop) ...[
+          if (m.prompt.isNotEmpty || m.negativePrompt.isNotEmpty)
+            _desktopPromptGroup(scheme, m),
+          const SizedBox(height: 14),
+        ] else ...[
+          Text(
+            context.l10n.importToCreate,
+            style: context.texts.titleMedium!.copyWith(
+              fontWeight: FontWeight.w600,
+            ),
           ),
-        ),
-        const SizedBox(height: 11),
-        // 正向:同角色区,图里存了分区就逐格列出,没有就一行主体
-        if (m.prompt.isNotEmpty) ...[
-          if (_secRows == null || (_posRows.length == 1 && _posRows.single.isMain))
-            _fixedRow(scheme, icon: Icons.notes, title: context.l10n.positivePrompt,
-              preview: m.prompt, checked: _positiveOn,
-              onTap: () => setState(() {
-                if (_positiveOn) { _secOff.add(0); } else { _secOff.remove(0); }
-              }),
-            )
-          else
-            _sectionsSection(scheme, _posRows),
-          const SizedBox(height: 9),
-        ],
-        // 负向
-        if (m.negativePrompt.isNotEmpty) ...[
-          _fixedRow(
-            scheme,
-            icon: Icons.block,
-            title: context.l10n.negativePrompt,
-            preview: m.negativePrompt,
-            checked: _useNegative,
-            onTap: () => setState(() => _useNegative = !_useNegative),
-            danger: true,
-          ),
-          const SizedBox(height: 9),
-        ],
-        if (m.prompt.isNotEmpty || m.negativePrompt.isNotEmpty) ...[
-          _promptImportMode(scheme, enabled: _positiveOn || _useNegative),
-          const SizedBox(height: 9),
-        ],
-        // 权重语法转换:只在「源是 a1111、目标是 NovelAI」时出现
-        if (_showConvert) ...[_convertRow(scheme), const SizedBox(height: 9)],
-        // 提示词预设:识别并剥离。只对 NAI 图有意义 —— 别的来源里本来就没有
-        // 预设文本,切到「无」等于白白丢掉用户当前选的档。
-        //
-        // **没认出来就整条不显示**:那种情况下这张卡除了一句「没认出任何内置
-        // 预设的文本」之外没有可看的内容,而绝大多数图都落在这一档,常驻着只是
-        // 把真正要读的几行(模型/角色/Vibe)往下挤。
-        if (_inNai &&
-            m.isNovelAI &&
-            (m.prompt.isNotEmpty || m.negativePrompt.isNotEmpty) &&
-            _presetRecognized) ...[
-          _presetRow(scheme),
-          const SizedBox(height: 9),
+          const SizedBox(height: 11),
+          // 正向:同角色区,图里存了分区就逐格列出,没有就一行主体
+          if (m.prompt.isNotEmpty) ...[
+            if (_secRows == null ||
+                (_posRows.length == 1 && _posRows.single.isMain))
+              _fixedRow(
+                scheme,
+                icon: Icons.notes,
+                title: context.l10n.positivePrompt,
+                preview: m.prompt,
+                checked: _positiveOn,
+                onTap: () => setState(() {
+                  if (_positiveOn) {
+                    _secOff.add(0);
+                  } else {
+                    _secOff.remove(0);
+                  }
+                }),
+              )
+            else
+              _sectionsSection(scheme, _posRows),
+            const SizedBox(height: 9),
+          ],
+          // 负向
+          if (m.negativePrompt.isNotEmpty) ...[
+            _fixedRow(
+              scheme,
+              icon: Icons.block,
+              title: context.l10n.negativePrompt,
+              preview: m.negativePrompt,
+              checked: _useNegative,
+              onTap: () => setState(() => _useNegative = !_useNegative),
+              danger: true,
+            ),
+            const SizedBox(height: 9),
+          ],
+          if (m.prompt.isNotEmpty || m.negativePrompt.isNotEmpty) ...[
+            _promptImportMode(scheme, enabled: _positiveOn || _useNegative),
+            const SizedBox(height: 9),
+          ],
+          // 权重语法转换:只在「源是 a1111、目标是 NovelAI」时出现
+          if (_showConvert) ...[_convertRow(scheme), const SizedBox(height: 9)],
+          // 提示词预设:识别并剥离。只对 NAI 图有意义 —— 别的来源里本来就没有
+          // 预设文本,切到「无」等于白白丢掉用户当前选的档。
+          //
+          // **没认出来就整条不显示**:那种情况下这张卡除了一句「没认出任何内置
+          // 预设的文本」之外没有可看的内容,而绝大多数图都落在这一档,常驻着只是
+          // 把真正要读的几行(模型/角色/Vibe)往下挤。
+          if (_inNai &&
+              m.isNovelAI &&
+              (m.prompt.isNotEmpty || m.negativePrompt.isNotEmpty) &&
+              _presetRecognized) ...[
+            _presetRow(scheme),
+            const SizedBox(height: 9),
+          ],
         ],
         // 角色
         if (_inNai && m.characters.isNotEmpty) ...[
-          _charSection(scheme, m),
+          desktop ? _desktopCharacters(scheme, m) : _charSection(scheme, m),
           const SizedBox(height: 9),
         ],
         // Vibe
@@ -1768,12 +2302,74 @@ class _ImportImagePanelState extends ConsumerState<ImportImagePanel> {
     // 预设是异步载入的:watch 一下,载入完成后这一行的识别结果要跟着刷新
     // (_presetMatch 自己只能 read —— 它同时被导入回调调用,那里 watch 非法)。
     ref.watch(promptPresetsProvider);
+    final desktop = ref.watch(desktopModeProvider);
     final needPrompt = !_positiveOn && !_useNegative;
     final hit = needPrompt ? null : _presetMatch;
     final on = _usePreset && !needPrompt;
     final fg = needPrompt
         ? scheme.onSurfaceVariant.withValues(alpha: .5)
         : scheme.onSurface;
+    final toggle = needPrompt
+        ? null
+        : () => setState(() => _usePreset = !_usePreset);
+    void expand() => setState(() => _presetExpanded = !_presetExpanded);
+    final mode = _SlideSeg(
+      options: const ['剥离', '导入'],
+      index: _presetImport ? 1 : 0,
+      enabled: on,
+      optWidth: 52,
+      textStyle: desktop ? context.texts.labelLarge : null,
+      onChanged: (i) => setState(() => _presetImport = i == 1),
+    );
+    final note = hit == null
+        ? context.l10n.presetNeedPrompt
+        : _presetImport
+        ? '以上文本会从提示词里剥掉,档位切成「${hit.preset.name}」。'
+        : '以上文本会从提示词里剥掉,档位保持你现在选的那一档。';
+    if (desktop) {
+      final preset = hit?.preset;
+      return _desktopChoiceCard(
+        scheme,
+        title: preset == null
+            ? l10nNow.promptPresets
+            : '${l10nNow.promptPresets} · ${preset.name}',
+        selectionLabel: l10nNow.promptPresets,
+        selected: on,
+        toggle: toggle,
+        expanded: _presetExpanded,
+        onExpand: expand,
+        color: needPrompt ? fg : null,
+        action: Padding(padding: const EdgeInsets.only(right: 4), child: mode),
+        preview: preset == null
+            ? note
+            : [
+                _presetImport ? '剥离并切换到所选预设' : '剥离内嵌预设，保留当前档位',
+                [
+                  preset.positive,
+                  preset.negative,
+                ].where((v) => v.isNotEmpty).join(' / '),
+              ].join(' · '),
+        detail: SelectableText.rich(
+          TextSpan(
+            children: [
+              if (preset != null) ...[
+                TextSpan(
+                  text:
+                      '${preset.positive.isEmpty ? context.l10n.presetNoPositive : preset.positive}\n',
+                ),
+                if (preset.negative.isNotEmpty)
+                  TextSpan(
+                    text: 'UC: ${preset.negative}\n',
+                    style: TextStyle(color: scheme.error),
+                  ),
+              ],
+              TextSpan(text: note),
+            ],
+          ),
+          style: context.texts.bodyMedium,
+        ),
+      );
+    }
     return Material(
       color: scheme.surfaceContainer,
       borderRadius: BorderRadius.circular(16),
@@ -1783,7 +2379,7 @@ class _ImportImagePanelState extends ConsumerState<ImportImagePanel> {
         children: [
           // 头部整行可点 = 展开/收起;分段控件与勾选框自带手势,不连带展开。
           InkWell(
-            onTap: () => setState(() => _presetExpanded = !_presetExpanded),
+            onTap: expand,
             child: Padding(
               padding: const EdgeInsets.fromLTRB(14, 10, 9, 10),
               child: Row(
@@ -1805,24 +2401,10 @@ class _ImportImagePanelState extends ConsumerState<ImportImagePanel> {
                       ),
                     ),
                   ),
-                  // 两档都剥,差别只在档位动不动 —— 所以是二选一而不是第二个开关。
-                  // 两字标签把格宽收到 52(默认 76 是按「完全覆盖」定的),否则这
-                  // 一行在窄屏上会把标题挤没。
-                  _SlideSeg(
-                    options: const ['剥离', '导入'],
-                    index: _presetImport ? 1 : 0,
-                    enabled: on,
-                    optWidth: 52,
-                    textStyle: ref.watch(desktopModeProvider)
-                        ? context.texts.labelLarge
-                        : null,
-                    onChanged: (i) => setState(() => _presetImport = i == 1),
-                  ),
+                  mode,
                   const SizedBox(width: 8),
                   InkResponse(
-                    onTap: needPrompt
-                        ? null
-                        : () => setState(() => _usePreset = !_usePreset),
+                    onTap: toggle,
                     radius: 22,
                     child: Padding(
                       padding: const EdgeInsets.all(4),
@@ -1858,12 +2440,7 @@ class _ImportImagePanelState extends ConsumerState<ImportImagePanel> {
                     // 「识别到 Heavy」看不出要删什么词
                     _presetTextBlock(scheme, hit.preset),
                     const SizedBox(height: 6),
-                    _presetNote(
-                      scheme,
-                      _presetImport
-                          ? '以上文本会从提示词里剥掉,档位切成「${hit.preset.name}」。'
-                          : '以上文本会从提示词里剥掉,档位保持你现在选的那一档。',
-                    ),
+                    _presetNote(scheme, note),
                   ],
                 ],
               ),
@@ -1972,10 +2549,7 @@ class _ImportImagePanelState extends ConsumerState<ImportImagePanel> {
   /// 不再是之前那种细行小字的自制样式。
   Widget _loraSection(ColorScheme scheme, ImageMetadata m) {
     // 能挂的 = 库里有的 + Civitai 上有的(后者导入后自动下载)
-    final mountable = [
-      for (var i = 0; i < _loraHits.length; i++)
-        if (_loraHits[i]?.isLocal == true || _loraHits[i]?.isCivitai == true) i,
-    ];
+    final mountable = _mountableLoras;
     final allOn =
         mountable.isNotEmpty && _loraChecked.length == mountable.length;
     return _section(

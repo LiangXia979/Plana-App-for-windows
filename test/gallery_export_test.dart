@@ -237,7 +237,7 @@ void main() {
   );
 
   test(
-    'keepSamples ignores seed and UI state, retaining newest in entire scope',
+    'keepSamples ignores seed and editor state and retains the selected sample',
     () async {
       final older = await item(
         'gen8',
@@ -277,14 +277,14 @@ void main() {
         [older, newest, earlier],
         cleanup: GalleryExportCleanup.keepSamples,
       );
-      expect(prepared.deleteIds, {older.id, earlier.id});
+      expect(prepared.deleteIds, {newest.id, earlier.id});
       expect(prepared.retainedCount, 1);
       expect(prepared.unknownCount, 0);
       expect(blobs.referenceRevision, revision);
       expect(await Directory(p.join(root.path, 'blobs')).exists(), isFalse);
       final report = await export(prepared);
       expect(report.savedIds, {older.id});
-      expect(report.cleanupIds, {older.id, earlier.id});
+      expect(report.cleanupIds, {newest.id, earlier.id});
       // The service only returns a plan; it must never delete gallery files.
       for (final image in [older, newest, earlier]) {
         expect(await store.imageFileForPreview(image.id).exists(), isTrue);
@@ -292,11 +292,50 @@ void main() {
     },
   );
 
+  test(
+    'each group prefers selections, then favorites, then newest regardless of iteration order',
+    () async {
+      final first = await item('gen1', timestamp: 1, snapshot: state());
+      final second = await item('gen2', timestamp: 2, snapshot: state());
+      final favorite = (await item(
+        'gen3',
+        timestamp: 3,
+        snapshot: state(),
+      )).withFavorite(true);
+      final latestFavorite = (await item(
+        'gen4',
+        timestamp: 4,
+        snapshot: state(),
+      )).withFavorite(true);
+      final latest = await item('gen5', timestamp: 5, snapshot: state());
+      final scope = [first, second, favorite, latestFavorite, latest];
+      for (final order in [scope, scope.reversed.toList()]) {
+        for (final (chosen, winner) in [
+          ([first, second], second),
+          (<ResultImage>[], latestFavorite),
+        ]) {
+          final prepared = await plan(
+            chosen,
+            order,
+            cleanup: GalleryExportCleanup.keepSamples,
+          );
+          expect(prepared.scopeIds.difference(prepared.deleteIds), {winner.id});
+        }
+      }
+      final fallback = await plan([], [
+        second,
+        first,
+        latest,
+      ], cleanup: GalleryExportCleanup.keepSamples);
+      expect(fallback.scopeIds.difference(fallback.deleteIds), {latest.id});
+    },
+  );
+
   test('equal timestamps use generation sequence as the tie-breaker', () async {
     final low = await item('gen9', snapshot: state());
     final high = await item('gen10', snapshot: state());
     final prepared = await plan(
-      [low],
+      [low, high],
       [low, high],
       cleanup: GalleryExportCleanup.keepSamples,
     );
@@ -401,7 +440,7 @@ void main() {
         [old, same, differentHash, differentWeight],
         cleanup: GalleryExportCleanup.keepSamples,
       );
-      expect(prepared.deleteIds, {old.id});
+      expect(prepared.deleteIds, {same.id});
       expect(prepared.retainedCount, 3);
       expect(prepared.unknownCount, 0);
     },
@@ -508,7 +547,7 @@ void main() {
         images,
         cleanup: GalleryExportCleanup.keepSamples,
       );
-      expect(prepared.deleteIds, {'known-old'});
+      expect(prepared.deleteIds, {'known-new'});
       expect(prepared.unknownCount, 11);
       expect(prepared.retainedCount, 12);
     },
@@ -560,7 +599,7 @@ void main() {
         [a, b],
         cleanup: GalleryExportCleanup.keepSamples,
       );
-      expect(prepared.deleteIds, {a.id});
+      expect(prepared.deleteIds, {b.id});
       expect(prepared.unknownCount, 0);
     },
   );

@@ -1,3 +1,5 @@
+import '../../gallery/temporary_gallery_actions.dart';
+import '../../../core/platform/desktop.dart' show desktopModeProvider;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -211,7 +213,12 @@ class _CanvasManagerState extends ConsumerState<_CanvasManager> {
     );
   }
 
-  void _delete(CanvasDraft canvas) {
+  Future<void> _delete(CanvasDraft canvas) async {
+    if (ref.read(desktopModeProvider) &&
+        !await closeTemporaryGallery(context, canvas: canvas.id)) {
+      return;
+    }
+    if (!mounted) return;
     final notifier = ref.read(canvasWorkspaceProvider.notifier);
     final removed = notifier.remove(canvas.id);
     if (removed == null) return;

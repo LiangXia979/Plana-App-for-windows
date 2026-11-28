@@ -14,6 +14,7 @@ import 'package:plana_app/features/generate/prompt_presets.dart';
 import 'package:plana_app/features/import/import_panel.dart';
 import 'package:plana_app/features/import/import_prefs.dart';
 import 'package:plana_app/features/import/image_prompt_import.dart';
+import 'package:plana_app/features/import/metadata_detail_page.dart';
 
 class _Presets extends PromptPresetsNotifier {
   @override
@@ -130,14 +131,217 @@ void main() {
   }
 
   testWidgets(
-    'clicking the import backdrop closes without changing the draft',
+    'the full-window import owns its corners and cancels without changing the draft',
     (tester) async {
       await mount(tester);
       final before = container.read(generateProvider);
+      expect(
+        tester.getRect(key('desktop-import-window')),
+        const Offset(0, 0) & const Size(1440, 900),
+      );
       await tester.tapAt(const Offset(5, 5));
+      await tester.pumpAndSettle();
+      expect(find.byType(ImportImagePanel), findsOneWidget);
+      await tester.tap(key('desktop-import-close'));
       await tester.pumpAndSettle();
       expect(find.byType(ImportImagePanel), findsNothing);
       expect(container.read(generateProvider), same(before));
+      await finish(tester);
+    },
+  );
+
+  testWidgets(
+    'preset aligns with prompt cards and full metadata uses their reading sizes',
+    (tester) async {
+      final preset = kDefaultPromptPresets.firstWhere(
+        (p) => p.id == 'v5-standard',
+      );
+      final tags = applyPromptPreset(preset, 'garden sky', 'blur');
+      metadata = (await tester.runAsync(
+        () => writeImageMetadataPng(
+          plain,
+          source: 'NovelAI Diffusion V5 93F4BD30',
+          comment: {
+            'prompt': tags.positive,
+            'uc': tags.negative,
+            'seed': 4321,
+            'tag_hint_qt': promptPresetTagHints(preset.id).qt,
+            'v4_prompt': {
+              'caption': {
+                'char_captions': [
+                  {'char_caption': 'cat ears'},
+                ],
+              },
+            },
+          },
+        ),
+      ))!;
+      await mount(tester);
+      final positive = find.text('正向提示词');
+      final presetTitle = find.text('提示词预设 · ${preset.name}');
+      final titleStyle = tester.widget<Text>(positive).style!;
+      final left = tester.getTopLeft(positive).dx;
+      final check = key('import-select-正向提示词');
+      final shape = find.byWidgetPredicate(
+        (w) => w is Material && w.shape is RoundedRectangleBorder,
+      );
+      final card = find.ancestor(of: check, matching: shape).first;
+      final bounds = tester.getRect(card);
+      for (final (title, checkbox) in [
+        (find.text('负向提示词'), key('import-select-负向提示词')),
+        (presetTitle, key('import-select-提示词预设')),
+      ]) {
+        final style = tester.widget<Text>(title).style!;
+        expect(style.fontSize, titleStyle.fontSize);
+        expect(style.fontWeight, titleStyle.fontWeight);
+        expect(tester.getTopLeft(title).dx, left);
+        expect(tester.getTopLeft(checkbox).dx, tester.getTopLeft(check).dx);
+        final peer = find.ancestor(of: checkbox, matching: shape).first;
+        expect(tester.getRect(peer).left, bounds.left);
+        expect(tester.getRect(peer).right, bounds.right);
+        expect(
+          (tester.widget<Material>(peer).shape as RoundedRectangleBorder)
+              .borderRadius,
+          (tester.widget<Material>(card).shape as RoundedRectangleBorder)
+              .borderRadius,
+        );
+      }
+      await tester.tap(positive);
+      await tester.pumpAndSettle();
+      final expandedStyle = tester
+          .widget<SelectableText>(
+            find.descendant(of: card, matching: find.byType(SelectableText)),
+          )
+          .style!;
+      await tester.tap(key('desktop-import-metadata'));
+      await tester.pumpAndSettle();
+      final list = find
+          .descendant(
+            of: find.byType(MetadataDetailPage),
+            matching: find.byType(Scrollable),
+          )
+          .first;
+      for (final label in ['正向提示词', '负向提示词', '角色提示词', '生成参数', '原始数据']) {
+        final title = find.text(label);
+        await tester.scrollUntilVisible(title, 180, scrollable: list);
+        final style = tester.widget<Text>(title).style!;
+        expect(style.fontSize, titleStyle.fontSize);
+        expect(style.fontWeight, titleStyle.fontWeight);
+        if (label == '生成参数') {
+          for (final value in ['SEED', '4321']) {
+            expect(
+              tester.widget<Text>(find.text(value)).style!.fontSize,
+              expandedStyle.fontSize,
+            );
+          }
+        } else {
+          final value = switch (label) {
+            '正向提示词' => tags.positive,
+            '负向提示词' => tags.negative,
+            '角色提示词' => 'cat ears',
+            _ => '{',
+          };
+          final body = find.byWidgetPredicate(
+            (w) => w is SelectableText && (w.data?.startsWith(value) ?? false),
+          );
+          final style = tester.widget<SelectableText>(body.first).style!;
+          expect(style.fontSize, expandedStyle.fontSize);
+          expect(style.height, expandedStyle.height);
+        }
+      }
+      await finish(tester);
+    },
+  );
+
+  testWidgets(
+    'quick picks select only available fields and metadata returns to the same selection',
+    (tester) async {
+      metadata = (await tester.runAsync(
+        () => writeImageMetadataPng(
+          plain,
+          source: 'NovelAI Diffusion V4.5 4BDE2A90',
+          comment: {
+            'prompt': 'garden',
+            'uc': 'lowres',
+            'seed': 4321,
+            'steps': 28,
+            'scale': 6.5,
+            'sampler': 'k_euler',
+            'noise_schedule': 'karras',
+            'v4_prompt': {
+              'caption': {
+                'char_captions': [
+                  {'char_caption': 'cat ears'},
+                ],
+              },
+            },
+          },
+        ),
+      ))!;
+      await mount(tester);
+      await tester.tap(find.text('清空').first);
+      await tester.pumpAndSettle();
+      FilledButton confirm() =>
+          tester.widget<FilledButton>(key('desktop-import-confirm'));
+      expect(confirm().onPressed, isNull);
+      await tester.tap(find.text('仅提示词'));
+      await tester.pumpAndSettle();
+      expect(confirm().onPressed, isNotNull);
+      expect(find.textContaining('（2 项）'), findsOneWidget);
+      await tester.tap(key('desktop-import-metadata'));
+      await tester.pumpAndSettle();
+      expect(find.byType(ImportImagePanel), findsOneWidget);
+      expect(key('import-select-负向提示词'), findsNothing);
+      await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+      await tester.pumpAndSettle();
+      expect(key('import-select-负向提示词'), findsOneWidget);
+      expect(find.textContaining('（2 项）'), findsOneWidget);
+      await tester.tap(find.text('词 + 角色'));
+      await tester.pumpAndSettle();
+      expect(find.textContaining('（7 项）'), findsOneWidget);
+      expect(find.text('1 个角色'), findsOneWidget);
+      await tester.tap(find.text('完整复现'));
+      await tester.pumpAndSettle();
+      await tester.tap(key('desktop-import-confirm'));
+      await drain(
+        tester,
+        () => find.byType(ImportImagePanel).evaluate().isEmpty,
+      );
+      expect(container.read(generateProvider).params.seed, '4321');
+      await finish(tester);
+    },
+  );
+
+  testWidgets(
+    'Stable Diffusion previews and imports the chosen weight syntax on a NovelAI canvas',
+    (tester) async {
+      metadata = withPngITxt(
+        plain,
+        'parameters',
+        '(sunlight:1.2), flowers\nNegative prompt: (fog:1.3)\nSteps: 24, Sampler: Euler, CFG scale: 7, Seed: 33, Size: 320x480, Model: example-xl',
+      );
+      await mount(tester);
+      expect(find.text('Stable Diffusion'), findsOneWidget);
+      expect(find.text('1.2::sunlight::, flowers'), findsOneWidget);
+      final convert = find.text('自动转换提示词格式');
+      await tester.tap(convert);
+      await tester.pumpAndSettle();
+      expect(find.text('(sunlight:1.2), flowers'), findsOneWidget);
+      await tester.tap(convert);
+      await tester.tap(find.text('完整复现'));
+      await tester.pumpAndSettle();
+      expect(find.text('导入所选（2 项）'), findsOneWidget);
+      await tester.tap(key('desktop-import-confirm'));
+      await drain(
+        tester,
+        () => find.byType(ImportImagePanel).evaluate().isEmpty,
+      );
+      expect(
+        container.read(generateProvider).prompt,
+        '1.2::sunlight::, flowers',
+      );
+      expect(container.read(generateProvider).negativePrompt, '1.3::fog::');
+      expect(container.read(generateProvider).params.seed, isNot('33'));
       await finish(tester);
     },
   );
@@ -280,7 +484,7 @@ void main() {
       await mount(tester, hasMetadata: false);
       final canvases = container.read(canvasWorkspaceProvider.notifier);
       final originalId = container.read(canvasWorkspaceProvider).activeId;
-      await tester.tap(find.text('反推提示词'));
+      await tester.tap(find.text('AI 反推提示词'));
       await tester.pumpAndSettle();
       final secondId = canvases.create();
       container
@@ -392,10 +596,7 @@ void main() {
         tester.getRect(key('desktop-import-preview')).right,
         lessThan(tester.getRect(key('desktop-import-details')).left),
       );
-      expect(
-        tester.getSize(key('desktop-import-window')).width,
-        lessThanOrEqualTo(1240),
-      );
+      expect(tester.getSize(key('desktop-import-window')).width, 1440);
       expect(
         tester.getSize(key('desktop-import-confirm')).width,
         lessThan(220),
@@ -432,8 +633,9 @@ void main() {
     (tester) async {
       await mount(tester, hasMetadata: false);
       expect(key('desktop-import-confirm'), findsNothing);
+      expect(find.text('320 × 480'), findsOneWidget);
       expect(find.text('图生图'), findsOneWidget);
-      expect(find.text('反推提示词'), findsOneWidget);
+      expect(find.text('AI 反推提示词'), findsOneWidget);
       await tester.sendKeyEvent(LogicalKeyboardKey.escape);
       await tester.pumpAndSettle();
       expect(find.byType(ImportImagePanel), findsNothing);

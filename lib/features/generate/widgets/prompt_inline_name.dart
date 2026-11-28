@@ -23,6 +23,7 @@ class PromptInlineName extends ConsumerStatefulWidget {
     this.labelMaxWidth = double.infinity,
     this.displayName,
     this.reorderIndex,
+    this.rowBuilder,
   });
 
   final String identifier;
@@ -37,6 +38,10 @@ class PromptInlineName extends ConsumerStatefulWidget {
   // Display-only shortening must never become the value being edited/saved.
   final String? displayName;
   final int? reorderIndex;
+
+  /// Lets a row open the same editor from its own pencil button and give the
+  /// field the space normally used by the row actions.
+  final Widget Function(VoidCallback startEditing, Widget? editor)? rowBuilder;
 
   @override
   ConsumerState<PromptInlineName> createState() => _PromptInlineNameState();
@@ -153,7 +158,9 @@ class _PromptInlineNameState extends ConsumerState<PromptInlineName> {
 
   @override
   Widget build(BuildContext context) {
+    final rowBuilder = widget.rowBuilder;
     if (_edit == null) {
+      if (rowBuilder != null) return rowBuilder(_start, null);
       final label = Tooltip(
         message:
             '${widget.displayName != null && widget.displayName != widget.name ? '${widget.name}\n' : ''}'
@@ -185,7 +192,7 @@ class _PromptInlineNameState extends ConsumerState<PromptInlineName> {
               child: label,
             );
     }
-    return Focus(
+    final editor = Focus(
       onKeyEvent: _key,
       child: TextSelectionTheme(
         data: TextSelectionTheme.of(context).copyWith(
@@ -212,5 +219,6 @@ class _PromptInlineNameState extends ConsumerState<PromptInlineName> {
         ),
       ),
     );
+    return rowBuilder?.call(_start, editor) ?? editor;
   }
 }

@@ -81,6 +81,7 @@ class ResultImage {
     this.inpaintFrom,
     this.inpaintHistoryCleared = false,
     this.favorite = false,
+    this.saved = false,
     bool? hasInput,
   }) : hasInput = hasInput ?? input != null;
 
@@ -96,6 +97,8 @@ class ResultImage {
   final String? inpaintFrom;
   final bool inpaintHistoryCleared;
   final bool favorite;
+  final bool saved;
+  bool get fromTemporaryGallery => id.startsWith('temp_');
 
   /// 旧索引没有 inpaintFrom，仍可根据标记懒读已保存的重绘快照。
   bool get hasInpaintComparison =>
@@ -144,6 +147,7 @@ class ResultImage {
           inpaintFrom: inpaintFrom,
           inpaintHistoryCleared: inpaintHistoryCleared,
           favorite: favorite,
+          saved: saved,
           hasInput: hasInput,
           operation: operation,
         );
@@ -161,6 +165,7 @@ class ResultImage {
     inpaintFrom: inpaintFrom,
     inpaintHistoryCleared: inpaintHistoryCleared,
     favorite: favorite,
+    saved: saved,
     bytes: bytes,
     input: input,
     hasInput: hasInput,
@@ -180,9 +185,33 @@ class ResultImage {
     hasInput: hasInput,
     inpaintHistoryCleared: true,
     favorite: favorite,
+    saved: saved,
   );
 
-  ResultImage withFavorite(bool value) => ResultImage(
+  ResultImage withFavorite(bool value) => _withFlags(favorite: value);
+  ResultImage markSaved() => withSaved(true);
+  ResultImage withSaved(bool value) =>
+      value == saved ? this : _withFlags(saved: value);
+  ResultImage withContent(Uint8List data, GenerateState? snapshot) =>
+      ResultImage(
+        id: id,
+        width: width,
+        height: height,
+        seed: seed,
+        badge: badge,
+        createdAt: createdAt,
+        batchIndex: batchIndex,
+        inpaintFrom: inpaintFrom,
+        inpaintHistoryCleared: inpaintHistoryCleared,
+        favorite: favorite,
+        saved: saved,
+        hasInput: hasInput,
+        operation: operation,
+        bytes: data,
+        input: snapshot,
+      );
+
+  ResultImage _withFlags({bool? favorite, bool? saved}) => ResultImage(
     id: id,
     width: width,
     height: height,
@@ -195,7 +224,8 @@ class ResultImage {
     hasInput: hasInput,
     inpaintFrom: inpaintFrom,
     inpaintHistoryCleared: inpaintHistoryCleared,
-    favorite: value,
+    favorite: favorite ?? this.favorite,
+    saved: saved ?? this.saved,
     operation: operation,
   );
 }

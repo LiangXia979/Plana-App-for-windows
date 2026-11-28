@@ -29,6 +29,33 @@ void main() {
         300,
         scrollable: find.byType(Scrollable).first,
       );
+      final importRow = find
+          .ancestor(
+            of: find.byIcon(Icons.folder_open_outlined),
+            matching: find.byType(InkWell),
+          )
+          .first;
+      final referenceArrow = find.descendant(
+        of: importRow,
+        matching: find.byIcon(Icons.chevron_right),
+      );
+      final expectedX = tester.getCenter(referenceArrow).dx;
+      final external = find.descendant(
+        of: open,
+        matching: find.byIcon(Icons.chevron_right),
+      );
+      expect(tester.getCenter(external).dx, closeTo(expectedX, .1));
+      final advanced = find.byType(ExpansionTile);
+      await tester.ensureVisible(advanced);
+      final expand = find.descendant(
+        of: advanced,
+        matching: find.byIcon(Icons.expand_more),
+      );
+      expect(tester.getCenter(expand).dx, closeTo(expectedX, .1));
+      await tester.tap(advanced);
+      await tester.pumpAndSettle();
+      expect(tester.getCenter(expand).dx, closeTo(expectedX, .1));
+      await tester.ensureVisible(open);
       await tester.tap(open);
       await pumpUntil(
         tester,

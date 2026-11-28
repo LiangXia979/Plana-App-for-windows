@@ -291,6 +291,12 @@ const ManualAuthor = (() => {
     try {
       const local = await request('load');
       if (local.version) document.querySelector('.obs-version').textContent = 'Plana Windows · ' + local.version;
+      if (local.returnToGuide) {
+        const back = byId('backToAboutBtn');
+        back.title = '返回使用引导';
+        back.setAttribute('aria-label', back.title);
+        back.querySelector('span').textContent = back.title;
+      }
       mode.hidden = false;
       if (local.unreadable.length) warn('以下本地页面无法读取，请检查手册文件夹：' + local.unreadable.join('、'));
       return local.pages;

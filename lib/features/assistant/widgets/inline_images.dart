@@ -183,13 +183,12 @@ class _DoneState extends ConsumerState<_Done> {
   bool _previewOpen = false;
 
   Future<void> _menu(Offset position) async {
-    final overlay = Overlay.of(context).context.findRenderObject() as RenderBox;
+    final overlay =
+        Navigator.of(context).overlay!.context.findRenderObject() as RenderBox;
+    final point = overlay.globalToLocal(position);
     final action = await showMenu<String>(
       context: context,
-      position: RelativeRect.fromRect(
-        Rect.fromLTWH(position.dx, position.dy, 0, 0),
-        Offset.zero & overlay.size,
-      ),
+      position: RelativeRect.fromSize(point & Size.zero, overlay.size),
       items: [
         PopupMenuItem(value: 'open', child: Text(l10nNow.desktopOpenFullImage)),
         PopupMenuItem(value: 'copy', child: Text(l10nNow.desktopCopyImage)),

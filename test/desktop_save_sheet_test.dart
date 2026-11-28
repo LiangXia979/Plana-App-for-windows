@@ -12,6 +12,7 @@ import 'package:plana_app/core/store/app_stores.dart';
 import 'package:plana_app/core/theme/app_theme.dart';
 import 'package:plana_app/features/gallery/desktop_image_save.dart';
 import 'package:plana_app/features/gallery/models.dart';
+import 'package:plana_app/features/gallery/gallery_state.dart';
 import 'package:plana_app/features/gallery/save_settings.dart';
 import 'package:plana_app/features/gallery/widgets/result_canvas.dart';
 import 'package:plana_app/features/import/image_metadata.dart';
@@ -21,6 +22,17 @@ import 'support/pump_until.dart';
 class _FolderPicker extends FilePicker {
   String? directory;
   var calls = 0;
+
+  @override
+  Future<String?> saveFile({
+    String? dialogTitle,
+    String? fileName,
+    String? initialDirectory,
+    FileType type = FileType.any,
+    List<String>? allowedExtensions,
+    Uint8List? bytes,
+    bool lockParentWindow = false,
+  }) async => directory == null ? null : '$directory/$fileName';
 
   @override
   Future<String?> getDirectoryPath({
@@ -89,6 +101,7 @@ void main() {
       seed: 123,
       bytes: Uint8List.fromList(img.encodePng(png)),
     );
+    stores.gallery.initialResults = [image];
     initialSettings = await container.read(saveSettingsProvider.future);
   });
   tearDown(() async {
@@ -134,11 +147,45 @@ void main() {
     expect(find.text('单次保存'), findsNothing);
     expect(find.text('已保存到 ${folder.path}/$filename'), findsOneWidget);
     expect(galCalls, isEmpty);
+    expect(container.read(galleryProvider).results.single.saved, isTrue);
     expect(
       folder.listSync().whereType<File>().map((f) => f.uri.pathSegments.last),
       [filename],
     );
   }
+
+  testWidgets(
+    'gallery detail save marks the displayed image only after the file is written',
+    (tester) async {
+      await tester.pumpWidget(
+        UncontrolledProviderScope(
+          container: container,
+          child: MaterialApp(
+            home: Scaffold(
+              body: ResultActions(result: image, detailsPanel: true),
+            ),
+          ),
+        ),
+      );
+      picker.directory = null;
+      await tester.tap(find.text('保存'));
+      await tester.pumpAndSettle();
+      expect(container.read(galleryProvider).results.single.saved, isFalse);
+      picker.directory = folder.path;
+      await tester.tap(find.text('保存'));
+      await pumpUntil(
+        tester,
+        () => container.read(galleryProvider).results.single.saved,
+      );
+      await pumpUntilComplete(tester, stores.gallery.flushIndex());
+      expect(
+        File('${folder.path}/plana_123.png').readAsBytesSync(),
+        image.bytes,
+      );
+      await tester.pumpWidget(const SizedBox());
+      await tester.pump(const Duration(seconds: 2));
+    },
+  );
 
   testWidgets(
     'one-off PNG uses the selected folder and its metadata choice',

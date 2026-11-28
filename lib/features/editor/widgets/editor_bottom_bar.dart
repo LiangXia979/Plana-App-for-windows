@@ -2,57 +2,26 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/theme/app_theme.dart';
-import '../../../core/theme/editor_theme.dart';
-import '../../../core/util/haptics.dart';
-import '../../generate/widgets/common.dart' show hintSnack, measureText;
+import '../../generate/widgets/common.dart' show measureText;
 import '../../generate/generate_state.dart';
-import '../data/tag_favorites.dart';
 import '../editor_state.dart';
-import 'tag_panel.dart' show TagAddChip;
 import '../../../l10n/l10n.dart';
 
 /// 底栏控件的统一高度:正/负滑块、展开钮、右侧操作胶囊共用一个数。
 /// 高度钉死,系统字号放大时各控件不会各长各的。
 const double _kBarH = 36;
 
-/// 编辑器底栏:正/负 tab(左)+ 展开钮(中)+ 显示形态切换、撤销(右)。
-/// 左右两条胶囊等宽、同底色、同字号,展开钮落在正中;展开钮在栏上方拉出
-/// 收藏托盘。
+/// 编辑器底栏的正负提示词、编辑模式与撤销操作。
 class EditorBottomBar extends ConsumerWidget {
   const EditorBottomBar({
     super.key,
     required this.onToggleMode,
     required this.chipMode,
-    required this.trayOpen,
-    required this.onToggleTray,
-    required this.onInsertFavorite,
   });
 
   /// 正文形态切换:注音富文本 ⇄ 芯片流。选择记在编辑器设置里。
   final VoidCallback onToggleMode;
   final bool chipMode;
-
-  /// 收藏托盘是否展开。状态放在页面上:返回键要先收托盘。
-  final bool trayOpen;
-  final VoidCallback onToggleTray;
-
-  /// 托盘里点了一枚收藏:插进正文。
-  final void Function(String tag) onInsertFavorite;
-
-  /// 长按收藏 = 移出收藏,提示里可撤销。
-  void _removeFavorite(BuildContext context, WidgetRef ref, String tag) {
-    Haptics.medium();
-    final favs = ref.read(tagFavoritesProvider.notifier);
-    final at = favs.remove(tag);
-    if (at < 0) return;
-    hintSnack(
-      context,
-      context.l10n.unfavorited(tag),
-      icon: Icons.star_outline_rounded,
-      actionLabel: context.l10n.undo,
-      onAction: () => favs.restore(tag, at),
-    );
-  }
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -62,53 +31,10 @@ class EditorBottomBar extends ConsumerWidget {
       generateProvider.select((s) => s.params.isNaiMedium),
     );
     final notifier = ref.read(editorProvider.notifier);
-    final favs = ref.watch(tagFavoritesProvider);
 
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        // 托盘:贴顶对齐 + 裁切,展开时从底栏后面升上来
-        ClipRect(
-          child: AnimatedAlign(
-            duration: Motion.fast,
-            curve: Motion.standard,
-            alignment: Alignment.topCenter,
-            heightFactor: trayOpen ? 1 : 0,
-            child: Material(
-              color: context.editorDock,
-              shape: Border(top: BorderSide(color: context.editorDockLine)),
-              child: Padding(
-                padding: const EdgeInsets.symmetric(vertical: 8),
-                // 卡片高度同词条栏的关联标签;空着也占这一行,收第一枚时不跳
-                child: SizedBox(
-                  width: double.infinity,
-                  height: 50,
-                  child: favs.isEmpty
-                      ? Center(
-                          child: Text(
-                            l10nNow.noFavorites,
-                            style: context.texts.labelMedium!.copyWith(
-                              color: scheme.outline,
-                            ),
-                          ),
-                        )
-                      : ListView.separated(
-                          scrollDirection: Axis.horizontal,
-                          padding: const EdgeInsets.symmetric(horizontal: 12),
-                          itemCount: favs.length,
-                          separatorBuilder: (_, _) => const SizedBox(width: 8),
-                          itemBuilder: (context, i) => TagAddChip(
-                            tag: favs[i],
-                            onTap: () => onInsertFavorite(favs[i]),
-                            onLongPress: () =>
-                                _removeFavorite(context, ref, favs[i]),
-                          ),
-                        ),
-                ),
-              ),
-            ),
-          ),
-        ),
         Material(
           color: scheme.surface,
           child: Padding(
@@ -123,8 +49,6 @@ class EditorBottomBar extends ConsumerWidget {
                           onChanged: notifier.setActivePositive,
                         ),
                 ),
-                const SizedBox(width: 12),
-                _TrayButton(open: trayOpen, onTap: onToggleTray),
                 const SizedBox(width: 12),
                 Expanded(
                   child: Material(
@@ -171,45 +95,6 @@ class EditorBottomBar extends ConsumerWidget {
           ),
         ),
       ],
-    );
-  }
-}
-
-/// 展开钮:圆形,展开时 + 转成 ×。
-class _TrayButton extends StatelessWidget {
-  const _TrayButton({required this.open, required this.onTap});
-
-  final bool open;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final scheme = context.scheme;
-    return Tooltip(
-      message: open ? context.l10n.collapse : context.l10n.expand,
-      child: Material(
-        color: open
-            ? scheme.secondaryContainer
-            : scheme.surfaceContainerHighest,
-        shape: const CircleBorder(),
-        clipBehavior: Clip.antiAlias,
-        child: InkWell(
-          onTap: onTap,
-          child: SizedBox.square(
-            dimension: _kBarH,
-            child: AnimatedRotation(
-              turns: open ? 1 / 8 : 0,
-              duration: Motion.fast,
-              curve: Motion.standard,
-              child: Icon(
-                Icons.add_rounded,
-                size: 22,
-                color: open ? scheme.onSecondaryContainer : scheme.onSurface,
-              ),
-            ),
-          ),
-        ),
-      ),
     );
   }
 }

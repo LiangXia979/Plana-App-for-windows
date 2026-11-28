@@ -29,7 +29,9 @@ enum _BatchMode { clean, custom }
 /// 图片元数据(工具箱页签):批量选图看生成参数,点开完整详情/角色识别/去导入,
 /// 勾选后清除或覆写元数据,处理结果存回系统相册。
 class MetadataToolView extends ConsumerStatefulWidget {
-  const MetadataToolView({super.key});
+  const MetadataToolView({super.key, this.desktopTabs});
+
+  final Widget? desktopTabs;
 
   @override
   ConsumerState<MetadataToolView> createState() => _MetadataToolViewState();
@@ -135,7 +137,9 @@ class _MetadataToolViewState extends ConsumerState<MetadataToolView> {
 
   @override
   Widget build(BuildContext context) {
-    if (ref.watch(desktopModeProvider)) return const DesktopMetadataProcessor();
+    if (ref.watch(desktopModeProvider)) {
+      return DesktopMetadataProcessor(desktopTabs: widget.desktopTabs);
+    }
     final scheme = context.scheme;
     final hasFiles = _items.isNotEmpty;
     final allSelected = hasFiles && _items.every((f) => f.selected);

@@ -7,12 +7,14 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:gal/gal.dart';
 
 import '../../../core/platform/desktop.dart';
+import '../../../core/store/app_stores.dart';
 import '../../../core/store/storage_stats.dart' show fmtBytes;
 import '../../../core/theme/app_theme.dart';
 import '../../../core/ui/param_input.dart';
 import '../../generate/widgets/common.dart' show hintSnack;
 import '../../tools/metadata_tool_link.dart';
 import '../desktop_image_save.dart';
+import '../gallery_state.dart';
 import '../save_pipeline.dart';
 import '../models.dart';
 import '../phone_gallery_save.dart';
@@ -109,6 +111,10 @@ class _SaveSheetState extends ConsumerState<_SaveSheet> {
   Future<void> _saveOnce() async {
     if (_saving) return;
     final settings = _current;
+    final image = widget.image;
+    final gallery = ref.read(galleryProvider.notifier);
+    final temporary = ref.read(appStoresProvider).temporaryGallery;
+    final release = temporary.holdImage(image.id);
     setState(() => _saving = true);
     try {
       if (ref.read(desktopModeProvider)) {
@@ -123,12 +129,14 @@ class _SaveSheetState extends ConsumerState<_SaveSheet> {
               .select(directory);
           if (!mounted) return;
         }
+        await temporary.checkExportDirectory(directory);
         final file = await saveDesktopImage(
           directory: directory,
-          image: widget.image,
+          image: image,
           bytes: widget.bytes,
           settings: settings,
         );
+        await gallery.markSaved([image.id]);
         if (!mounted) return;
         hintSnack(
           context,
@@ -152,9 +160,10 @@ class _SaveSheetState extends ConsumerState<_SaveSheet> {
       final out = await processForSave(widget.bytes, settings);
       final savedSize = await saveProcessedImageToPhone(
         out,
-        image: widget.image,
+        image: image,
         format: settings.format,
       );
+      await gallery.markSaved([image.id]);
       if (!mounted) return;
       hintSnack(
         context,
@@ -171,6 +180,7 @@ class _SaveSheetState extends ConsumerState<_SaveSheet> {
         );
       }
     } finally {
+      release();
       if (mounted) setState(() => _saving = false);
     }
   }

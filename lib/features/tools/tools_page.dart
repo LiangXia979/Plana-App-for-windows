@@ -3,7 +3,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/store/ui_prefs.dart';
 import '../../core/platform/desktop.dart';
-import '../../core/ui/settings_scaffold.dart';
 import 'metadata_tool_page.dart';
 import 'metadata_compare_page.dart';
 import 'metadata_tool_link.dart';
@@ -28,24 +27,14 @@ class _ToolsPageState extends ConsumerState<ToolsPage> {
     super.dispose();
   }
 
-  Widget _desktopFrame(Widget child) => Padding(
-    padding: const EdgeInsets.all(24),
-    child: Align(
-      alignment: Alignment.topCenter,
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 1440),
-        child: child,
-      ),
-    ),
-  );
-
   Widget _desktopBody(int tab, Widget tabs) {
-    final header = Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [const SettingsPageHeader(), tabs],
-    );
-    const editors = [WeightConvertView(), MetadataToolView()];
+    const insets = EdgeInsets.fromLTRB(16, 12, 16, 16);
+    final editors = [
+      WeightConvertView(desktopTabs: tabs),
+      MetadataToolView(desktopTabs: tabs),
+    ];
     return IndexedStack(
+      sizing: StackFit.expand,
       index: tab == 2 ? 1 : 0,
       children: [
         Scrollbar(
@@ -53,39 +42,30 @@ class _ToolsPageState extends ConsumerState<ToolsPage> {
           child: SingleChildScrollView(
             key: const PageStorageKey('desktop-tools-scroll'),
             controller: _scroll,
-            child: _desktopFrame(
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  header,
-                  for (final (i, editor) in editors.indexed)
-                    Offstage(
-                      offstage: tab != i,
-                      child: TickerMode(
-                        enabled: tab == i,
-                        child: ExcludeFocus(excluding: tab != i, child: editor),
-                      ),
+            padding: insets,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                for (final (i, editor) in editors.indexed)
+                  Offstage(
+                    offstage: tab != i,
+                    child: TickerMode(
+                      enabled: tab == i,
+                      child: ExcludeFocus(excluding: tab != i, child: editor),
                     ),
-                ],
-              ),
+                  ),
+              ],
             ),
           ),
         ),
-        _desktopFrame(
-          CustomScrollView(
+        LayoutBuilder(
+          builder: (context, viewport) => SingleChildScrollView(
             primary: false,
-            slivers: [
-              SliverToBoxAdapter(child: header),
-              SliverLayoutBuilder(
-                builder: (context, viewport) => SliverToBoxAdapter(
-                  child: MetadataCompareView(
-                    desktopViewportHeight:
-                        viewport.viewportMainAxisExtent -
-                        viewport.precedingScrollExtent,
-                  ),
-                ),
-              ),
-            ],
+            padding: insets,
+            child: MetadataCompareView(
+              desktopViewportHeight: viewport.maxHeight - insets.vertical,
+              desktopTabs: tabs,
+            ),
           ),
         ),
       ],
@@ -132,22 +112,31 @@ class _ToolsPageState extends ConsumerState<ToolsPage> {
       },
       showSelectedIcon: false,
     );
-    final tabs = Padding(
-      padding: desktop
-          ? const EdgeInsets.only(bottom: 20)
-          : const EdgeInsets.fromLTRB(14, 4, 14, 10),
-      child: SingleChildScrollView(
-        scrollDirection: Axis.horizontal,
-        child: selector,
-      ),
+    final tabs = SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      child: selector,
     );
-    return SettingsScaffold(
-      appBar: AppBar(title: Text(l10nNow.toolbox)),
+    return Scaffold(
+      appBar: desktop ? null : AppBar(title: Text(l10nNow.toolbox)),
       body: desktop
-          ? _desktopBody(tab, tabs)
+          ? _desktopBody(
+              tab,
+              Navigator.canPop(context)
+                  ? Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const BackButton(),
+                        Flexible(child: tabs),
+                      ],
+                    )
+                  : tabs,
+            )
           : Column(
               children: [
-                tabs,
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(14, 4, 14, 10),
+                  child: tabs,
+                ),
                 Expanded(
                   child: IndexedStack(
                     index: tab,

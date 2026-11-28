@@ -441,16 +441,52 @@ class _PoolSheetState extends ConsumerState<_PoolSheet> {
 
 // ---- 批量贴标签:选一个标签(可现场新建) ----
 
-Future<String?> pickTagSheet(
+Future<void> tagInspirationSelection(
   BuildContext context,
   WidgetRef ref,
-  TagCategory cat,
-) => _sheet<String>(context, _TagPickSheet(cat));
+  TagCategory cat, {
+  Iterable<String> localIds = const [],
+  Iterable<TagEntry> publicCards = const [],
+  Iterable<TagEntry> externalCards = const [],
+  Iterable<String> suggestions = const [],
+}) async {
+  final tag = await _sheet<String>(
+    context,
+    _TagPickSheet(cat, suggestions.toList()),
+  );
+  if (tag == null || !context.mounted) return;
+  try {
+    final count = await ref
+        .read(tagLibraryProvider.notifier)
+        .addSelectionTag(
+          cat,
+          tag,
+          localIds: localIds,
+          publicCards: publicCards,
+          externalCards: externalCards,
+        );
+    if (context.mounted) {
+      hintSnack(
+        context,
+        context.l10n.taggedN(count, tag),
+        icon: Icons.sell_outlined,
+      );
+    }
+  } catch (e) {
+    if (context.mounted) {
+      hintSnack(
+        context,
+        context.l10n.saveFailedWith('$e'),
+        icon: Icons.error_outline,
+      );
+    }
+  }
+}
 
 class _TagPickSheet extends ConsumerStatefulWidget {
-  const _TagPickSheet(this.cat);
-
+  const _TagPickSheet(this.cat, this.suggestions);
   final TagCategory cat;
+  final List<String> suggestions;
 
   @override
   ConsumerState<_TagPickSheet> createState() => _TagPickSheetState();
@@ -468,9 +504,10 @@ class _TagPickSheetState extends ConsumerState<_TagPickSheet> {
   @override
   Widget build(BuildContext context) {
     final scheme = context.scheme;
-    final tags =
-        ref.watch(tagLibraryProvider).value?.knownTags(widget.cat) ??
-        const <String>[];
+    final tags = {
+      ...?ref.watch(tagLibraryProvider).value?.knownTags(widget.cat),
+      ...widget.suggestions,
+    };
     return Padding(
       padding: EdgeInsets.only(bottom: MediaQuery.viewInsetsOf(context).bottom),
       child: Column(
@@ -524,19 +561,23 @@ class _TagPickSheetState extends ConsumerState<_TagPickSheet> {
             ),
           ),
           if (tags.isNotEmpty)
-            Padding(
-              padding: const EdgeInsets.fromLTRB(18, 0, 18, 18),
-              child: Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                children: [
-                  for (final t in tags)
-                    ActionChip(
-                      label: Text(t),
-                      shape: const StadiumBorder(),
-                      onPressed: () => Navigator.pop(context, t),
-                    ),
-                ],
+            Flexible(
+              child: SingleChildScrollView(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(18, 0, 18, 18),
+                  child: Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: [
+                      for (final t in tags)
+                        ActionChip(
+                          label: Text(t),
+                          shape: const StadiumBorder(),
+                          onPressed: () => Navigator.pop(context, t),
+                        ),
+                    ],
+                  ),
+                ),
               ),
             ),
         ],
@@ -617,7 +658,11 @@ class _BackupSheetState extends ConsumerState<_BackupSheet> {
     if (_busy != null) return;
     final session = ref.read(botSessionProvider).value;
     if (session == null) {
-      hintSnack(context, l10nNow.desktopDataBackupRequiresBotAuthorization, icon: Icons.cloud_off_outlined);
+      hintSnack(
+        context,
+        l10nNow.desktopDataBackupRequiresBotAuthorization,
+        icon: Icons.cloud_off_outlined,
+      );
       return;
     }
     setState(() => _busy = tag);
@@ -699,7 +744,11 @@ class _BackupSheetState extends ConsumerState<_BackupSheet> {
     }
     if (n == 0 && r.custom == null) {
       if (mounted) {
-        hintSnack(context, l10nNow.desktopNoCloudBackupsYet, icon: Icons.cloud_off_outlined);
+        hintSnack(
+          context,
+          l10nNow.desktopNoCloudBackupsYet,
+          icon: Icons.cloud_off_outlined,
+        );
       }
       return;
     }
@@ -822,7 +871,9 @@ class _BackupSheetState extends ConsumerState<_BackupSheet> {
         );
       }
       if (parsed.items.isEmpty) {
-        if (mounted) hintSnack(context, l10nNow.fileNoEntries, icon: Icons.info_outline);
+        if (mounted) {
+          hintSnack(context, l10nNow.fileNoEntries, icon: Icons.info_outline);
+        }
         return;
       }
       final restoredDef = TagCategoryDef.fromJson(j['categoryDefinition']);

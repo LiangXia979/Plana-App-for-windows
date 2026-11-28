@@ -304,7 +304,7 @@ void main() {
       await mount(tester, width: 1100, page: const AppearancePage());
       final setting = key('appearance-tag-match');
       await tester.scrollUntilVisible(
-        setting,
+        find.descendant(of: setting, matching: find.text('并集')).hitTestable(),
         320,
         scrollable: find
             .descendant(
@@ -365,6 +365,39 @@ void main() {
         }
 
         if (embedded) {
+          await tap(key('sidebar-remote-switch'));
+          expect(find.byType(CheckedPopupMenuItem<int>), findsNothing);
+          expect(
+            tester
+                .widget<Semantics>(
+                  find
+                      .ancestor(
+                        of: key('sidebar-remote-switch'),
+                        matching: find.byType(Semantics),
+                      )
+                      .first,
+                )
+                .properties
+                .selected,
+            isTrue,
+          );
+          expect(
+            tester.getSize(key('sidebar-remote-picker')).width,
+            lessThanOrEqualTo(24),
+          );
+          final mouse = await tester.createGesture(
+            kind: PointerDeviceKind.mouse,
+          );
+          await mouse.addPointer(
+            location: tester.getCenter(key('sidebar-remote-picker')),
+          );
+          await tester.pump(const Duration(milliseconds: 200));
+          await captureDesktop(
+            tester,
+            sidebarCapture,
+            'sidebar-library-arrow-hover',
+          );
+          await mouse.removePointer();
           await tap(key('sidebar-remote-picker'));
           expect(find.text('Imported'), findsOneWidget);
         } else {
@@ -426,7 +459,7 @@ void main() {
         if (embedded) {
           expect(
             find.descendant(
-              of: key('sidebar-remote-picker'),
+              of: key('sidebar-remote-switch'),
               matching: find.text('全部外部库'),
             ),
             findsOneWidget,
@@ -434,16 +467,19 @@ void main() {
           await tap(key('sidebar-scope-0'));
           expect(
             find.descendant(
-              of: key('sidebar-remote-picker'),
+              of: key('sidebar-remote-switch'),
               matching: find.text('全部外部库'),
             ),
             findsOneWidget,
           );
+          await tap(key('sidebar-remote-switch'));
+          expect(key('external-library-list'), findsOneWidget);
+          expect(find.byType(CheckedPopupMenuItem<int>), findsNothing);
           await tap(key('sidebar-remote-picker'));
           await tap(key('sidebar-scope-2'));
           expect(
             find.descendant(
-              of: key('sidebar-remote-picker'),
+              of: key('sidebar-remote-switch'),
               matching: find.text('Impor…'),
             ),
             findsOneWidget,
@@ -575,8 +611,49 @@ void main() {
         await tester.pumpAndSettle();
         expect(find.text('取消选择'), findsNothing);
 
+        if (!embedded) {
+          await tester.tap(find.text('Iris · Night'));
+          await tester.pumpAndSettle();
+          expect(key('inspiration-selection-delete'), findsNothing);
+          await tester.tap(key('inspiration-selection-tag'));
+          await tester.pumpAndSettle();
+          final sheet = find.byType(BottomSheet);
+          await tester.enterText(
+            find.descendant(of: sheet, matching: find.byType(TextField)),
+            '夜景',
+          );
+          await tester.tap(
+            find.descendant(of: sheet, matching: find.text('使用')),
+          );
+          await pumpUntil(tester, () {
+            final data = c.read(tagLibraryProvider).requireValue;
+            return data.externalTags.values.any(
+                  (tags) => tags.contains('夜景'),
+                ) &&
+                tester
+                        .widget<TextButton>(key('inspiration-selection-tag'))
+                        .onPressed !=
+                    null;
+          });
+          expect(
+            c
+                .read(tagLibraryProvider)
+                .requireValue
+                .externalTags
+                .containsKey(id),
+            isFalse,
+          );
+          await tester.tap(find.text('取消选择'));
+          await tester.pumpAndSettle();
+        }
+
         Future<void> editCard() async {
-          await tester.tap(key('inspiration-menu-$id'));
+          final mouse = await tester.startGesture(
+            tester.getCenter(card),
+            kind: PointerDeviceKind.mouse,
+            buttons: kSecondaryMouseButton,
+          );
+          await mouse.up();
           await tester.pumpAndSettle();
           await tester.tap(
             find.widgetWithText(PopupMenuItem<InspirationEntryAction>, '编辑'),
@@ -790,7 +867,7 @@ void main() {
       final open = key('appearance-public-blocklist');
       Future<void> edit() async {
         await tester.scrollUntilVisible(
-          open,
+          open.hitTestable(),
           360,
           scrollable: find
               .descendant(

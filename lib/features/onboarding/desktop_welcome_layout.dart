@@ -2,6 +2,8 @@ import '../../l10n/l10n.dart';
 import 'package:flutter/material.dart';
 
 import '../../core/theme/app_theme.dart';
+import '../profile/manual/user_manual_entry.dart';
+import 'package:flutter/foundation.dart';
 
 /// 桌面引导的外框。内容保活，步骤导航只允许返回或按顺序继续。
 class DesktopWelcomeLayout extends StatelessWidget {
@@ -28,21 +30,24 @@ class DesktopWelcomeLayout extends StatelessWidget {
   final VoidCallback? onClose;
   final String? hint;
 
-  static const _steps = [
-    ('欢迎', '熟悉桌面工作台'),
-    ('外观', '主题与配色'),
-    ('接入方式', '官方或第三方接口'),
-    ('扩展功能', '按需授权 Bot'),
-    ('完成', '确认设置'),
-  ];
-
   @override
   Widget build(BuildContext context) {
     final scheme = context.scheme;
+    final l = context.l10n;
+    final steps = [
+      (l.guideWelcome, l.guideWelcomeSub),
+      (l.guideAppearance, l.guideAppearanceSub),
+      (l.guideGeneration, l.guideAccessSub),
+      (l.guideBotStep, l.guideBotSub),
+      (l.guideStorage, l.guideStorageSub),
+      (l.guideFinish, l.guideFinishSub),
+    ];
     return LayoutBuilder(
       builder: (context, constraints) {
         // 引导也会打开在「我的」右侧面板内，以实际可用宽度判断布局。
-        final wide = constraints.maxWidth >= 760;
+        final wide =
+            constraints.maxWidth >=
+            760 * MediaQuery.textScalerOf(context).scale(1);
         return Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
@@ -62,7 +67,11 @@ class DesktopWelcomeLayout extends StatelessWidget {
                         ),
                         const SizedBox(height: 4),
                         Text(
-                          '第 ${index + 1} 步，共 ${pages.length} 步 · ${_steps[index].$1}',
+                          l.guideProgress(
+                            index + 1,
+                            pages.length,
+                            steps[index].$1,
+                          ),
                           key: const ValueKey('desktop-welcome-progress'),
                           style: context.texts.bodySmall!.copyWith(
                             color: scheme.onSurfaceVariant,
@@ -105,7 +114,7 @@ class DesktopWelcomeLayout extends StatelessWidget {
                         child: ListView(
                           padding: const EdgeInsets.all(12),
                           children: [
-                            for (var i = 0; i < _steps.length; i++)
+                            for (var i = 0; i < steps.length; i++)
                               Padding(
                                 padding: const EdgeInsets.only(bottom: 6),
                                 child: ListTile(
@@ -147,8 +156,8 @@ class DesktopWelcomeLayout extends StatelessWidget {
                                             ),
                                           ),
                                         ),
-                                  title: Text(_steps[i].$1),
-                                  subtitle: Text(_steps[i].$2),
+                                  title: Text(steps[i].$1),
+                                  subtitle: Text(steps[i].$2),
                                 ),
                               ),
                           ],
@@ -182,12 +191,12 @@ class DesktopWelcomeLayout extends StatelessWidget {
                 border: Border(top: BorderSide(color: scheme.outlineVariant)),
               ),
               padding: const EdgeInsets.all(16),
-              child: constraints.maxWidth >= 620
+              child:
+                  constraints.maxWidth >=
+                      880 * MediaQuery.textScalerOf(context).scale(1)
                   ? Row(
                       children: [
-                        Expanded(
-                          child: _hint(context, hint ?? '之后可在「我的」中修改这些设置。'),
-                        ),
+                        Expanded(child: _hint(context, hint ?? l.guideLater)),
                         const SizedBox(width: 16),
                         _actions(),
                       ],
@@ -222,6 +231,9 @@ class DesktopWelcomeLayout extends StatelessWidget {
     spacing: 8,
     runSpacing: 8,
     children: [
+      if (index == pages.length - 1 &&
+          defaultTargetPlatform == TargetPlatform.windows)
+        const UserManualEntry(asButton: true),
       TextButton.icon(
         key: const ValueKey('desktop-welcome-back'),
         onPressed: onBack,

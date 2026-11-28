@@ -15,9 +15,13 @@ import '../import/desktop_image_drop.dart';
 import '../../core/theme/app_theme.dart';
 import '../generate/generation_controller.dart';
 import '../generate/generate_state.dart';
+import '../desktop/desktop_library_picker.dart';
+import '../desktop/desktop_library_state.dart';
 import '../generate/widgets/common.dart' show hintSnack;
 import '../inpaint/inpaint_overlay.dart';
 import 'gallery_state.dart';
+import 'temporary_gallery_actions.dart';
+import 'temporary_gallery_state.dart';
 import 'models.dart';
 import 'result_clipboard.dart';
 import 'save_settings.dart';
@@ -74,6 +78,10 @@ class _GalleryPageState extends ConsumerState<GalleryPage>
   bool _keep = false;
   bool _hintChecked = false;
   bool _historyOpen = true;
+  Set<String>? _batchIds;
+  bool _batchWorking = false;
+  DesktopLibrarySelection? _batchDestination;
+  final _historyWindow = InitialHistoryWindow();
   final _historyFocus = FocusNode(debugLabel: 'Canvas and history');
   bool _importingHistory = false;
 
@@ -91,8 +99,11 @@ class _GalleryPageState extends ConsumerState<GalleryPage>
   String? _viewSelectedId;
 
   /// 冷启动直接停在上次选中的那一页(索引查不到就落到最新一张)。
+  GalleryState get _history =>
+      ref.read(creationGalleryFor(ref.read(temporaryCanvasProvider)));
+
   late final int _initialPage = () {
-    final s = ref.read(galleryViewProvider);
+    final s = _history;
     final i = s.results.indexWhere((r) => r.id == s.selectedId);
     return i < 0 ? 0 : i;
   }();
@@ -204,16 +215,20 @@ class _GalleryPageState extends ConsumerState<GalleryPage>
     if (widget.desktop) _historyFocus.requestFocus();
     ref.read(galleryResultPreviewProvider.notifier).clear();
     ref.read(generationProvider.notifier).select(null);
-    ref.read(galleryProvider.notifier).select(id);
+    _selectResult(id);
+  }
+
+  void _selectResult(String id) {
+    if (ref.read(temporaryCanvasProvider) != null) {
+      ref.read(appStoresProvider).temporaryGallery.select(id);
+    } else {
+      ref.read(galleryProvider.notifier).select(id);
+    }
   }
 
   Future<void> _importHistory(String id) async {
     if (_importingHistory) return;
-    final image = ref
-        .read(galleryProvider)
-        .results
-        .where((r) => r.id == id)
-        .firstOrNull;
+    final image = _history.results.where((r) => r.id == id).firstOrNull;
     if (image == null) return;
     _importingHistory = true;
     try {
@@ -237,10 +252,14 @@ class _GalleryPageState extends ConsumerState<GalleryPage>
         focused?.findAncestorStateOfType<EditableTextState>() != null) {
       return KeyEventResult.ignored;
     }
+    if (_batchIds != null && event.logicalKey == LogicalKeyboardKey.escape) {
+      if (!_batchWorking) setState(() => _batchIds = null);
+      return KeyEventResult.handled;
+    }
     if (HardwareKeyboard.instance.isControlPressed) {
       if (event is KeyDownEvent &&
           event.logicalKey == LogicalKeyboardKey.keyC) {
-        final history = ref.read(galleryViewProvider);
+        final history = _history;
         final result = history.results
             .where((r) => r.id == history.selectedId)
             .firstOrNull;
@@ -258,7 +277,7 @@ class _GalleryPageState extends ConsumerState<GalleryPage>
         ? 1
         : 0;
     if (delta == 0) return KeyEventResult.ignored;
-    final history = ref.read(galleryViewProvider);
+    final history = _history;
     if (history.results.isEmpty) return KeyEventResult.ignored;
     final current = history.results.indexWhere(
       (r) => r.id == history.selectedId,
@@ -271,35 +290,303 @@ class _GalleryPageState extends ConsumerState<GalleryPage>
     return KeyEventResult.handled;
   }
 
-  Widget _historyHeader(int count) => Material(
-    type: MaterialType.transparency,
-    child: InkWell(
-      key: const ValueKey('desktop-history-header'),
-      onTap: _historyOpen ? null : () => setState(() => _historyOpen = true),
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(12, 6, 12, 0),
-        child: Row(
-          children: [
-            IconButton(
-              tooltip: _historyOpen ? '收起历史' : '展开历史',
-              onPressed: () => setState(() => _historyOpen = !_historyOpen),
-              icon: Icon(
-                _historyOpen ? Icons.expand_more : Icons.expand_less,
-                size: 18,
+  Future<void> _processBatch(
+    String canvas,
+    Set<String> ids,
+    DesktopLibrarySelection destination, {
+    bool zip = false,
+  }) async {
+    if (_batchWorking ||
+        ids.isEmpty ||
+        ref.read(temporaryCanvasProvider) != canvas) {
+      return;
+    }
+    final container = ProviderScope.containerOf(context, listen: false);
+    final store = container.read(appStoresProvider).temporaryGallery;
+    if (store.closing) return;
+    final release = store.holdCanvas(canvas);
+    final selected = store
+        .images(canvas)
+        .where((r) => ids.contains(r.id))
+        .map((r) => r.id)
+        .toList();
+    setState(() => _batchWorking = true);
+    try {
+      if (zip) {
+        final files = await packTemporaryGallery(
+          context,
+          container,
+          canvases: [canvas],
+          imageIds: selected.toSet(),
+        );
+        if (files == null || !mounted) return;
+        hintSnack(context, context.l10n.temporarySavedPath(files.single.path));
+      } else {
+        final album = destination.capture(DateTime.now());
+        var count = 0;
+        for (final id in selected) {
+          if (!store.contains(id)) continue;
+          if (store.isFiled(id) &&
+              (album.albumId == null ||
+                  container
+                      .read(albumsProvider)
+                      .ofImage(id)
+                      .contains(album.albumId))) {
+            continue;
+          }
+          await container
+              .read(galleryProvider.notifier)
+              .retainTemporary(id, destination: album);
+          count++;
+          if (mounted && container.read(temporaryCanvasProvider) == canvas) {
+            setState(() => _batchIds?.remove(id));
+          }
+        }
+        if (mounted) {
+          hintSnack(context, context.l10n.temporaryBatchFiled(count));
+        }
+      }
+      if (mounted && container.read(temporaryCanvasProvider) == canvas) {
+        setState(() => _batchIds = null);
+      }
+    } catch (e) {
+      if (mounted) {
+        hintSnack(context, context.l10n.temporaryActionFailed(e.toString()));
+      }
+    } finally {
+      release();
+      if (mounted) setState(() => _batchWorking = false);
+    }
+  }
+
+  Widget _batchMenu(
+    String canvas,
+    List<ResultImage> images,
+    DesktopLibrarySelection target,
+    String label,
+  ) {
+    final l = context.l10n;
+    final store = ref.read(appStoresProvider).temporaryGallery;
+    final fresh = {
+      for (final r in images)
+        if (!store.isPromoted(r.id)) r.id,
+    };
+    return PopupMenuButton<bool>(
+      key: const ValueKey('temporary-batch-menu'),
+      enabled: !_batchWorking,
+      tooltip: l.temporaryBatchPick,
+      icon: const Icon(Icons.expand_more, size: 16),
+      style: IconButton.styleFrom(
+        padding: EdgeInsets.zero,
+        minimumSize: const Size(26, 32),
+        maximumSize: const Size(26, 32),
+        visualDensity: VisualDensity.compact,
+        shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.horizontal(right: Radius.circular(16)),
+        ),
+        side: BorderSide(color: context.scheme.outlineVariant),
+        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+      ),
+      onSelected: (pick) {
+        if (ref.read(temporaryCanvasProvider) != canvas) return;
+        if (!pick) {
+          _processBatch(canvas, fresh, target);
+          return;
+        }
+        setState(() {
+          _historyOpen = true;
+          _batchIds = fresh.isEmpty ? {images.first.id} : fresh;
+        });
+        _historyFocus.requestFocus();
+      },
+      itemBuilder: (_) => [
+        PopupMenuItem(
+          value: false,
+          enabled: fresh.isNotEmpty,
+          child: Text(l.temporaryBatchAll(fresh.length, label)),
+        ),
+        PopupMenuItem(value: true, child: Text(l.temporaryBatchPick)),
+      ],
+    );
+  }
+
+  Widget _batchBar(
+    String canvas,
+    List<ResultImage> images,
+    DesktopLibrarySelection target,
+    String label,
+  ) {
+    final l = context.l10n;
+    final ids = _batchIds!;
+    final all = ids.length == images.length;
+    final canAct = ids.isNotEmpty && !_batchWorking;
+    return Container(
+      key: const ValueKey('temporary-batch-bar'),
+      width: double.infinity,
+      margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      decoration: BoxDecoration(
+        color: context.scheme.secondaryContainer.withValues(alpha: .48),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: context.scheme.outlineVariant),
+      ),
+      child: LayoutBuilder(
+        builder: (context, bounds) {
+          final scale = MediaQuery.textScalerOf(context).scale(14) / 14;
+          final compact = bounds.maxWidth < 760 * scale;
+          final style = compact
+              ? ButtonStyle(
+                  minimumSize: const WidgetStatePropertyAll(Size(0, 32)),
+                  padding: const WidgetStatePropertyAll(
+                    EdgeInsets.symmetric(horizontal: 8),
+                  ),
+                  textStyle: WidgetStatePropertyAll(context.texts.labelMedium),
+                  visualDensity: VisualDensity.compact,
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                )
+              : null;
+          final selection = Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                l.temporaryBatchCount(ids.length, images.length),
+                style: context.texts.labelMedium,
               ),
-            ),
-            Text('历史记录 · $count', style: context.texts.bodySmall),
-            if (widget.libraryControl != null)
-              Expanded(
-                child: Align(
-                  alignment: Alignment.centerRight,
-                  child: widget.libraryControl!,
+              TextButton(
+                style: style,
+                onPressed: _batchWorking
+                    ? null
+                    : () => setState(
+                        () => _batchIds = all
+                            ? {}
+                            : {for (final image in images) image.id},
+                      ),
+                child: Text(all ? l.deselectAll : l.selectAll),
+              ),
+            ],
+          );
+          final actions = [
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(l.temporaryBatchTarget, style: context.texts.labelSmall),
+                const SizedBox(width: 4),
+                Flexible(
+                  child: OutlinedButton(
+                    key: const ValueKey('temporary-batch-target'),
+                    style: style,
+                    onPressed: _batchWorking
+                        ? null
+                        : () async {
+                            final choice = await showLibraryChoiceDialog(
+                              context,
+                              initialSelection: target,
+                            );
+                            if (choice != null &&
+                                mounted &&
+                                ref.read(temporaryCanvasProvider) == canvas) {
+                              setState(() => _batchDestination = choice);
+                            }
+                          },
+                    child: ConstrainedBox(
+                      constraints: BoxConstraints(
+                        maxWidth: compact ? 124 : 168,
+                      ),
+                      child: Stack(
+                        alignment: Alignment.center,
+                        children: [
+                          Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 16),
+                            child: Text(
+                              label,
+                              textAlign: TextAlign.center,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                          const PositionedDirectional(
+                            end: 0,
+                            child: Icon(Icons.expand_more, size: 14),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
                 ),
+              ],
+            ),
+            FilledButton.icon(
+              key: const ValueKey('temporary-batch-file'),
+              style: style,
+              onPressed: canAct
+                  ? () => _processBatch(canvas, Set.of(ids), target)
+                  : null,
+              icon: const Icon(Icons.create_new_folder_outlined, size: 15),
+              label: Text(l.temporaryBatchFile),
+            ),
+            OutlinedButton(
+              key: const ValueKey('temporary-batch-zip'),
+              style: style,
+              onPressed: canAct
+                  ? () => _processBatch(canvas, Set.of(ids), target, zip: true)
+                  : null,
+              child: Text(l.temporaryBatchZip),
+            ),
+            TextButton(
+              style: style,
+              onPressed: _batchWorking
+                  ? null
+                  : () => setState(() => _batchIds = null),
+              child: Text(l.done),
+            ),
+          ];
+          return OverflowBar(
+            alignment: MainAxisAlignment.spaceBetween,
+            overflowAlignment: OverflowBarAlignment.start,
+            children: [
+              selection,
+              Wrap(
+                spacing: 4,
+                runSpacing: compact ? 3 : 0,
+                crossAxisAlignment: WrapCrossAlignment.center,
+                children: actions,
               ),
-          ],
+            ],
+          );
+        },
+      ),
+    );
+  }
+
+  void _toggleHistory() => setState(() => _historyOpen = !_historyOpen);
+
+  Widget _historyHeader(int count, {int? total}) => Row(
+    key: const ValueKey('desktop-history-header'),
+    mainAxisSize: MainAxisSize.min,
+    children: [
+      IconButton(
+        visualDensity: VisualDensity.compact,
+        tooltip: _historyOpen ? '收起历史' : '展开历史',
+        onPressed: _toggleHistory,
+        icon: Icon(
+          _historyOpen ? Icons.expand_more : Icons.expand_less,
+          size: 18,
         ),
       ),
-    ),
+      Text(
+        total != null && total != count
+            ? '历史 · $count / $total'
+            : '历史 · $count',
+        style: context.texts.bodySmall,
+      ),
+      if (widget.libraryControl != null)
+        Flexible(
+          child: Padding(
+            padding: const EdgeInsets.only(left: 4),
+            child: widget.libraryControl,
+          ),
+        ),
+    ],
   );
 
   /// 跳页只能在帧后做(build 里动 controller 会打断本帧布局)。空窗这一两帧
@@ -336,9 +623,9 @@ class _GalleryPageState extends ConsumerState<GalleryPage>
         ref.read(galleryResultPreviewProvider) != null) {
       return;
     }
-    final results = ref.read(galleryViewProvider).results;
+    final results = _history.results;
     if (i < 0 || i >= results.length) return;
-    ref.read(galleryProvider.notifier).select(results[i].id);
+    _selectResult(results[i].id);
   }
 
   bool _onScroll(ScrollNotification n) {
@@ -355,11 +642,7 @@ class _GalleryPageState extends ConsumerState<GalleryPage>
 
   /// 胶片条上滑分享:单张,与网格弹层那条同一套管线(见 [prepareShareFiles])。
   Future<void> _shareOne(String id) async {
-    final r = ref
-        .read(galleryProvider)
-        .results
-        .where((e) => e.id == id)
-        .firstOrNull;
+    final r = _history.results.where((e) => e.id == id).firstOrNull;
     if (r == null) return;
     final settings = await ref.read(saveSettingsProvider.future);
     if (!mounted) return;
@@ -403,9 +686,32 @@ class _GalleryPageState extends ConsumerState<GalleryPage>
   @override
   Widget build(BuildContext context) {
     super.build(context);
-    final history = ref.watch(galleryViewProvider);
-    final scope = ref.watch(galleryBrowseAlbumProvider);
-    final preview = ref.watch(galleryResultPreviewProvider);
+    final temp = ref.watch(temporaryCanvasProvider);
+    final history = ref.watch(creationGalleryFor(temp));
+    final scope = temp == null
+        ? ref.watch(galleryBrowseAlbumProvider)
+        : '@temporary/$temp';
+    final preview = temp == null
+        ? ref.watch(galleryResultPreviewProvider)
+        : null;
+    final initialCount = widget.desktop
+        ? ref.watch(temporaryOptionsProvider.select((o) => o.initialHistory))
+        : 0;
+    final readiness = temp == null
+        ? null
+        : ref.watch(temporaryReadyProvider(temp));
+    final ready = readiness?.hasValue ?? true;
+    final visible = _historyWindow.visible(
+      '$scope/$ready',
+      initialCount,
+      history.results,
+    );
+    final recovery = temp != null && readiness!.hasError
+        ? TextButton(
+            onPressed: () => ref.invalidate(temporaryReadyProvider(temp)),
+            child: Text(context.l10n.temporaryLoadError),
+          )
+        : const TemporaryRecoveryBanner();
     final previewImage = preview == null
         ? null
         : ref
@@ -420,10 +726,35 @@ class _GalleryPageState extends ConsumerState<GalleryPage>
     final changedScope = _viewKey != viewKey;
     if (changedScope) {
       _viewKey = viewKey;
+      _batchIds = null;
+      _batchDestination = null;
       _clearSelectedFrame();
     }
+    if (history.results.isEmpty) _batchIds = null;
+    if (_batchIds case final ids?) {
+      final present = {for (final r in history.results) r.id};
+      ids.retainAll(present);
+    }
+    final albums = temp == null ? null : ref.watch(albumsProvider);
+    final chosen = _batchDestination;
+    final destination = temp == null
+        ? null
+        : chosen != null &&
+              (chosen.albumId == null ||
+                  isDailyAlbum(chosen.albumId) ||
+                  albums!.album(chosen.albumId) != null)
+        ? chosen
+        : ref.watch(desktopLibraryProvider);
+    final destinationLabel = destination == null
+        ? ''
+        : desktopLibraryLabel(destination, albums!);
     final pool = ref.watch(generationProvider);
-    final gen = ref.watch(genStatusProvider);
+    final jobs = pool.newestFirst
+        .where((j) => j.galleryTarget.canvasId == temp)
+        .toList();
+    final gen = pool.selected?.galleryTarget.canvasId == temp
+        ? ref.watch(genStatusProvider)
+        : const GenStatus();
     final inpaint = ref.watch(inpaintSessionProvider);
     final selected = state.selected;
     final changedSelection = _viewSelectedId != selected?.id;
@@ -438,9 +769,10 @@ class _GalleryPageState extends ConsumerState<GalleryPage>
 
     _maybeHint(!state.isEmpty);
 
-    if (!gen.busy && state.isEmpty && inpaint == null && pool.jobs.isEmpty) {
+    if (!gen.busy && state.isEmpty && inpaint == null && jobs.isEmpty) {
       return Column(
         children: [
+          if (temp != null) recovery,
           if (widget.desktop)
             const ResultActions(result: null, canvasBar: CanvasActionBar.top),
           Expanded(
@@ -449,19 +781,20 @@ class _GalleryPageState extends ConsumerState<GalleryPage>
                 : const _EmptyGallery(),
           ),
           if (widget.desktop)
-            const ResultActions(
+            ResultActions(
               result: null,
               canvasBar: CanvasActionBar.bottom,
+              history: _historyHeader(0),
+              onExpandHistory: _historyOpen ? null : _toggleHistory,
             ),
           if (!widget.desktop) const GalleryContextBar(),
-          if (ref.watch(galleryProvider).trash.isNotEmpty)
+          if (!widget.desktop && ref.watch(galleryProvider).trash.isNotEmpty)
             TextButton.icon(
               key: const ValueKey('empty-gallery-trash'),
               onPressed: () => showGalleryTrash(context),
               icon: const Icon(Icons.delete_outline),
               label: Text(l10nNow.trashName),
             ),
-          if (widget.desktop) _historyHeader(0),
         ],
       );
     }
@@ -535,6 +868,7 @@ class _GalleryPageState extends ConsumerState<GalleryPage>
           children: [
             Column(
               children: [
+                if (temp != null) recovery,
                 if (widget.desktop)
                   ResultActions(
                     key: ValueKey('canvas-top-${selected?.id}'),
@@ -680,13 +1014,6 @@ class _GalleryPageState extends ConsumerState<GalleryPage>
                     ),
                   ),
                 ),
-                if (widget.desktop)
-                  ResultActions(
-                    key: ValueKey('canvas-bottom-${selected?.id}'),
-                    result: selected,
-                    canvasBar: CanvasActionBar.bottom,
-                    enabled: showChrome,
-                  ),
                 if (previewImage != null && !showGen)
                   Material(
                     color: context.scheme.surfaceContainer,
@@ -722,20 +1049,86 @@ class _GalleryPageState extends ConsumerState<GalleryPage>
                     ),
                   ),
                 if (!widget.desktop) const GalleryContextBar(),
-                if (widget.desktop) _historyHeader(history.results.length),
+                if (widget.desktop)
+                  ResultActions(
+                    key: ValueKey('canvas-bottom-${selected?.id}'),
+                    result: selected,
+                    canvasBar: CanvasActionBar.bottom,
+                    temporaryCanvas: temp,
+                    temporaryBatchMenu: temp == null || history.results.isEmpty
+                        ? null
+                        : _batchMenu(
+                            temp,
+                            history.results,
+                            destination!,
+                            destinationLabel,
+                          ),
+                    enabled: showChrome,
+                    history: _historyHeader(
+                      _batchIds == null
+                          ? visible.length
+                          : history.results.length,
+                      total: history.results.length,
+                    ),
+                    onExpandHistory: _historyOpen ? null : _toggleHistory,
+                  ),
+                if (widget.desktop &&
+                    _historyOpen &&
+                    temp != null &&
+                    _batchIds != null)
+                  _batchBar(
+                    temp,
+                    history.results,
+                    destination!,
+                    destinationLabel,
+                  ),
                 if (!widget.desktop || _historyOpen)
                   FilmStrip(
                     desktop: widget.desktop,
                     onImport: _importHistory,
                     showMore: !widget.desktop,
-                    results: history.results,
+                    results: _batchIds == null ? visible : history.results,
+                    batchSelection: _batchIds,
+                    trailing:
+                        _batchIds == null &&
+                            visible.length < history.results.length
+                        ? TextButton(
+                            onPressed: () => setState(
+                              () => _historyWindow.more(history.results),
+                            ),
+                            child: Text(
+                              context.l10n.temporaryMore(initialCount),
+                            ),
+                          )
+                        : null,
                     selectedId: previewImage == null
                         ? history.selectedId
                         : null,
-                    onSelect: _selectHistory,
+                    onSelect: _batchIds == null
+                        ? _selectHistory
+                        : (id) {
+                            if (!_batchWorking) {
+                              setState(() {
+                                if (!_batchIds!.remove(id)) _batchIds!.add(id);
+                              });
+                            }
+                          },
                     onShare: _shareOne,
-                    onDelete: (id) => moveGalleryImagesToTrash(context, [id]),
-                    jobs: pool.newestFirst,
+                    onDelete: (id) async {
+                      if (temp == null) {
+                        await moveGalleryImagesToTrash(context, [id]);
+                      } else {
+                        try {
+                          await ref
+                              .read(appStoresProvider)
+                              .temporaryGallery
+                              .remove(id);
+                        } catch (e) {
+                          if (context.mounted) hintSnack(context, '删除失败：$e');
+                        }
+                      }
+                    },
+                    jobs: jobs,
                     selectedJobId: pool.selectedId,
                     onSelectJob: (id) {
                       ref.read(galleryResultPreviewProvider.notifier).clear();
@@ -769,7 +1162,10 @@ class _ResultPage extends ConsumerWidget {
     // 按住对比只作用在**当前这张**上:PageView 会把左右邻页也建出来,
     // 不判一下的话邻页也跟着换图(看不见,但白解码)。
     final selected =
-        ref.watch(galleryViewProvider).selectedId == result.id ||
+        ref
+                .watch(creationGalleryFor(ref.watch(temporaryCanvasProvider)))
+                .selectedId ==
+            result.id ||
         ref.watch(galleryResultPreviewProvider)?.imageId == result.id;
     final comparison = selected ? ref.watch(comparePreviewProvider) : null;
     final image = _ZoomableImage(

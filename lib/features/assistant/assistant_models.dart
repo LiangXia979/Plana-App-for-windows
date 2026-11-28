@@ -16,6 +16,7 @@ import '../generate/canvas_models.dart';
 import '../generate/prompt_import_binding.dart';
 import '../generate/state_codec.dart' show decodePromptSections;
 import '../editor/editor_models.dart' show PromptFoldLink;
+import '../inspiration/tag_models.dart' show CharacterLibrarySource;
 import 'assistant_mode.dart';
 import 'prompt_diff.dart';
 import 'semantic_blocks.dart';
@@ -592,6 +593,7 @@ class AssistantMsg {
     this.imageGen,
     this.imageModel,
     this.resources = const {},
+    this.characterSources = const [],
     this.tools = const [],
     this.draw,
     this.change,
@@ -652,6 +654,9 @@ class AssistantMsg {
   /// 「从这里重新开始」也天然把账本退回那一轮 —— 单存一份的话这三件事
   /// 都得各写一遍。发请求时取**最新那条 AI 消息**的。
   final Map<String, Map<String, String>> resources;
+
+  /// Client-side cover references, in drawing order. Kept out of model history.
+  final List<CharacterLibrarySource?> characterSources;
 
   /// **这一轮把创作页的提示词给了 AI**。用户消息与它那条回复上都记一份。
   ///
@@ -722,6 +727,7 @@ class AssistantMsg {
     imageGen: imageGen,
     imageModel: imageModel,
     resources: resources,
+    characterSources: characterSources,
     tools: tools ?? this.tools,
     draw: draw ?? this.draw,
     change: change ?? this.change,
@@ -743,6 +749,14 @@ class AssistantMsg {
     if (imageGen != null) 'imageGen': imageGen!.toJson(),
     if (imageModel != null) 'imageModel': imageModel,
     if (resources.isNotEmpty) 'resources': resources,
+    if (characterSources.any((s) => s != null))
+      'characterSources': [
+        for (final source in characterSources)
+          if (source == null)
+            null
+          else
+            {'id': source.id, 'preview': ?source.preview},
+      ],
     if (tools.isNotEmpty) 'tools': [for (final t in tools) t.toJson()],
     if (draw != null) 'draw': draw!.toJson(),
     if (change != null) 'change': change!.toJson(),
@@ -769,6 +783,19 @@ class AssistantMsg {
     imageBatch: (j['imageBatch'] as num?)?.toInt() ?? 1,
     imageIds: [for (final e in (j['imageIds'] as List? ?? const [])) '$e'],
     resources: decodeResources(j['resources']),
+    characterSources: [
+      if (j['characterSources'] case final List sources)
+        for (final item in sources)
+          if (item case {'id': final String id} when id.isNotEmpty)
+            (
+              id: id,
+              preview: item['preview'] is String
+                  ? item['preview'] as String
+                  : null,
+            )
+          else
+            null,
+    ],
     tools: [
       for (final e in (j['tools'] as List? ?? const []))
         if (e is Map<String, dynamic>) ToolTrace.fromJson(e),

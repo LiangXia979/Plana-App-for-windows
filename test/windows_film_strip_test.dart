@@ -89,6 +89,28 @@ void main() {
   }
 
   testWidgets(
+    'wheel over history thumbnails and track scrolls without selecting',
+    (tester) async {
+      await mount(tester);
+      final track = tester.getRect(
+        find.byKey(const ValueKey('desktop-history-scrollbar')),
+      );
+      for (final (position, delta) in [
+        (tester.getCenter(thumb('gen1')), 100.0),
+        (Offset(track.center.dx, track.bottom - 4), -100.0),
+      ]) {
+        final before = scroll(tester).offset;
+        await tester.sendEventToBinding(
+          PointerScrollEvent(position: position, scrollDelta: Offset(0, delta)),
+        );
+        await tester.pumpAndSettle();
+        expect(scroll(tester).offset, before + delta);
+        expect(selected, 'gen0');
+      }
+    },
+  );
+
+  testWidgets(
     'mixed-width offscreen inserts and removals keep the same visible image',
     (tester) async {
       await mount(tester);

@@ -12,6 +12,10 @@ import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
+import 'package:flutter/gestures.dart' show PointerScrollEvent;
+import 'package:image/image.dart' as img;
+import 'package:plana_app/core/util/png_meta.dart';
+import 'package:plana_app/features/import/import_panel.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -591,6 +595,134 @@ void main() {
     variant: TargetPlatformVariant.only(TargetPlatform.windows),
   );
 
+  testWidgets(
+    'overwriting image prompts and roles leaves mouse clicks and sidebar scrolling independent',
+    (tester) async {
+      final gen = c.read(generateProvider.notifier);
+      gen.setPrompts(positive: 'original, old, tags');
+      gen.addCharacter();
+      final prompt = List.generate(
+        38,
+        (i) => '1.2::sunlight $i::, ocean $i',
+      ).join(', ');
+      final image = await tester.runAsync(
+        () => writeImageMetadataPng(
+          Uint8List.fromList(img.encodePng(img.Image(width: 4, height: 4))),
+          source: 'NovelAI Diffusion V4.5 4BDE2A90',
+          comment: {
+            'prompt': prompt,
+            'uc': 'rain',
+            'v4_prompt': {
+              'caption': {
+                'char_captions': [
+                  {'char_caption': 'silver hair'},
+                  {'char_caption': 'green eyes'},
+                ],
+              },
+            },
+          },
+        ),
+      );
+      await mount(tester, const Size(1440, 900));
+      EditableTextState editor() => tester.state<EditableTextState>(
+        find.descendant(
+          of: key('desktop-prompt-text'),
+          matching: find.byType(EditableText),
+        ),
+      );
+      final initial = editor();
+      initial.widget.focusNode.requestFocus();
+      initial.widget.controller.selection = const TextSelection(
+        baseOffset: 0,
+        extentOffset: 13,
+      );
+      await tester.pumpAndSettle();
+      unawaited(
+        Navigator.of(initial.context).push(
+          MaterialPageRoute<void>(
+            builder: (_) => ImportImagePanel(
+              bytes: image!,
+              fileName: 'test.png',
+              displayName: 'test',
+            ),
+          ),
+        ),
+      );
+      await pumpUntil(tester, () => find.text('词 + 角色').evaluate().isNotEmpty);
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('词 + 角色'), kind: ui.PointerDeviceKind.mouse);
+      await tester.pumpAndSettle();
+      final mode = find.descendant(
+        of: key('image-prompt-import-mode'),
+        matching: find.text('完全覆盖'),
+      );
+      await tester.ensureVisible(mode);
+      await tester.tap(mode, kind: ui.PointerDeviceKind.mouse);
+      await tester.pumpAndSettle();
+      await tester.tap(
+        key('desktop-import-confirm'),
+        kind: ui.PointerDeviceKind.mouse,
+      );
+      await pumpUntil(
+        tester,
+        () => find.byType(ImportImagePanel).evaluate().isEmpty,
+      );
+      await tester.pumpAndSettle();
+      expect(gen.state.prompt, prompt);
+      expect(gen.state.characters.map((c) => c.positive), [
+        'silver hair',
+        'green eyes',
+      ]);
+      final ctl = editor().widget.controller;
+      final render = editor().renderEditable;
+      final bar = key('desktop-controls-scrollbar');
+      final bounds = tester.getRect(bar);
+      final scroll = tester.widget<Scrollbar>(bar).controller!;
+      scroll.jumpTo(0);
+      await tester.pumpAndSettle();
+      final at = ctl.text.indexOf('ocean 3') + 2;
+      final point = render.localToGlobal(
+        render.getLocalRectForCaret(TextPosition(offset: at)).center,
+      );
+      expect(bounds.contains(point), isTrue);
+      final click = await tester.startGesture(
+        point,
+        kind: ui.PointerDeviceKind.mouse,
+      );
+      await tester.pump();
+      await click.up();
+      await tester.pumpAndSettle();
+      expect(ctl.selection.isCollapsed, isTrue);
+      expect(ctl.selection.extentOffset, closeTo(at, 1));
+      expect(
+        tester.getSize(key('desktop-tag-popover')).height,
+        lessThanOrEqualTo(40),
+      );
+      final mouse = await tester.startGesture(
+        Offset(bounds.right - 5, bounds.top + 12),
+        kind: ui.PointerDeviceKind.mouse,
+      );
+      await mouse.moveBy(const Offset(0, 85));
+      await mouse.up();
+      await tester.pumpAndSettle();
+      final afterDrag = scroll.offset;
+      expect(afterDrag, greaterThan(0));
+      await tester.sendEventToBinding(
+        PointerScrollEvent(
+          position: bounds.center,
+          scrollDelta: const Offset(0, 100),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(scroll.offset, greaterThan(afterDrag));
+      expect(ctl.selection.isCollapsed, isTrue);
+      await tester.pumpWidget(const SizedBox());
+      await tester.pump(const Duration(seconds: 1));
+      await drainWrites(tester);
+    },
+    variant: TargetPlatformVariant.only(TargetPlatform.windows),
+  );
+
   testWidgets('生成设置折叠在滚动离开和重建工作台后保留', (tester) async {
     await mount(tester, const Size(1440, 900));
     final position = tester
@@ -970,8 +1102,15 @@ void main() {
       await mount(tester, const Size(1280, 900));
       await tester.tap(key('desktop-prompt-negative-tab'));
       await tester.pumpAndSettle();
+      expect(key('nai-effort-medium'), findsNothing);
+      await tester.tap(key('desktop-model-dropdown'));
+      await tester.pumpAndSettle();
+      expect(find.text('NAI 5.0 Full Medium'), findsOneWidget);
+      await screenshot(tester, 'nai5-model-list');
       await tester.tap(key('nai-effort-medium'));
       await tester.pumpAndSettle();
+      expect(find.text('NAI 5.0 Full Medium'), findsOneWidget);
+      expect(c.read(generateProvider).params.model, 'NAI 5.0 Full');
       expect(c.read(generateProvider).params.activeSteps, 14);
       expect(key('desktop-steps'), findsNothing);
       expect(key('desktop-rescale'), findsNothing);
@@ -981,6 +1120,8 @@ void main() {
       expect(key('desktop-prompt-negative-tab'), findsNothing);
       expect(c.read(generateProvider).negativePrompt, 'saved negative');
       await screenshot(tester, 'nai5-medium');
+      await tester.tap(key('desktop-model-dropdown'));
+      await tester.pumpAndSettle();
       await tester.tap(key('nai-effort-high'));
       await tester.pumpAndSettle();
       expect(c.read(generateProvider).params.activeSteps, 35);
@@ -1314,7 +1455,7 @@ void main() {
         canvases.rename(id, '合成场景 $i');
       }
       await mount(tester, const Size(1440, 900));
-      expect(find.text('Medium', skipOffstage: false), findsOneWidget);
+      expect(find.text('NAI 5.0 Full Medium'), findsOneWidget);
       expect(key('desktop-canvas-tabs'), findsOneWidget);
       expect(tester.takeException(), isNull);
       await screenshot(tester, 'windows50-canvas-wide');

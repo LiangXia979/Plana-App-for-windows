@@ -18,6 +18,7 @@ import 'package:plana_app/features/generate/canvas_state.dart';
 import 'package:plana_app/features/generate/preset_manage_page.dart';
 import 'package:plana_app/features/generate/prompt_presets.dart';
 import 'package:plana_app/features/generate/widgets/desktop_prompt_card.dart';
+import 'package:plana_app/features/generate/widgets/prompt_card.dart';
 
 class _MemoryPresets extends PromptPresetsNotifier {
   int activations = 0;
@@ -246,7 +247,7 @@ void main() {
                   child: Consumer(
                     builder: (_, ref, _) => Column(
                       children: [
-                        const DesktopPromptCard(),
+                        const PromptCard(),
                         for (final c in ref.watch(generateProvider).characters)
                           Padding(
                             padding: const EdgeInsets.all(12),
@@ -328,7 +329,7 @@ void main() {
 
   for (final size in [(310.0, 1.0), (220.0, 1.4)]) {
     testWidgets(
-      'main-only shortcut stays next to mode at width ${size.$1}, scale ${size.$2}',
+      'main preset and settings stay above the editor at width ${size.$1}, scale ${size.$2}',
       (tester) async {
         gen.addCharacter();
         final charId = gen.state.characters.single.id;
@@ -338,8 +339,18 @@ void main() {
         expect(key('desktop-character-$charId-mode'), findsOneWidget);
         final mode = tester.getRect(key('desktop-prompt-mode'));
         final preset = tester.getRect(key('desktop-prompt-preset'));
-        expect(preset.left, closeTo(mode.right, .01));
-        expect(preset.center.dy, closeTo(mode.center.dy, .01));
+        expect(preset.bottom, lessThan(mode.top));
+        expect(
+          tester.getRect(key('desktop-editor-settings')).bottom,
+          lessThan(mode.top),
+        );
+        expect(
+          find.descendant(
+            of: find.byType(InlineEditorChrome),
+            matching: key('desktop-prompt-preset'),
+          ),
+          findsNothing,
+        );
         expect(preset.right, lessThanOrEqualTo(size.$1 - 12));
         expect(tester.takeException(), isNull);
         await open(tester);

@@ -18,12 +18,14 @@ import '../../l10n/l10n.dart';
 class LoopStatus {
   const LoopStatus({
     this.active = false,
+    this.temporaryCanvas,
     this.batch = 0,
     this.total = 0,
     this.stopping = false,
   });
 
   final bool active;
+  final String? temporaryCanvas;
   final int batch;
   final int total;
   final bool stopping;
@@ -31,6 +33,7 @@ class LoopStatus {
   LoopStatus copyWith({bool? active, int? batch, int? total, bool? stopping}) =>
       LoopStatus(
         active: active ?? this.active,
+        temporaryCanvas: temporaryCanvas,
         batch: batch ?? this.batch,
         total: total ?? this.total,
         stopping: stopping ?? this.stopping,
@@ -59,7 +62,11 @@ class LoopNotifier extends Notifier<LoopStatus> {
     // 来源画布被删了就接着用它最后那组词和参数跑完,不半路改用别的画布的
     var prompts = CanvasPrompts.of(ref.read(generateProvider));
     final galleryTarget = ref.read(gallerySaveTargetProvider);
-    state = LoopStatus(active: true, total: total);
+    state = LoopStatus(
+      active: true,
+      total: total,
+      temporaryCanvas: galleryTarget.canvasId,
+    );
     // 桌面直接在创作画布显示进度；移动端只在开跑时切一次图库。
     // 后续每张都保留用户当前页面(generate 里按 _inLoop 跳过)。
     if (!ref.read(desktopModeProvider)) {

@@ -163,7 +163,8 @@ class LocalAgentRuntime implements AgentRuntime {
         final parts = [
           ...asked,
           if (block.isNotEmpty) block,
-          if (req.apiSupplement.isNotEmpty) req.apiSupplement,
+          if (route == AgentTrace.routeCustom && req.apiSupplement.isNotEmpty)
+            req.apiSupplement,
         ];
         if (noImage) {
           if (parts.isEmpty) parts.add(texts.get('retry_image_only'));

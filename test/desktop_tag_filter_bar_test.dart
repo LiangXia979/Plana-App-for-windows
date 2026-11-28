@@ -156,6 +156,43 @@ void main() {
     },
   );
 
+  testWidgets(
+    'selected sidebar tags scroll with the wheel over chips and track',
+    (tester) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: Align(
+              alignment: Alignment.topLeft,
+              child: SizedBox(
+                width: 330,
+                child: SelectedInspirationTags(
+                  tags: tags.toSet(),
+                  onChanged: (_) => fail('wheel changed selection'),
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      final view = find.byType(SingleChildScrollView);
+      final scroll = tester.widget<SingleChildScrollView>(view).controller!;
+      final rect = tester.getRect(view);
+      for (final (position, delta) in [
+        (tester.getCenter(find.byType(InputChip).first), 100.0),
+        (Offset(rect.center.dx, rect.bottom - 4), -100.0),
+      ]) {
+        final before = scroll.offset;
+        await tester.sendEventToBinding(
+          PointerScrollEvent(position: position, scrollDelta: Offset(0, delta)),
+        );
+        await tester.pumpAndSettle();
+        expect(scroll.offset, before + delta);
+      }
+    },
+  );
+
   testWidgets('manual browsing is preserved through ordinary parent rebuilds', (
     tester,
   ) async {

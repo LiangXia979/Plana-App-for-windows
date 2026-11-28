@@ -1,5 +1,7 @@
 import '../../../l10n/l10n.dart';
 import 'package:flutter/material.dart';
+
+import '../../../core/ui/desktop_text_selection.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/theme/app_theme.dart';
@@ -100,6 +102,8 @@ class _KreaPromptCardState extends ConsumerState<KreaPromptCard> {
           const SizedBox(height: 10),
           TextField(
             controller: _extra,
+            contextMenuBuilder: DesktopTextSelection.contextMenu,
+            inputFormatters: [DesktopSelectionFormatter(_extra)],
             onChanged: notifier.setExtra,
             maxLines: 2,
             minLines: 1,
@@ -108,7 +112,8 @@ class _KreaPromptCardState extends ConsumerState<KreaPromptCard> {
               isDense: true,
               filled: true,
               fillColor: scheme.surfaceContainerHigh.withValues(alpha: .5),
-              hintText: l10nNow.desktopOptionalInstructionsEGUseWarmEveningLight,
+              hintText:
+                  l10nNow.desktopOptionalInstructionsEGUseWarmEveningLight,
               hintStyle: context.texts.bodySmall!.copyWith(
                 color: scheme.outline,
               ),
@@ -143,7 +148,10 @@ class _KreaPromptCardState extends ConsumerState<KreaPromptCard> {
                     ),
                   ),
                 ),
-                TextButton(onPressed: notifier.cancel, child: Text(l10nNow.cancel)),
+                TextButton(
+                  onPressed: notifier.cancel,
+                  child: Text(l10nNow.cancel),
+                ),
               ],
             ),
           ],

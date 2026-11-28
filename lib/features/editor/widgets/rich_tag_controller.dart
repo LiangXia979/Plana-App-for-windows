@@ -23,8 +23,14 @@ const TextStyle kEditorBaseStyle = TextStyle(
 // 「藏字」实现(fontSize 0.01 / 负 letterSpacing 收零)都在真机字形引擎上
 // 翻了车(撑宽换行 / 鬼缩进),教训:不要跟断行器搏斗。
 
-/// 注音字号(与 _FuriganaPainter 的 _transSize 一致,宽度测量用)。
-const TextStyle kTransMeasureStyle = TextStyle(fontSize: 9.5, height: 1);
+/// Measure and paint translated tags with the editor's CJK font fallbacks.
+TextStyle tagTranslationStyle(TextStyle base) => TextStyle(
+  fontFamily: base.fontFamily,
+  fontFamilyFallback: base.fontFamilyFallback,
+  locale: base.locale,
+  fontSize: 9.5,
+  height: 1,
+);
 
 final _widthCache = <(String, TextStyle, TextScaler), double>{};
 
@@ -53,11 +59,12 @@ Map<int, double> tagExtraSpacing(
   TextStyle base = kEditorBaseStyle,
 }) {
   final out = <int, double>{};
+  final transStyle = tagTranslationStyle(base);
   for (final t in parseToks(text)) {
     final tr = t.trans;
     if (tr == null || tr.isEmpty || t.segEnd <= t.segStart) continue;
     final segW = _textWidth(text.substring(t.segStart, t.segEnd), base, scaler);
-    final transW = _textWidth(tr, kTransMeasureStyle, scaler);
+    final transW = _textWidth(tr, transStyle, scaler);
     final extra = transW - segW;
     if (extra > 0) out[t.segEnd - 1] = extra;
   }

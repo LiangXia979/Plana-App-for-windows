@@ -129,7 +129,12 @@ Future<GalleryExportPlan> prepareGalleryExport({
       // Results can be visible before their queued snapshot finishes saving.
       await store.idle;
       _checkCanceled(canceled);
-      final newest = <String, ResultImage>{};
+      final samples = <String, ResultImage>{};
+      int priority(ResultImage image) => selectedIds.contains(image.id)
+          ? 2
+          : image.favorite
+          ? 1
+          : 0;
       for (final image in scope.values) {
         _checkCanceled(canceled);
         final key = await _sampleKey(image, store, canceled);
@@ -138,12 +143,14 @@ Future<GalleryExportPlan> prepareGalleryExport({
           unknownCount++;
           continue;
         }
-        final previous = newest[key];
+        final previous = samples[key];
         if (previous == null) {
-          newest[key] = image;
-        } else if (_isNewer(image, previous)) {
+          samples[key] = image;
+        } else if (priority(image) > priority(previous) ||
+            (priority(image) == priority(previous) &&
+                _isNewer(image, previous))) {
           deleteIds.add(previous.id);
-          newest[key] = image;
+          samples[key] = image;
         } else {
           deleteIds.add(image.id);
         }

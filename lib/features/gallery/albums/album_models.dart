@@ -1,20 +1,28 @@
 import 'package:flutter/foundation.dart' show setEquals;
 import '../../../l10n/l10n.dart';
+import '../models.dart' show ResultImage;
 
 const allPhotosName = '全部作品';
 // Virtual scopes cannot collide with persisted user album IDs.
 const favoritesId = '@favorites';
 const favoritesName = '收藏';
+const savedGalleryId = '@saved';
 const trashId = '@trash';
 const trashName = '回收站';
-bool isFixedGallery(String? id) => id == favoritesId || id == trashId;
+bool isFixedGallery(String? id) =>
+    id == favoritesId || id == savedGalleryId || id == trashId;
 bool validGalleryId(String id) => RegExp(r'^[a-zA-Z0-9_-]+$').hasMatch(id);
 
 /// null 是明确的“仅全部作品”；参数本身为 null 才表示读取当前设置。
 class GallerySaveTarget {
-  const GallerySaveTarget.all() : albumId = null;
-  const GallerySaveTarget.album(String id) : albumId = id;
+  const GallerySaveTarget.all() : this._();
+  const GallerySaveTarget.album(String id) : this._(albumId: id);
+  const GallerySaveTarget.temporary(String canvas, String name)
+    : this._(canvasId: canvas, canvasName: name);
+  const GallerySaveTarget._({this.albumId, this.canvasId, this.canvasName});
   final String? albumId;
+  final String? canvasId;
+  final String? canvasName;
 }
 
 class GalleryImportOrigin {
@@ -100,12 +108,21 @@ class AlbumsData {
   bool exists(String? id) => id == null || _albumIds.contains(id);
   String name(String? id) => id == favoritesId
       ? favoritesName
+      : id == savedGalleryId
+      ? l10nNow.statusSaved
       : id == trashId
       ? trashName
       : album(id)?.name ?? allPhotosName;
   bool contains(String? albumId, String imageId) =>
       albumId == null ||
       (exists(albumId) && (memberships[imageId]?.contains(albumId) ?? false));
+  List<ResultImage> imagesIn(String? id, List<ResultImage> results) =>
+      switch (id) {
+        null => results,
+        favoritesId => results.where((r) => r.favorite).toList(),
+        savedGalleryId => results.where((r) => r.saved).toList(),
+        _ => results.where((r) => contains(id, r.id)).toList(),
+      };
   Set<String> ofImage(String imageId) => memberships[imageId] ?? const {};
   AlbumCover? cover(String? id) =>
       id == null ? allPhotosCover : album(id)?.cover;

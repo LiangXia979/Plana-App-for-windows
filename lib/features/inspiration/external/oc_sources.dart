@@ -7,12 +7,15 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:path/path.dart' as p;
 
 import '../../../core/auth/secure_storage.dart';
+import '../../../core/net/network_proxy.dart';
 import '../../../core/store/app_stores.dart';
 import '../../../core/store/atomic_file.dart';
+import '../../../core/util/runtime_diagnostics.dart';
 import '../tag_models.dart';
 import '../../assistant/assistant_settings.dart';
 import 'oc_catalog.dart';
 
+part 'oc_connection_diagnostics.dart';
 part 'oc_visitor.dart';
 
 class OcSource {
@@ -52,20 +55,31 @@ class OcSource {
 }
 
 class OcAccessError implements Exception {
-  const OcAccessError(this.message, [this.status]);
+  const OcAccessError(this.message, [this.status]) : _reason = null;
+  const OcAccessError._(this.message, this._reason, [this.status]);
   final String message;
   final int? status;
+  final String? _reason;
   @override
   String toString() => message;
 }
 
 Uri ocWebLocation(String text) {
+  try {
+    return _webLocation(text);
+  } on OcAccessError catch (error) {
+    _OcConnectionTrace(local: false, hourly: false).record('failed', error);
+    rethrow;
+  }
+}
+
+Uri _webLocation(String text) {
   final uri = Uri.tryParse(text.trim());
   if (uri == null ||
       !{'https', 'http'}.contains(uri.scheme) ||
       uri.host.isEmpty ||
       uri.userInfo.isNotEmpty) {
-    throw const OcAccessError('请输入完整的 http 或 https 网址');
+    throw const OcAccessError._('请输入完整的 http 或 https 网址', 'invalidAddress');
   }
   final normalized = uri.path.isEmpty ? uri.replace(path: '/') : uri;
   return normalized.removeFragment();
@@ -209,7 +223,7 @@ class OcRepository {
       try {
         await _update(source.id, () async {
           if (!_closed && await _file(source.id, 'source.json').exists()) {
-            await _connect(source.location, preserveLabel: true);
+            await _connect(source.location, hourly: true);
           }
         });
       } on Exception {
@@ -259,8 +273,31 @@ class OcRepository {
     Uri location, {
     String label = '',
     String? password,
-    bool preserveLabel = false,
+    bool hourly = false,
+  }) {
+    final trace = _OcConnectionTrace(
+      local: location.isScheme('file'),
+      hourly: hourly,
+    );
+    return trace.run(
+      () => _loadSource(
+        location,
+        trace,
+        label: label,
+        password: password,
+        preserveLabel: hourly,
+      ),
+    );
+  }
+
+  Future<OcSource> _loadSource(
+    Uri location,
+    _OcConnectionTrace trace, {
+    required String label,
+    required String? password,
+    required bool preserveLabel,
   }) async {
+    trace.enter(_OcStage.readCache);
     final id = ocKey(location.toString());
     final snapshot = _file(id, 'source.json');
     OcSource? previous;
@@ -280,55 +317,68 @@ class OcRepository {
     late final OcCatalog catalog;
     var guest = false;
     if (location.isScheme('file')) {
+      trace.enter(_OcStage.readFile);
       final file = File.fromUri(location);
       if (await file.length() > 24 << 20) {
-        throw const OcAccessError('JSON 文件过大');
+        throw const OcAccessError._('JSON 文件过大', 'sizeLimit');
       }
-      raw = jsonDecode((await file.readAsString()).replaceFirst('\uFEFF', ''));
+      final text = await file.readAsString();
+      trace.enter(_OcStage.parseCatalog);
+      raw = jsonDecode(text.replaceFirst('\uFEFF', ''));
       catalog = OcCatalog.parse(raw);
     } else {
-      ocWebLocation(location.toString());
+      trace.enter(_OcStage.address);
+      _webLocation(location.toString());
       // Preserve the live session on refresh. Validate a replacement password
       // in isolation so a typo cannot discard an existing login.
       final resume = previous?.guest == true && password == null;
       final visitor = resume ? _visitor(location) : _Visitor(location, _client);
       Future<String?> secret() async => password ?? await readSecret(id);
-      if (resume) {
-        guest = true;
-        raw = (await visitor.read(
-          location.resolve('/api/catalog'),
-          guest: true,
-          secret: secret,
-        )).json;
-      } else {
-        final landing = await visitor.request(location);
+      _Reply? listing;
+      guest = resume;
+      if (!resume) {
+        final landing = await visitor.request(location, trace: trace);
+        guest = landing.guestPage;
+        if (landing.status != 200 &&
+            !(guest && (landing.status == 401 || landing.status == 403))) {
+          throw OcAccessError(
+            '打开资料库网址失败（HTTP ${landing.status}）',
+            landing.status,
+          );
+        }
         final page = utf8
             .decode(landing.bytes, allowMalformed: true)
             .trimLeft();
         if (page.startsWith('<')) {
-          guest = landing.guestPage;
           if (!guest && !page.contains('/gallery.js')) {
-            throw const OcAccessError('请填写 JSON 资料库链接，或选择网站导出的 JSON 文件');
+            throw const OcAccessError._(
+              '请填写 JSON 资料库链接，或选择网站导出的 JSON 文件',
+              'unsupportedPage',
+            );
           }
-          if (guest) await visitor.login(secret);
-          raw = (await visitor.read(
-            location.resolve('/api/catalog'),
-            guest: guest,
-            secret: secret,
-          )).json;
+          if (guest) await visitor.login(secret, trace: trace);
         } else {
-          if (landing.status != 200) {
-            throw OcAccessError('资料读取失败（HTTP ${landing.status}）');
-          }
-          raw = landing.json;
+          listing = landing;
         }
       }
+      listing ??= await visitor.read(
+        location.resolve('/api/catalog'),
+        guest: guest,
+        secret: secret,
+        trace: trace,
+      );
+      trace.enter(_OcStage.parseCatalog, status: listing.status);
+      raw = listing.json;
       catalog = OcCatalog.parse(raw);
-      if (guest && !catalog.atlas) throw const OcAccessError('此访客图鉴没有提供形态目录');
+      if (guest && !catalog.atlas) {
+        throw const OcAccessError._('此访客图鉴没有提供形态目录', 'missingFormCatalog');
+      }
       if (guest && password != null && password.isNotEmpty) {
+        trace.enter(_OcStage.saveCredentials);
         await saveSecret(id, password);
       }
       if (!resume) {
+        trace.enter(_OcStage.saveCredentials);
         await _visitors[location.toString()]?.stopSaving();
         if (previous?.guest == true) await deleteSecret('session_$id');
         _visitors[location.toString()] = visitor;
@@ -338,6 +388,7 @@ class OcRepository {
         }
       }
     }
+    trace.enter(_OcStage.saveCache);
     final display = preserveLabel && previous != null
         ? previous.label
         : label.trim().isNotEmpty
@@ -407,6 +458,7 @@ class OcRepository {
     OcSource source,
     OcCharacter character, {
     bool withImages = true,
+    String? coverEntryId,
     OcRead? schedule,
   }) async {
     Future<Uint8List> cached(File file, Future<Uint8List> Function() load) =>
@@ -453,8 +505,19 @@ class OcRepository {
         positive = data['prompt'] as String? ?? '';
         negative = data['negativePrompt'] as String? ?? '';
       }
-      final images = <String>[];
-      for (final image in withImages ? f.images : const <String>[]) {
+      details.add((
+        positive: positive,
+        negative: negative,
+        images: withImages ? f.images : const [],
+      ));
+    }
+    final entries = groupOcForms(source.id, character, details);
+    if (!withImages) return entries;
+    final resolved = <TagEntry>[];
+    for (final entry in entries) {
+      if (coverEntryId != null && entry.id != coverEntryId) continue;
+      final images = <String>{};
+      for (final image in entry.previews) {
         final uri = source.location.isScheme('file') && p.isAbsolute(image)
             ? File(image).uri
             : source.location.resolve(image.replaceAll('\\', '/'));
@@ -485,10 +548,11 @@ class OcRepository {
             images.add(uri.toString());
           }
         }
+        if (coverEntryId != null && images.isNotEmpty) break;
       }
-      details.add((positive: positive, negative: negative, images: images));
+      resolved.add(entry.copyWith(previews: images.toList()));
     }
-    return groupOcForms(source.id, character, details);
+    return resolved;
   }
 
   // Character instances belong to one catalog revision. Lookup and prefetch

@@ -79,6 +79,11 @@ void main() {
     for (final image in container.read(galleryProvider).results) image.id,
   };
 
+  Set<String> markedSaved() => {
+    for (final image in container.read(galleryProvider).results)
+      if (image.saved) image.id,
+  };
+
   setUp(() {
     stores = AppStores.ephemeral();
     output = Directory.systemTemp.createTempSync('plana_export_dialog_');
@@ -315,6 +320,7 @@ void main() {
     await tester.pumpAndSettle();
     expect(completed, isTrue);
     expect(report, isNull);
+    expect(markedSaved(), isEmpty);
     expect(output.listSync(), isEmpty);
     expect(
       await tester.runAsync(() => stores.gallery.readImage(image.id)),
@@ -345,6 +351,7 @@ void main() {
       expect(report!.savedIds, {selected.id});
       expect(report!.failedIds, isEmpty);
       expect(report!.cleanupIds, isEmpty);
+      expect(markedSaved(), {selected.id});
       expect(liveIds(), {selected.id, unselected.id});
       expect(output.listSync().whereType<Directory>(), isEmpty);
       final files = output.listSync().whereType<File>().toList();
@@ -428,6 +435,7 @@ void main() {
       expect(report!.failedIds, isEmpty);
       expect(report!.cleanupIds, {selected.id});
       expect(liveIds(), {unselected.id});
+      expect(markedSaved(), isEmpty);
       expect(
         output.listSync().whereType<File>().single.readAsBytesSync(),
         selected.bytes,
@@ -454,12 +462,33 @@ void main() {
     await confirm(tester);
     expect(report!.savedIds, isEmpty);
     expect(report!.failedIds, {image.id});
+    expect(markedSaved(), isEmpty);
     expect(report!.cleanupIds, isEmpty);
     expect(liveIds(), {image.id});
     expect(
       await tester.runAsync(() => stores.gallery.readImage(image.id)),
       image.bytes,
     );
+    await finish(tester);
+  });
+
+  testWidgets('partial batch export marks only successfully written images', (
+    tester,
+  ) async {
+    final success = (await tester.runAsync(() => addImage(seed: 61)))!;
+    final failed = (await tester.runAsync(() => addImage(seed: 62)))!;
+    await tester.runAsync(
+      () =>
+          Directory('${output.path}/${desktopImageName(failed)}.png').create(),
+    );
+    await mount(tester, selected: [success, failed], albumId: null);
+    await browse(tester);
+    await tester.tap(key('gallery-export-submit'));
+    await until(tester, () => completed, 'partial export should finish');
+    expect(report!.savedIds, {success.id});
+    expect(report!.failedIds, {failed.id});
+    expect(markedSaved(), {success.id});
+    expect(liveIds(), {success.id, failed.id});
     await finish(tester);
   });
 
@@ -633,13 +662,11 @@ void main() {
       expectRedConfirmation(tester);
       await confirm(tester);
       expect(report!.savedIds, {old.id});
-      expect(report!.cleanupIds, {old.id, unselectedOld.id});
-      expect(liveIds(), {newest.id, unknownA.id, unknownB.id, other.id});
+      expect(report!.cleanupIds, {newest.id, unselectedOld.id});
+      expect(liveIds(), {old.id, unknownA.id, unknownB.id, other.id});
+      expect(markedSaved(), {old.id});
       expect(container.read(albumsProvider).exists(albumId), isTrue);
-      expect(
-        container.read(albumsProvider).contains(albumId, newest.id),
-        isTrue,
-      );
+      expect(container.read(albumsProvider).contains(albumId, old.id), isTrue);
       expect(output.listSync().whereType<File>(), hasLength(1));
       await finish(tester);
     },
@@ -693,7 +720,8 @@ void main() {
         await confirm(tester);
         expect(report!.savedIds, {selected.id});
         expect(liveIds(), hasLength(remaining));
-        if (remaining > 0) expect(liveIds(), contains(newest.id));
+        if (remaining == 2) expect(liveIds(), contains(newest.id));
+        expect(markedSaved(), remaining == 1 ? {selected.id} : isEmpty);
         final albums = container.read(albumsProvider);
         expect(albums.exists(null), isTrue);
         expect(albums.exists(namedAlbum), isTrue);

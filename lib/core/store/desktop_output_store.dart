@@ -65,16 +65,18 @@ class DesktopOutputStore {
 
   String _identity(ResultImage result) => '${result.id}_${result.createdAt}';
 
-  Directory folderFor(String? albumId, DateTime date) {
-    if (albumId == null || isDailyAlbum(albumId)) {
-      return Directory(
-        '${root.path}/${albumId == null ? desktopDayKey(date) : albumId.substring(4)}',
-      );
+  Directory folderFor(String? albumId, DateTime date) =>
+      browseFolder(albumId ?? dailyAlbumId(date));
+
+  Directory browseFolder(String? albumId) {
+    if (albumId == null) return root;
+    if (isDailyAlbum(albumId)) {
+      return Directory(p.join(root.path, albumId.substring(4)));
     }
     if (!RegExp(r'^[a-zA-Z0-9_-]+$').hasMatch(albumId)) {
       throw ArgumentError.value(albumId, 'albumId', 'Invalid gallery ID');
     }
-    return Directory('${root.path}/图库/$albumId');
+    return Directory(p.join(root.path, '图库', albumId));
   }
 
   Future<File> save(ResultImage result, {String? albumId}) =>

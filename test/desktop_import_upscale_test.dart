@@ -157,7 +157,7 @@ void main() {
     (tester) async {
       await mount(tester, jpeg, size: const Size(700, 650));
       final before = container.read(generateProvider);
-      final reverse = find.widgetWithText(OutlinedButton, '反推提示词');
+      final reverse = find.widgetWithText(OutlinedButton, 'AI 反推提示词');
       expect(
         tester.getTopLeft(key('desktop-import-upscale')).dx,
         greaterThan(tester.getTopLeft(reverse).dx),

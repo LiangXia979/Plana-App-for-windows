@@ -338,7 +338,11 @@ String historyChanges(CanvasHistoryEntry before, CanvasHistoryEntry after) {
   }
 
   count('Vibe', before.countOf('vibes'), after.countOf('vibes'));
-  count('角色参考', before.countOf('charRefs'), after.countOf('charRefs'));
+  count(
+    l10nNow.preciseReference,
+    before.countOf('charRefs'),
+    after.countOf('charRefs'),
+  );
   count(
     '风格参考',
     before.countOf('kreaStyleRefs'),

@@ -42,14 +42,14 @@ void main() {
   };
   Offset emptyHeader(WidgetTester tester, String id, {bool secondRow = false}) {
     final avatar = tester.getRect(action(id, 'avatar'));
-    final fullscreen = tester.getRect(action(id, 'fullscreen'));
+    final position = tester.getRect(action(id, 'position'));
     final box = tester.getRect(header(id));
-    if (fullscreen.top > avatar.bottom) {
+    if (position.top > avatar.bottom) {
       return secondRow
-          ? Offset(box.left + 18, fullscreen.center.dy)
+          ? Offset(box.left + 18, position.center.dy)
           : Offset(box.right - 18, avatar.center.dy);
     }
-    return Offset(fullscreen.left - 20, avatar.center.dy);
+    return Offset(position.left - 20, avatar.center.dy);
   }
 
   bool inList(String id) => find
@@ -181,7 +181,7 @@ void main() {
         expect(key('character-collapse-c1'), findsNothing);
         final avatar = tester.getRect(action('c1', 'avatar'));
         expect(
-          tester.getRect(action('c1', 'fullscreen')).top > avatar.bottom,
+          tester.getRect(action('c1', 'position')).top > avatar.bottom,
           narrow,
         );
         await clickHeader(tester, 'c1');
@@ -268,13 +268,7 @@ void main() {
       (tester) async {
         await mount(tester, narrow: narrow);
         await collapseAll(tester);
-        for (final type in [
-          'avatar',
-          'toggle',
-          'fullscreen',
-          'position',
-          'delete',
-        ]) {
+        for (final type in ['avatar', 'toggle', 'position', 'delete']) {
           final mouse = await tester.startGesture(
             tester.getCenter(action('c1', type)),
             kind: PointerDeviceKind.mouse,
@@ -290,37 +284,32 @@ void main() {
           expect(find.byType(Dialog), findsNothing);
           expect(nameInput('c1'), findsNothing);
         }
-        await tester.tap(
-          action('c1', 'avatar'),
-          kind: PointerDeviceKind.mouse,
-          buttons: kSecondaryButton,
-        );
+        await tester.tap(action('c1', 'avatar'), kind: PointerDeviceKind.mouse);
         await tester.pumpAndSettle();
         final preview = key('reference-image-preview');
         expect(preview, findsOneWidget);
         await waitForAvatarImage(tester, preview);
         await tester.sendKeyEvent(LogicalKeyboardKey.escape);
         await tester.pumpAndSettle();
-        await tester.tap(action('c1', 'avatar'), kind: PointerDeviceKind.mouse);
+        await tester.tap(
+          action('c1', 'avatar'),
+          kind: PointerDeviceKind.mouse,
+          buttons: kSecondaryButton,
+        );
         await tester.pumpAndSettle();
-        expect(find.text('选择角色'), findsWidgets);
-        await tester.tap(key('replacement'));
-        await tester.pumpAndSettle();
-        expect(character('c1').name, '新角色');
-        expect(character('c1').position, 'B2');
+        expect(find.byType(Dialog), findsNothing);
+        expect(character('c1').name, '角色甲');
         expect(character('c1').avatar, fixture.local);
         expect(input('c1'), findsNothing);
         await tester.tap(action('c1', 'toggle'));
         await tester.pumpAndSettle();
         expect(character('c1').enabled, isFalse);
-        for (final type in ['fullscreen', 'position']) {
-          await tester.tap(action('c1', type));
-          await tester.pumpAndSettle();
-          expect(find.byType(Dialog), findsOneWidget);
-          Navigator.of(tester.element(find.byType(Dialog))).pop();
-          await tester.pumpAndSettle();
-          expect(input('c1'), findsNothing);
-        }
+        await tester.tap(action('c1', 'position'));
+        await tester.pumpAndSettle();
+        expect(find.byType(Dialog), findsOneWidget);
+        Navigator.of(tester.element(find.byType(Dialog))).pop();
+        await tester.pumpAndSettle();
+        expect(input('c1'), findsNothing);
         await tester.tap(action('c1', 'delete'));
         await tester.pumpAndSettle();
         expect(order(), ['c2', 'c3']);
@@ -430,18 +419,28 @@ void main() {
         await tester.tap(key('desktop-character-c1-undo'));
         await tester.pumpAndSettle();
         expect(controller.text, 'traveler, ~hat~, blue sky');
-        await tester.tap(action('c1', 'fullscreen'));
+        await tester.ensureVisible(key('character-fullscreen'));
+        await tester.tap(key('character-fullscreen'));
         await tester.pumpAndSettle();
-        final largeField = find
-            .descendant(
-              of: find.byType(Dialog),
-              matching: find.byType(TextField),
-            )
-            .first;
+        final choice = find.byWidgetPredicate(
+          (w) => w is PopupMenuItem<String> && w.value == 'c1',
+        );
+        await tester.tap(choice);
+        await tester.pumpAndSettle();
+        expect(key('prompt-fullscreen-dialog'), findsOneWidget);
+        final largeField = find.descendant(
+          of: key('studio-text-true'),
+          matching: find.byType(TextField),
+        );
+        expect(
+          tester.widget<TextField>(largeField).controller!.text,
+          controller.text,
+        );
         await tester.enterText(largeField, 'large editor draft');
-        await tester.tap(find.byTooltip('保存并返回'));
+        await tester.tap(key('studio-back'));
         await tester.pumpAndSettle();
         expect(controller.text, 'large editor draft');
+        expect(key('tag-reset-weight').hitTestable(), findsNothing);
         gen().setNaiEffort(NaiEffort.high);
         await tester.pumpAndSettle();
         await tester.tap(key('desktop-character-c1-negative-tab'));

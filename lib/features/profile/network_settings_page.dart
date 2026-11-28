@@ -16,7 +16,9 @@ import '../../core/ui/settings_scaffold.dart';
 import '../../core/util/image_pick.dart';
 
 class NetworkSettingsPage extends ConsumerStatefulWidget {
-  const NetworkSettingsPage({super.key});
+  const NetworkSettingsPage({super.key, this.initiallyExpanded = false});
+
+  final bool initiallyExpanded;
 
   @override
   ConsumerState<NetworkSettingsPage> createState() =>
@@ -28,7 +30,7 @@ class _NetworkSettingsPageState extends ConsumerState<NetworkSettingsPage> {
   late final TextEditingController _address;
   late bool _bypassLocal;
   late ProxySoftware _software;
-  bool _expanded = false;
+  late bool _expanded = widget.initiallyExpanded;
   bool _toggling = false;
   String? _toggleError;
   bool _importing = false;

@@ -525,7 +525,7 @@ void main() {
     await tester.tap(find.text('破限'));
     await tester.pumpAndSettle();
     expect(find.text('启用的模型'), findsOneWidget);
-    expect(find.textContaining('Plana 渠道和自定义 API'), findsOneWidget);
+    expect(find.textContaining('仅自定义 API'), findsOneWidget);
     final library = c.read(rulesLibraryProvider).requireValue;
     expect(library.presets.single.localOnly, true);
     await tester.pageBack();

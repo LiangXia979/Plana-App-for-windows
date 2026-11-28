@@ -163,11 +163,13 @@ class DesktopImportRegion extends ConsumerWidget {
     pasteFallback: pasteFallback,
     accept: (payload) => !canvas || payload.source != 'canvas',
     onDrop: (images, payload) async {
-      final result = ref
-          .read(galleryProvider)
-          .results
-          .where((r) => r.id == payload.imageId)
-          .firstOrNull;
+      final result =
+          ref
+              .read(galleryProvider)
+              .results
+              .where((r) => r.id == payload.imageId)
+              .firstOrNull ??
+          ref.read(appStoresProvider).temporaryGallery.find(payload.imageId);
       if (result != null) {
         await openResultImport(context, ref, result);
       } else {

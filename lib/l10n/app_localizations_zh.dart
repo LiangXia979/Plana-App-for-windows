@@ -9,6 +9,39 @@ class AppLocalizationsZh extends AppLocalizations {
   AppLocalizationsZh([String locale = 'zh']) : super(locale);
 
   @override
+  String get updateReleaseNotes => '更新内容';
+
+  @override
+  String get updateNotesUnavailable => '此版本尚未填写更新说明。';
+
+  @override
+  String get updateReleasePage => '查看发布页';
+
+  @override
+  String get updateDownload => '下载更新';
+
+  @override
+  String get updateDownloading => '正在下载并校验更新';
+
+  @override
+  String get updateRunInstaller => '打开安装程序';
+
+  @override
+  String get updateOpenPackageFolder => '打开免安装包目录';
+
+  @override
+  String get updatePackageMissing => '此版本没有可校验的 Windows 安装包，可在发布页查看附件。';
+
+  @override
+  String get updateIntegrityFailed => '更新包校验失败，请重新下载。';
+
+  @override
+  String get updateDownloadFailed => '下载未完成，请检查网络和可用磁盘空间后重试。';
+
+  @override
+  String get updateLaunchFailed => '无法打开下载的更新包，请重试或查看发布页。';
+
+  @override
   String get downloadWindowsPackage => '下载 Windows 版';
 
   @override
@@ -345,7 +378,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get normalizeStrength => '均衡强度';
 
   @override
-  String get preciseReference => '角色参考';
+  String get preciseReference => '精确参考';
 
   @override
   String get fidelity => 'Fidelity 保真度';
@@ -376,7 +409,7 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get rulesLocalOnly =>
-      '按模型启用后，Plana 渠道和自定义 API 会在普通规则后发送这里的补充说明。Codex、反重力等订阅会跳过此分区。';
+      '按模型启用后，仅自定义 API 会在普通规则之后附加这里的说明。Plana 后端和 Codex、反重力等订阅会跳过此分区。';
 
   @override
   String get refCharacterStyle => '角色&风格';
@@ -1055,13 +1088,13 @@ class AppLocalizationsZh extends AppLocalizations {
   String get refMutexVibePaused => '与 Vibe 互斥,已暂停 Vibe 参考';
 
   @override
-  String get refMutexCharRefPaused => '与角色参考互斥,已暂停角色参考';
+  String get refMutexCharRefPaused => '与精确参考互斥,已暂停精确参考';
 
   @override
   String get refLibrary => '参考图库';
 
   @override
-  String get importCharRef => '导入角色参考图';
+  String get importCharRef => '导入精确参考图';
 
   @override
   String filesImportFailed(int n) {
@@ -1122,13 +1155,13 @@ class AppLocalizationsZh extends AppLocalizations {
   }
 
   @override
-  String get charRefLibrary => '角色参考图库';
+  String get charRefLibrary => '精确参考图库';
 
   @override
   String get searchName => '搜索名称…';
 
   @override
-  String get noCharRefs => '还没有角色参考图';
+  String get noCharRefs => '还没有精确参考图';
 
   @override
   String get noMatchingRefs => '没有匹配的参考图';
@@ -1374,16 +1407,16 @@ class AppLocalizationsZh extends AppLocalizations {
   String get setAsBaseImage => '已设为图生图底图';
 
   @override
-  String get addedVibeMutex => '已加入 Vibe · 与角色参考互斥,已暂停角色参考';
+  String get addedVibeMutex => '已加入 Vibe · 与精确参考互斥,已暂停精确参考';
 
   @override
   String get addedVibe => '已加入 Vibe 参考';
 
   @override
-  String get addedCharRefMutex => '已加入角色参考 · 与 Vibe 互斥,已暂停 Vibe';
+  String get addedCharRefMutex => '已加入精确参考 · 与 Vibe 互斥,已暂停 Vibe';
 
   @override
-  String get addedCharRef => '已加入角色参考';
+  String get addedCharRef => '已加入精确参考';
 
   @override
   String get importReplace => '完全覆盖';
@@ -2798,7 +2831,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get catGallery => '图库作品';
 
   @override
-  String get catCharLib => '角色参考库';
+  String get catCharLib => '精确参考库';
 
   @override
   String get actClean => '清理';
@@ -2858,7 +2891,7 @@ class AppLocalizationsZh extends AppLocalizations {
   }
 
   @override
-  String get clearCharRefLib => '清空角色参考库';
+  String get clearCharRefLib => '清空精确参考库';
 
   @override
   String get clearCharRefLibBody => '将删除库内全部文件,不可恢复。图库作品里的参数快照不受影响。';
@@ -3264,7 +3297,7 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String charRefImportFailed(String name, String error) {
-    return '角色参考「$name」失败: $error';
+    return '精确参考「$name」失败: $error';
   }
 
   @override
@@ -6087,7 +6120,7 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get desktopEachCanvasKeepsItsOwnPromptsCharactersPresets =>
-      '每张画布分别保存提示词、角色、预设和采样参数。\n\nVibe、角色参考、图生图、重绘和 LoRA 在画布之间共享。';
+      '每张画布分别保存提示词、角色、预设和采样参数。\n\nVibe、精确参考、图生图、重绘和 LoRA 在画布之间共享。';
 
   @override
   String get skipStep => '跳过';
@@ -6255,10 +6288,10 @@ class AppLocalizationsZh extends AppLocalizations {
   String get desktopChangesAreSavedAutomatically => '修改后自动保存';
 
   @override
-  String get desktopImportCharacterReferenceImages => '导入角色参考图库';
+  String get desktopImportCharacterReferenceImages => '导入精确参考图库';
 
   @override
-  String get desktopSelectImagesToAddAsCharacterReferences => '点选图片加入角色参考';
+  String get desktopSelectImagesToAddAsCharacterReferences => '点选图片加入精确参考';
 
   @override
   String get desktopCouldNotSaveCheckFolderPermissionsAndAvailable =>
@@ -6649,7 +6682,7 @@ class AppLocalizationsZh extends AppLocalizations {
       '历史内容或参考图片无法读取，当前画布未替换';
 
   @override
-  String get desktopAddCharacterReference => '加入角色参考';
+  String get desktopAddCharacterReference => '加入精确参考';
 
   @override
   String get desktopDisabled => '已禁用';
@@ -7931,6 +7964,54 @@ class AppLocalizationsZh extends AppLocalizations {
   String get editInspirationBlock => '编辑灵感';
 
   @override
+  String get completionPlacement => '提示词补全位置';
+
+  @override
+  String get studioCompletionPlacement => '大屏编辑提示词补全位置';
+
+  @override
+  String get studioCompletionPlacementHint => '在光标附近或大屏编辑器右侧检视器下方显示补全建议';
+
+  @override
+  String get completionPlacementHint => '在光标附近或提示词卡片侧面显示补全建议';
+
+  @override
+  String get completionFollow => '跟随';
+
+  @override
+  String get completionSide => '固定侧面';
+
+  @override
+  String get increaseTagWeight => '提高权重';
+
+  @override
+  String get decreaseTagWeight => '降低权重';
+
+  @override
+  String get danbooruWiki => 'D 站 Wiki';
+
+  @override
+  String get deleteWholeBlock => '删除整块';
+
+  @override
+  String get wholeBlock => '整块';
+
+  @override
+  String get disableBlock => '禁用整块';
+
+  @override
+  String get enableBlock => '启用整块';
+
+  @override
+  String get unpackBlock => '解散为散词';
+
+  @override
+  String get selectBlockTag => '点击块内词条即可编辑';
+
+  @override
+  String get pairedPromptBlock => '正负配对';
+
+  @override
   String get foldAfterInspirationSave => '保存后自动合并成块';
 
   @override
@@ -8371,4 +8452,612 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get compareMetadataHint => '使用带生成信息的原图可同时比对提示词';
+
+  @override
+  String get studioSearchLibrary => '搜索灵感名称、拼音或词条…';
+
+  @override
+  String get studioNoMatches => '没有匹配的灵感';
+
+  @override
+  String get studioOriginalWeights => '原权重';
+
+  @override
+  String get studioBlockWeight => '整块权重';
+
+  @override
+  String get studioIndependentWeights => '保留块内独立权重';
+
+  @override
+  String get studioCopyBlock => '复制整块';
+
+  @override
+  String get studioParent => '返回上级';
+
+  @override
+  String get temporaryBatchPick => '多选挑图批量处理…';
+
+  @override
+  String get temporaryBatchTarget => '目标图库';
+
+  @override
+  String get temporaryBatchFile => '转入标准图库';
+
+  @override
+  String get temporaryBatchZip => '仅打包所选 ZIP';
+
+  @override
+  String temporaryBatchAll(int count, String name) {
+    return '整批转入「$name」（$count 张未收录）';
+  }
+
+  @override
+  String temporaryBatchCount(int count, int total) {
+    return '已选 $count / $total 张';
+  }
+
+  @override
+  String temporaryBatchFiled(int count) {
+    return '已转入 $count 张';
+  }
+
+  @override
+  String get studioMain => '主体提示词';
+
+  @override
+  String get studioSections => '主提示词与分区';
+
+  @override
+  String get studioPosOnly => '仅正面';
+
+  @override
+  String get studioNegOnly => '仅负面';
+
+  @override
+  String get studioGlobal => '全局主体';
+
+  @override
+  String get studioWritePositive => '写入：正面';
+
+  @override
+  String get studioWriteNegative => '写入：负面';
+
+  @override
+  String get studioSection => '分区';
+
+  @override
+  String get studioFocusHere => '切到此栏输入';
+
+  @override
+  String get studioPack => '合并成块';
+
+  @override
+  String get studioBoth => '同屏';
+
+  @override
+  String get studioExpand => '在中栏展开编辑';
+
+  @override
+  String get studioBlock => '块编辑';
+
+  @override
+  String get studioCopyComplete => '复制完整提示词';
+
+  @override
+  String get studioFocused => '当前输入焦点';
+
+  @override
+  String get studioOutline => '提示词大纲';
+
+  @override
+  String get studioNoLocal => '暂无可插入的本地灵感';
+
+  @override
+  String get studioTranslateFailed => '暂时无法翻译，可按原文插入。';
+
+  @override
+  String get studioLoading => '正在读取灵感库…';
+
+  @override
+  String get studioNoPositive => '此块没有正面提示词';
+
+  @override
+  String get studioNoNegative => '此块没有负面提示词';
+
+  @override
+  String get studioLibrary => '灵感库快插';
+
+  @override
+  String get studioInspectHint => '点选词条调整权重，双击块进入编辑。';
+
+  @override
+  String get studioPosition => '画布站位';
+
+  @override
+  String get studioRemoveBlock => '移除此块';
+
+  @override
+  String get studioInspector => '词条与块检视器';
+
+  @override
+  String get studioNegative => '负面排除词';
+
+  @override
+  String get studioAddTags => '输入英文或中文添加标签';
+
+  @override
+  String get studioUp => '返回上一级';
+
+  @override
+  String get studioRedo => '重做';
+
+  @override
+  String get studioResetWeight => '重置权重';
+
+  @override
+  String get studioManual => '手动';
+
+  @override
+  String get studioCopyTag => '复制词条';
+
+  @override
+  String get studioDisableTag => '暂时禁用';
+
+  @override
+  String get studioDeleteTag => '删除词条';
+
+  @override
+  String get studioCompleting => '正在补全';
+
+  @override
+  String get studioReturnInspector => '返回检视';
+
+  @override
+  String get temporaryName => '临时图库';
+
+  @override
+  String get temporaryScope => '当前画布 · 退出时清理';
+
+  @override
+  String get temporaryCollectSaved => '收录到「已保存」图库';
+
+  @override
+  String get temporaryCollectHint => '单独保存图片时，同时收录到 Plana 的「已保存」图库。';
+
+  @override
+  String get temporaryExitPolicy => '临时图库退出清理';
+
+  @override
+  String get temporaryPolicyHint => '按画布处理未收录的临时图片，已收藏或已保存到图库的作品不受影响。';
+
+  @override
+  String get temporaryClearAll => '全部清理';
+
+  @override
+  String get temporaryKeepLatest => '保留最近';
+
+  @override
+  String get temporaryKeepCount => '每画布保留最新未收录图';
+
+  @override
+  String get temporaryKeepHint => '每个画布各自保留此数量的临时图片。';
+
+  @override
+  String get temporaryConfirmExit => '退出时处理方式';
+
+  @override
+  String get temporaryConfirmHint => '有未收录临时图待清理时弹窗确认，可选择先按画布打包 ZIP。';
+
+  @override
+  String get temporaryDirectHint => '退出时直接按上方规则清理未收录的临时图。';
+
+  @override
+  String get temporaryArchiveHint => '退出时先按画布打包 ZIP 到单独保存文件夹，成功后再按上方规则清理。';
+
+  @override
+  String get temporaryHistoryCount => '底栏历史初始加载数';
+
+  @override
+  String get temporaryHistoryHint => '打开或切换图库时加载全部历史图，本轮新图继续追加。';
+
+  @override
+  String get temporaryHistoryHelp => '填 0 表示全部加载。此设置仅影响创作页底栏的显示。';
+
+  @override
+  String get temporaryFolder => '选择单独保存文件夹';
+
+  @override
+  String get temporaryPacking => '正在打包 ZIP';
+
+  @override
+  String get temporaryCancelPack => '取消打包';
+
+  @override
+  String get temporaryDeleteQuestion => '删除画布及其临时图片？';
+
+  @override
+  String get temporaryExitQuestion => '退出前处理临时图库';
+
+  @override
+  String get temporarySkipPrompt => '记住本次选择，下次退出不再询问';
+
+  @override
+  String get temporaryZipDelete => '打包 ZIP 并删除画布';
+
+  @override
+  String get temporaryZipExit => '按画布打包 ZIP 并退出';
+
+  @override
+  String get temporaryCleanDelete => '清理并删除画布';
+
+  @override
+  String get temporaryCleanExit => '清理并退出';
+
+  @override
+  String get temporaryStar => '收藏到图库';
+
+  @override
+  String get temporaryFile => '加入标准图库';
+
+  @override
+  String get temporaryFiled => '已加入所选图库';
+
+  @override
+  String get temporaryRecoveryQuestion => '清理上次异常退出留下的临时图片？';
+
+  @override
+  String get temporaryRecoveryHint => '已收录到正式图库的作品会继续保留。';
+
+  @override
+  String get temporaryLoadError => '临时图库未能载入 · 重试';
+
+  @override
+  String temporaryCount(int n) {
+    return '$n 张';
+  }
+
+  @override
+  String temporaryMore(int n) {
+    return '加载更多（+$n）';
+  }
+
+  @override
+  String temporaryCloseCounts(int total, int collected, int kept, int removed) {
+    return '共 $total 张，$collected 张已收录到图库，$kept 张将留到下次，$removed 张将被清理。';
+  }
+
+  @override
+  String temporaryRecovered(int n) {
+    return '上次异常退出留下 $n 张临时图片';
+  }
+
+  @override
+  String temporaryPacked(int n) {
+    return '已按画布打包 $n 个 ZIP';
+  }
+
+  @override
+  String get temporaryBusy => '临时图库仍在生成、排队或保存，请在任务完成或取消后重试。';
+
+  @override
+  String temporaryOpenFailed(String error) {
+    return '无法打开临时图库：$error';
+  }
+
+  @override
+  String temporaryActionFailed(String error) {
+    return '操作失败：$error';
+  }
+
+  @override
+  String temporarySavedPath(String path) {
+    return '已保存到 $path';
+  }
+
+  @override
+  String temporaryCleanupFailed(String error) {
+    return '临时图库处理未完成：$error';
+  }
+
+  @override
+  String get temporaryAsk => '每次询问';
+
+  @override
+  String get temporaryDirectClean => '直接清理';
+
+  @override
+  String get temporaryArchiveThenClean => '打包后清理';
+
+  @override
+  String get temporaryInitialCountLabel => '打开或切换图库时初始加载';
+
+  @override
+  String temporaryLimitedHistory(int n) {
+    return '打开或切换图库时初始加载最近 $n 张，本轮新图继续追加。';
+  }
+
+  @override
+  String temporarySingleLead(String quantity) {
+    return '本次有 $quantity未收录临时图将被清理。';
+  }
+
+  @override
+  String temporaryMultiLead(int canvases, String quantity) {
+    return '$canvases 个画布共有 $quantity未收录临时图将被清理。';
+  }
+
+  @override
+  String temporaryCleanStat(int n) {
+    return '$n 张待清理';
+  }
+
+  @override
+  String temporaryCollectedStat(int n) {
+    return '$n 张已收录保留';
+  }
+
+  @override
+  String temporaryKeptStat(int n) {
+    return '$n 张留到下次';
+  }
+
+  @override
+  String temporarySingleDetail(String name) {
+    return '涉及画布：$name。已收藏或已保存到图库的作品不受影响。';
+  }
+
+  @override
+  String temporaryMultiDetail(String details) {
+    return '按画布拆分：$details。打包 ZIP 会按画布名分别归档。';
+  }
+
+  @override
+  String temporaryCanvasCountDetail(String name, String status) {
+    return '$name（$status）';
+  }
+
+  @override
+  String get temporaryRememberHint =>
+      '选择「打包 ZIP 并退出」会记为「打包后清理」，选择「清理并退出」会记为「直接清理」。';
+
+  @override
+  String get temporarySingleZipExit => '打包 ZIP 并退出';
+
+  @override
+  String get guideBrowseManual => '浏览使用手册';
+
+  @override
+  String get guideBanner => '初次使用 Plana？可以先设置生成接入和图片保存位置。';
+
+  @override
+  String get guideOpen => '打开使用引导';
+
+  @override
+  String get guideWelcome => '欢迎';
+
+  @override
+  String get guideAppearance => '外观';
+
+  @override
+  String get guideGeneration => '生成接入';
+
+  @override
+  String get guideBotStep => 'Bot 授权与扩展';
+
+  @override
+  String get guideStorage => '保存与图库';
+
+  @override
+  String get guideFinish => '完成与速查';
+
+  @override
+  String get guideWelcomeSub => '认识桌面工作台';
+
+  @override
+  String get guideAppearanceSub => '主题与配色';
+
+  @override
+  String get guideAccessSub => '账号与接口';
+
+  @override
+  String get guideBotSub => '生成或可选扩展';
+
+  @override
+  String get guideStorageSub => '目录、图库与格式';
+
+  @override
+  String get guideFinishSub => '核对设置，开始创作';
+
+  @override
+  String guideProgress(int step, int total, String title) {
+    return '第 $step 步，共 $total 步 · $title';
+  }
+
+  @override
+  String get guideLater => '之后可以在「我的」中调整这些设置。';
+
+  @override
+  String get guideCompleteBack => '完成并返回';
+
+  @override
+  String get guideStart => '开始创作';
+
+  @override
+  String get guideSkipExtensions => '跳过扩展';
+
+  @override
+  String get guideNeedAccess => '请保存令牌，或暂时跳过接入设置。';
+
+  @override
+  String get guideNeedBot => '使用 Bot 生成需要先完成授权。';
+
+  @override
+  String get guideIntroLead => '选好外观、生成接入和保存习惯，就可以在桌面工作台开始创作。';
+
+  @override
+  String get guideWrite => '写提示词';
+
+  @override
+  String get guideWriteBody =>
+      '在三栏工作台编排分区和角色，边写边补全，也能从灵感库快插。AI 助手可通过 API 或 ChatGPT 订阅起草提示词。';
+
+  @override
+  String get guideCanvases => '管理多画布';
+
+  @override
+  String get guideCanvasesBody => '点画布栏的＋新建，双击标签改名。每个画布分别保留提示词、画幅和临时图库。';
+
+  @override
+  String get guideContinueImage => '从图片继续创作';
+
+  @override
+  String get guideImageBody => '拖入带生成参数的图片，可逐项选择提示词、角色和参数。普通图片可以用作参考图或图生图底图。';
+
+  @override
+  String get guideThemeLead => '更改明暗模式或配色，可以在画布预览里看到效果。';
+
+  @override
+  String get guideThemePreview => '画布预览';
+
+  @override
+  String get guideOfficial => '官方 Token';
+
+  @override
+  String get guideOfficialHint => '使用 NovelAI 访问令牌';
+
+  @override
+  String get guideEmailHint => '使用 NovelAI 官方账号登录';
+
+  @override
+  String get guideThirdHint => 'NovelAI 或 OpenAI 兼容格式';
+
+  @override
+  String get guideBotHint => '使用受邀账号，在下一步授权';
+
+  @override
+  String get guideAccessLead => '选择生成图片的方式，也可以暂时跳过，先浏览工作台。';
+
+  @override
+  String get guideLocalProxy => '本机代理快速配置';
+
+  @override
+  String get guideAuthorize => '授权 Bot 以生成图片';
+
+  @override
+  String get guideOptional => '可选扩展';
+
+  @override
+  String get guideOptionalBody => '受邀账号可在这里开启扩展。使用官方或第三方接口生成图片时，可以跳过这一步。';
+
+  @override
+  String get guidePerks =>
+      'Anima、Krea 2 等额外模型，公共 Vibe、画师串和角色 OC，以及 WD Tagger 图片反推。';
+
+  @override
+  String get guideBackupOptions =>
+      'Plana 云备份通过 Bot 同步灵感库与 Vibe。Google 云端硬盘使用 Google 登录，本地文件备份可直接使用。';
+
+  @override
+  String get guideStorageLead => '选择单图导出位置、当前画布的图库和单图格式。';
+
+  @override
+  String get guideDirectory => '单独保存文件夹';
+
+  @override
+  String get guideDirectoryHint => '单图保存和临时图库 ZIP 共用此位置。';
+
+  @override
+  String get guideUnset => '首次保存时选择';
+
+  @override
+  String get guidePickFolder => '选择文件夹';
+
+  @override
+  String get guideClearFolder => '恢复未指定';
+
+  @override
+  String get guideCurrentGallery => '当前画布的图库';
+
+  @override
+  String get guideStandard => '标准图库';
+
+  @override
+  String get guideStandardHint => '生成时自动归档，保留原图与生成参数。';
+
+  @override
+  String get guideTempHint => '按画布暂存；未收录的图片按退出规则处理，可提前收录或打包 ZIP。';
+
+  @override
+  String get guideNewTemp => '新建画布也默认使用临时图库';
+
+  @override
+  String get guideFormat => '默认单图保存格式';
+
+  @override
+  String get guideJpgHint =>
+      'JPG 不保留生成参数。需要从导出图恢复参数时，请选 PNG 或 WebP，并在保存设置中保留原始元数据。';
+
+  @override
+  String get guideReady => '生成接入已配置，可以开始创作。';
+
+  @override
+  String get guideNotReady => '偏好已保存。准备生成时，可在「我的 → 账号与接入」添加账号。';
+
+  @override
+  String get guideNoAccess => '暂未配置';
+
+  @override
+  String get guideSavedOfficial => '官方 Token · 已保存';
+
+  @override
+  String get guideBotReady => 'Bot 账户 · 已授权';
+
+  @override
+  String get guideNoBot => '暂未授权，可按需开启';
+
+  @override
+  String get guideSaveFormat => '保存与格式';
+
+  @override
+  String get guideMode => '图库模式';
+
+  @override
+  String get guideTips => '桌面速查';
+
+  @override
+  String get guideImportTip => '把参数带回画布';
+
+  @override
+  String get guideImportTipBody => '把原图拖到创作页，在导入预览里勾选要使用的部分。';
+
+  @override
+  String get guideStudioTip => '打开大屏提示词编辑';
+
+  @override
+  String get guideStudioTipBody => '点提示词卡的展开按钮进入三栏工作台。点命名块可以编辑整块或块内词条。';
+
+  @override
+  String get guideTempTip => '多选收录或打包临时图';
+
+  @override
+  String get guideTempTipBody => '在临时图库打开「打包 ZIP」旁的箭头，可挑图转入标准图库，或只打包所选。';
+
+  @override
+  String get guideToolsTip => '去工具箱比图、查参数';
+
+  @override
+  String get guideToolsTipBody => '在「图片比对」把两张原图放入 A、B 槽。在「图片元数据」可查看、改写或批量导出副本。';
+
+  @override
+  String get temporaryNewCanvas => '新建画布默认使用临时图库';
+
+  @override
+  String get temporaryNewCanvasHint => '新建、复制或恢复画布时自动使用临时图库；已有画布保持原样。';
+
+  @override
+  String get guideTempDetail =>
+      '收藏或转入标准图库的图片会保留；单张保存与打包 ZIP 写入所选文件夹（开启「收录到已保存」时单张保存也会在 Plana 留一份）；打包 ZIP 后临时图仍按退出规则处理。';
+
+  @override
+  String get guideNewTempShort => '新画布默认临时图库';
 }

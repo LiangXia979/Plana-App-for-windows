@@ -1618,6 +1618,7 @@ class AgentResult {
     this.specifiedNegative = false,
     this.characters = const [],
     this.resources = const {},
+    this.ocLookups = const {},
   });
 
   /// 发给用户的角色语气正文(后端字段名是 `thinking`)。
@@ -1631,6 +1632,9 @@ class AgentResult {
   final String positive;
   final String negative;
   final List<AgentCharacter> characters;
+
+  /// Local lookup results for attributing character cards, including raw-mode OCs.
+  final Map<String, String> ocLookups;
   final bool specifiedNegative;
 
   /// 沿用中的资源账本(画师串 / OC):`{kind: {名字: 内容}}`。

@@ -860,95 +860,151 @@ void main() {
   );
 
   testWidgets(
-    'desktop right-click actions retain the selected group and cancellation preserves data',
+    'right click operates on the pointed card and the bottom buttons operate on the selection',
     (tester) async {
       await mount(tester);
-      await tester.tap(key('inspiration-select-char0'));
-      await tester.tap(key('inspiration-select-char1'));
-      await tester.pumpAndSettle();
-      expect(
-        tester.getSize(key('desktop-inspiration-selection')).height,
-        lessThan(80),
-      );
-      final gesture = await tester.startGesture(
-        tester.getCenter(key('inspiration-card-char0')),
+      Future<void> tap(Finder f) async {
+        await tester.tap(f);
+        await tester.pumpAndSettle();
+      }
+
+      await tap(key('inspiration-select-char0'));
+      await tap(key('inspiration-select-char1'));
+      final bar = key('desktop-inspiration-selection');
+      expect(tester.getSize(bar).height, lessThan(80));
+      final card = key('inspiration-card-char2');
+      final point = tester.getTopLeft(card) + const Offset(35, 45);
+      final mouse = await tester.startGesture(
+        point,
         kind: PointerDeviceKind.mouse,
         buttons: kSecondaryMouseButton,
       );
-      await gesture.up();
+      await mouse.up();
       await tester.pumpAndSettle();
-      expect(find.text('已选择 2 项'), findsOneWidget);
+      final items = find.byType(PopupMenuItem<InspirationEntryAction>);
+      expect(items, findsNWidgets(3));
+      await captureDesktop(tester, capture, 'inspiration-cursor-menu');
       expect(
-        find.widgetWithText(PopupMenuItem<String>, '加入角色'),
+        find.widgetWithText(PopupMenuItem<InspirationEntryAction>, '编辑'),
         findsOneWidget,
       );
-      await captureDesktop(
-        tester,
-        capture,
-        'windows17-inspiration-context-menu',
+      expect(
+        find.widgetWithText(PopupMenuItem<InspirationEntryAction>, '复制提示词'),
+        findsOneWidget,
       );
-      await tester.tap(find.widgetWithText(PopupMenuItem<String>, '取消选择'));
+      expect((tester.getTopLeft(items.first) - point).distance, lessThan(20));
+      await tap(
+        find.widgetWithText(PopupMenuItem<InspirationEntryAction>, '查看提示词'),
+      );
+      expect(
+        find.descendant(
+          of: key('inspiration-prompt-detail'),
+          matching: find.textContaining('purple hair'),
+        ),
+        findsWidgets,
+      );
+      await tester.sendKeyEvent(LogicalKeyboardKey.escape);
       await tester.pumpAndSettle();
-      expect(key('desktop-inspiration-selection'), findsNothing);
       expect(
         tester.widget<InspirationEntryCard>(key('char0')).selected,
-        isFalse,
+        isTrue,
       );
       expect(
         tester.widget<InspirationEntryCard>(key('char1')).selected,
+        isTrue,
+      );
+      expect(
+        tester.widget<InspirationEntryCard>(key('char2')).selected,
         isFalse,
       );
+      expect(key('inspiration-selection-menu'), findsNothing);
+      await tap(key('inspiration-selection-delete'));
+      await tap(find.text('取消'));
       expect(
-        container.read(tagLibraryProvider).value!.entries.length,
+        container.read(tagLibraryProvider).requireValue.entries.length,
         entries.length,
       );
-
-      await tester.tap(key('inspiration-select-char0'));
-      await tester.tap(key('inspiration-select-char1'));
-      await tester.pumpAndSettle();
-      final unselected = await tester.startGesture(
-        tester.getCenter(key('inspiration-card-char2')),
-        kind: PointerDeviceKind.mouse,
-        buttons: kSecondaryMouseButton,
-      );
-      await unselected.up();
-      await tester.pumpAndSettle();
-      expect(find.text('已选择 1 项'), findsOneWidget);
-      await tester.tap(find.widgetWithText(PopupMenuItem<String>, '删除'));
-      await tester.pumpAndSettle();
-      await tester.tap(find.text('取消'));
-      await tester.pumpAndSettle();
-      expect(
-        container.read(tagLibraryProvider).value!.entries.length,
-        entries.length,
-      );
-      await tester.tap(key('inspiration-selection-menu'));
-      await tester.pumpAndSettle();
+      await tap(key('inspiration-selection-tag'));
+      expect(find.text('添加标签'), findsOneWidget);
+      await captureDesktop(tester, capture, 'inspiration-selection-tags');
       await tester.runAsync(() async {
-        await tester.tap(find.widgetWithText(PopupMenuItem<String>, '主提示词'));
+        await tester.tap(find.widgetWithText(ActionChip, '白发'));
         await tester.pumpAndSettle();
-        await Future<void>.delayed(const Duration(milliseconds: 150));
       });
       await tester.pumpAndSettle();
-      final imported = container
-          .read(generateProvider)
-          .sections
-          .where((s) => !s.isMain)
-          .single;
-      expect(imported.name, '暮色精灵');
-      expect(imported.positive, contains('purple hair'));
-      expect(imported.positive, isNot(contains('white hair')));
-      for (
-        var i = 0;
-        i < 50 && key('desktop-inspiration-selection').evaluate().isNotEmpty;
-        i++
-      ) {
-        await tester.runAsync(
-          () => Future<void>.delayed(const Duration(milliseconds: 30)),
-        );
-        await tester.pump(const Duration(milliseconds: 100));
-      }
-      expect(key('desktop-inspiration-selection'), findsNothing);
+      expect(
+        container
+            .read(tagLibraryProvider)
+            .requireValue
+            .entries
+            .firstWhere((e) => e.id == 'char1')
+            .tags,
+        contains('白发'),
+      );
+      expect(
+        container
+            .read(tagLibraryProvider)
+            .requireValue
+            .entries
+            .firstWhere((e) => e.id == 'char2')
+            .tags,
+        isEmpty,
+      );
+      await pumpUntil(
+        tester,
+        () =>
+            tester
+                .widget<TextButton>(key('inspiration-selection-tag'))
+                .onPressed !=
+            null,
+      );
+      await tap(find.descendant(of: bar, matching: find.text('取消选择')));
+      expect(bar, findsNothing);
+      await finish(tester);
+    },
+  );
+
+  testWidgets(
+    'public batch tags persist privately without collecting the card',
+    (tester) async {
+      await mount(tester);
+      await tester.tap(key('inspiration-scope-public'));
+      await tester.pumpAndSettle();
+      await tester.tap(key('inspiration-reveal-pub_cat'));
+      await tester.pumpAndSettle();
+      await tester.tap(key('inspiration-select-pub_cat'));
+      await tester.pumpAndSettle();
+      expect(key('inspiration-selection-delete'), findsNothing);
+      await tester.tap(key('inspiration-selection-tag'));
+      await tester.pumpAndSettle();
+      final sheet = find.byType(BottomSheet);
+      await tester.enterText(
+        find.descendant(of: sheet, matching: find.byType(TextField)),
+        '日落',
+      );
+      await tester.tap(find.descendant(of: sheet, matching: find.text('使用')));
+      await pumpUntil(
+        tester,
+        () => tester
+            .widget<InspirationEntryCard>(key('pub_cat'))
+            .entry
+            .tags
+            .contains('日落'),
+      );
+      final library = container.read(tagLibraryProvider.notifier);
+      await pumpUntilComplete(tester, library.settled);
+      container.invalidate(tagLibraryProvider);
+      await pumpUntilComplete(
+        tester,
+        container.read(tagLibraryProvider.future),
+      );
+      final entry = tester.widget<InspirationEntryCard>(key('pub_cat')).entry;
+      expect(entry.tags, contains('日落'));
+      expect(entry.isFavorite, isFalse);
+      expect(
+        container.read(tagLibraryProvider).requireValue.entries.length,
+        entries.length,
+      );
       await finish(tester);
     },
   );

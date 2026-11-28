@@ -66,7 +66,7 @@ class DesktopLibraryNotifier extends Notifier<DesktopLibrarySelection> {
   }
 
   void choose(String? albumId, {bool automatic = false}) {
-    if (isFixedGallery(albumId)) throw StateError('收藏与回收站不能作为生成保存目标');
+    if (isFixedGallery(albumId)) throw StateError('请选择普通图库作为生成保存目标');
     final choice = automatic ? 'auto' : albumId ?? '';
     state = DesktopLibrarySelection(
       choice: isFixedGallery(choice) ? '' : choice,

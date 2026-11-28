@@ -4,6 +4,8 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:path/path.dart' as p;
+import 'package:plana_app/features/gallery/albums/album_models.dart';
 import 'package:plana_app/core/platform/desktop_directory.dart';
 import 'package:plana_app/core/store/app_stores.dart';
 import 'package:plana_app/core/store/desktop_output_store.dart';
@@ -119,7 +121,7 @@ void main() {
       await tester.pump();
       updatePage(() => page = 0);
       await tester.pump();
-      container.read(desktopGalleryLocationProvider.notifier).open(null);
+      container.read(desktopGalleryLocationProvider.notifier).open('album-42');
       await tester.pumpAndSettle();
       expect(
         tester.widget<GalleryToolbarButton>(folder).onPressed,
@@ -138,7 +140,24 @@ void main() {
       launcher.requests.last.complete();
       await tester.pumpAndSettle();
       expect(launcher.opened, 2);
-      expect(launcher.roots.toSet(), {stores.desktopOutput.root.path});
+      final root = stores.desktopOutput.root.path;
+      expect(launcher.roots, [root, p.join(root, '图库', 'album-42')]);
+      final location = container.read(desktopGalleryLocationProvider.notifier);
+      location.open('day_2026-11-26');
+      await tester.pumpAndSettle();
+      expect(
+        find.byTooltip('自动保存：${p.join(root, '2026-11-26')}'),
+        findsOneWidget,
+      );
+      await tester.tap(folder);
+      launcher.requests.last.complete();
+      await tester.pumpAndSettle();
+      expect(launcher.roots.last, p.join(root, '2026-11-26'));
+      for (final virtual in [null, favoritesId, savedGalleryId, trashId]) {
+        location.open(virtual);
+        await tester.pumpAndSettle();
+        expect(folder, findsNothing);
+      }
       expect(tester.takeException(), isNull);
       await tester.pumpWidget(const SizedBox.shrink());
     },

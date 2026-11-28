@@ -15,7 +15,9 @@ import '../widgets/settings_ui.dart';
 import 'manual_library.dart';
 
 class UserManualEntry extends StatefulWidget {
-  const UserManualEntry({super.key});
+  const UserManualEntry({super.key, this.asButton = false});
+
+  final bool asButton;
 
   @override
   State<UserManualEntry> createState() => _UserManualEntryState();
@@ -97,7 +99,11 @@ class _UserManualEntryState extends State<UserManualEntry> {
     try {
       switch (message['method']) {
         case 'load':
-          value = {...await library.load(), 'version': kAppVersion};
+          value = {
+            ...await library.load(),
+            'version': kAppVersion,
+            'returnToGuide': widget.asButton,
+          };
         case 'save':
           if (_saving) throw const FormatException('正在保存上一份修改。');
           _saving = true;
@@ -142,9 +148,15 @@ class _UserManualEntryState extends State<UserManualEntry> {
   }
 
   @override
-  Widget build(BuildContext context) => SettingsRow(
-    icon: Icons.auto_stories_outlined,
-    title: context.l10n.userManual,
-    onTap: _open,
-  );
+  Widget build(BuildContext context) => widget.asButton
+      ? OutlinedButton.icon(
+          onPressed: _open,
+          icon: const Icon(Icons.auto_stories_outlined, size: 18),
+          label: Text(context.l10n.guideBrowseManual),
+        )
+      : SettingsRow(
+          icon: Icons.auto_stories_outlined,
+          title: context.l10n.userManual,
+          onTap: _open,
+        );
 }

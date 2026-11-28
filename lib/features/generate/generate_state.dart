@@ -259,7 +259,7 @@ class GenerateNotifier extends Notifier<GenerateState> {
     if (base.isNotEmpty) openPanel(Panel.characters);
   }
 
-  /// 灵感页「加入角色」/ 角色卡头「角色库」:带名追加(名字取自角色条目,
+  /// 灵感页「加入角色」会带名追加(名字取自角色条目,
   /// 头像取条目预览,[source] 是条目 id),尊重张数上限(按模型取,见
   /// maxCharactersOf),超出静默截断(对齐 web availableSlots 语义)。返回实际加入条数。
   int addNamedCharactersFrom(
@@ -1127,11 +1127,14 @@ class GenerateNotifier extends Notifier<GenerateState> {
   /// 由「没进过的档才套配方」保住。
   ///
   /// LoRA 按底模分别保留，切回时恢复挂载；NAI 与 Anima 共用一组。
-  void setModel(String model) {
+  void setModel(String model, {NaiEffort? naiEffort}) {
     // 收好旧档 → 换名 → 取回新档,顺序不能反(两步各自认 params.model)
     final p = state.params
         .rememberModalSampling()
-        .copyWith(model: model)
+        .copyWith(
+          model: model,
+          naiEffort: naiSupportsEffort(model) ? naiEffort : null,
+        )
         .recallModalSampling();
     state = state
         .withLoraBaseOf(model)

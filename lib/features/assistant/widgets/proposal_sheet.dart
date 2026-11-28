@@ -16,6 +16,7 @@ library;
 import 'package:flutter/material.dart';
 
 import '../../../core/theme/app_theme.dart';
+import '../../../core/ui/desktop_text_selection.dart';
 import '../../generate/char_position.dart' show positionChipLabel;
 import '../../generate/widgets/common.dart' show dropFocusSoon;
 import '../../inspiration/widgets/prompt_chips.dart';
@@ -222,6 +223,7 @@ class ProposalDetails extends StatelessWidget {
           const SizedBox(height: 8),
           SelectableText(
             c.positive.trim().isEmpty ? '(空)' : c.positive,
+            contextMenuBuilder: DesktopTextSelection.contextMenu,
             style: context.texts.bodyMedium!.copyWith(
               color: scheme.onSurfaceVariant,
               height: 1.7,
@@ -281,6 +283,7 @@ class ProposalDetails extends StatelessWidget {
                     fontWeight: FontWeight.w600,
                   ),
                 ),
+                contextMenuBuilder: DesktopTextSelection.contextMenu,
                 style: context.texts.bodyMedium!.copyWith(height: 1.6),
               ),
             ),
@@ -313,6 +316,7 @@ class ProposalDetails extends StatelessWidget {
           fontWeight: FontWeight.w600,
         ),
       ),
+      contextMenuBuilder: DesktopTextSelection.contextMenu,
       style: context.texts.bodyMedium!.copyWith(
         color: scheme.onSurfaceVariant,
         height: 1.85,

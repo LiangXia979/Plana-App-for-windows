@@ -26,8 +26,13 @@ void main() {
     of: key(id == 'main' ? 'desktop-prompt-text' : 'desktop-section-$id-text'),
     matching: find.byType(TextField),
   );
-  Offset emptyHeader(WidgetTester tester, String id) =>
-      tester.getRect(header(id)).centerRight - const Offset(18, 0);
+  Offset emptyHeader(WidgetTester tester, String id) {
+    final rect = tester.getRect(header(id));
+    if (id == 'main' && state().sections.isEmpty) {
+      return rect.centerLeft + const Offset(8, 0);
+    }
+    return rect.centerRight - const Offset(18, 0);
+  }
   bool inList(String id) => find
       .ancestor(of: header(id), matching: find.byType(ReorderableListView))
       .evaluate()

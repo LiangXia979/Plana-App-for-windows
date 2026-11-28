@@ -212,6 +212,11 @@ class PromptBlock {
   static final _rightTagEdge = RegExp(r'^\s*(?:$|[,，\n])');
   static final _outerWeight = RegExp(r'-?(?:\d+(?:\.\d+)?|\.\d+)::$');
 
+  static bool containsLibraryCopy(String field, String source) {
+    final body = source.replaceAll(_libraryDelimiters, '');
+    return body.isNotEmpty && _librarySpans(field, body, false).isNotEmpty;
+  }
+
   static Iterable<(int, int)> _librarySpans(
     String field,
     String body,

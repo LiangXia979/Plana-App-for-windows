@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart' show setEquals;
 import 'fold_icon.dart';
 import '../../../core/theme/app_skin.dart';
 import 'dart:async';
@@ -120,6 +121,7 @@ class ChipFlowView extends StatefulWidget {
     required this.onInputSubmitted,
     required this.translating,
     this.placing = false,
+    this.showInput = true,
     this.showTrans = true,
     this.fontSize = 16,
     this.primaryFontScale = 1,
@@ -158,7 +160,7 @@ class ChipFlowView extends StatefulWidget {
   ///
   /// 靶子仍是 ⊕ 本身,**没有**放大成整片区域:大靶子换来的是另一种误触
   /// (随手一点就搬走),而选择阶段已经不会被 ⊕ 干扰,不需要再拿命中率换。
-  final bool placing;
+  final bool placing, showInput;
 
   /// 长按某颗芯片:直接进落位阶段(见外层 `_chipLongPress`)。
   final void Function(int index) onLongPressChip;
@@ -206,6 +208,10 @@ class ChipFlowViewState extends State<ChipFlowView>
   bool _dragMoved = false;
   Timer? _dragScroll;
   int? _mousePointer;
+  bool _addOnDrag = false;
+  int? _selectionAnchor;
+  Set<int> _selectionBeforeDrag = const {};
+  Set<int> _lastDragSelection = const {};
   bool _mouseInterrupted = false;
 
   void _watchMouse(PointerDownEvent event) {
@@ -219,6 +225,7 @@ class ChipFlowViewState extends State<ChipFlowView>
       return;
     }
     _mousePointer = event.pointer;
+    _addOnDrag = HardwareKeyboard.instance.isControlPressed;
     _mouseInterrupted = false;
     GestureBinding.instance.pointerRouter.addGlobalRoute(_mouseEvent);
     HardwareKeyboard.instance.addHandler(_mouseKey);
@@ -260,6 +267,20 @@ class ChipFlowViewState extends State<ChipFlowView>
 
   void _startDrag(int index, Offset point) {
     if (_mouseInterrupted) return;
+    if (_addOnDrag) {
+      _selectionAnchor = index;
+      _selectionBeforeDrag = {...widget.selection};
+      _lastDragSelection = _selectionBeforeDrag;
+      _dragPoint = _dragOrigin = point;
+      _dragText = widget.controller.text;
+      widget.onDragChanged?.call(true);
+      _selectThrough(index);
+      _dragScroll = Timer.periodic(
+        const Duration(milliseconds: 16),
+        (_) => _scrollAtEdge(),
+      );
+      return;
+    }
     final units = topLevelUnits(widget.controller.text, widget.foldBodies);
     final selected = _sel.contains(index) ? {..._sel} : {index};
     if (chipValidGaps(selected, units.length).isEmpty) return;
@@ -325,7 +346,34 @@ class ChipFlowViewState extends State<ChipFlowView>
     return gap;
   }
 
+  void _selectThrough(int index) {
+    final anchor = _selectionAnchor!;
+    final next = {
+      ..._selectionBeforeDrag,
+      for (var i = math.min(index, anchor); i <= math.max(index, anchor); i++)
+        i,
+    };
+    if (!setEquals(next, _lastDragSelection)) {
+      _lastDragSelection = next;
+      widget.onSelectionChanged(next);
+    }
+  }
+
   void _updateDrag(Offset point) {
+    if (_selectionAnchor != null) {
+      if (_dragText != widget.controller.text) {
+        _finishDrag();
+        return;
+      }
+      _dragPoint = point;
+      for (var i = 0; i < _chipKeys.length; i++) {
+        if (chipAnchor(i)?.contains(point) ?? false) {
+          _selectThrough(i);
+          break;
+        }
+      }
+      return;
+    }
     if (_dragIndices == null) return;
     if (widget.controller.text != _dragText) {
       cancelDrag();
@@ -350,10 +398,12 @@ class ChipFlowViewState extends State<ChipFlowView>
         point.dx > viewport.right) {
       return;
     }
-    const edge = 40.0;
-    final amount = point.dy < viewport.top + edge
+    final dy = point.dy - _dragOrigin!.dy;
+    final selecting = _selectionAnchor != null;
+    final edge = selecting && !widget.scrollable ? 8.0 : 40.0;
+    final amount = (!selecting || dy < -4) && point.dy < viewport.top + edge
         ? -(1 - (point.dy - viewport.top) / edge).clamp(0.0, 1.0) * 12
-        : point.dy > viewport.bottom - edge
+        : (!selecting || dy > 4) && point.dy > viewport.bottom - edge
         ? (1 - (viewport.bottom - point.dy) / edge).clamp(0.0, 1.0) * 12
         : 0.0;
     final position = scroll.position;
@@ -369,6 +419,18 @@ class ChipFlowViewState extends State<ChipFlowView>
   }
 
   void _finishDrag({bool commit = false}) {
+    if (_selectionAnchor != null) {
+      _selectionAnchor = null;
+      _dragScroll?.cancel();
+      _dragScroll = null;
+      _dragPoint = _dragOrigin = null;
+      if (!commit && _dragText == widget.controller.text) {
+        widget.onSelectionChanged(_selectionBeforeDrag);
+      }
+      _dragText = null;
+      widget.onDragChanged?.call(false);
+      return;
+    }
     if (_dragIndices == null) return;
     final gap = _dropGap;
     final canMove =
@@ -445,6 +507,12 @@ class ChipFlowViewState extends State<ChipFlowView>
         ),
       ),
     );
+  }
+
+  Rect? chipRows() {
+    final first = chipAnchor(0);
+    final last = chipAnchor(_chipKeys.length - 1);
+    return first == null || last == null ? null : first.expandToInclude(last);
   }
 
   Rect? chipAnchor(int index) {
@@ -740,7 +808,7 @@ class ChipFlowViewState extends State<ChipFlowView>
                           crossAxisAlignment: WrapCrossAlignment.center,
                           children: [
                             ..._rows(text, units, groups, sel, pendingOf, t),
-                            _inputBox(units.isEmpty),
+                            if (widget.showInput) _inputBox(units.isEmpty),
                           ],
                         ),
                       ),

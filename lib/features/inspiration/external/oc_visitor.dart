@@ -126,14 +126,22 @@ class _Visitor {
     OcJson? body,
     String? csrf,
     int limit = 24 << 20,
+    _OcConnectionTrace? trace,
+    _OcStage stage = _OcStage.landing,
   }) async {
+    trace?.enter(stage);
     await (_ready ??= _restore());
     final generation = _generation;
     var target = start;
     for (var redirect = 0; redirect <= 5; redirect++) {
       if (target.origin != location.origin || target.userInfo.isNotEmpty) {
-        throw const OcAccessError('此链接跳转到了另一个站点，请输入最终资料库网址');
+        throw const OcAccessError._(
+          '此链接跳转到了另一个站点，请输入最终资料库网址',
+          'crossOriginRedirect',
+        );
       }
+      trace?.httpStatus = null;
+      trace?.requestTo(target);
       final req = await client
           .openUrl(body == null ? 'GET' : 'POST', target)
           .timeout(const Duration(seconds: 20));
@@ -154,6 +162,7 @@ class _Visitor {
         req.add(utf8.encode(jsonEncode(body)));
       }
       final response = await req.close().timeout(const Duration(seconds: 25));
+      trace?.httpStatus = response.statusCode;
       if (generation == _generation && response.cookies.isNotEmpty) {
         for (final cookie in response.cookies) {
           _accept(cookie, target);
@@ -163,14 +172,16 @@ class _Visitor {
       if (response.isRedirect) {
         final next = response.headers.value(HttpHeaders.locationHeader);
         await response.drain<void>().timeout(const Duration(seconds: 20));
-        if (next == null || body != null) throw const OcAccessError('访客请求被重定向');
+        if (next == null || body != null) {
+          throw const OcAccessError._('访客请求被重定向', 'unexpectedRedirect');
+        }
         target = target.resolve(next);
         continue;
       }
       final bytes = BytesBuilder(copy: false);
       await for (final chunk in response.timeout(const Duration(seconds: 25))) {
         if (bytes.length + chunk.length > limit) {
-          throw const OcAccessError('单个资料文件过大');
+          throw const OcAccessError._('单个资料文件过大', 'sizeLimit');
         }
         bytes.add(chunk);
       }
@@ -181,20 +192,25 @@ class _Visitor {
         response.headers.contentType?.mimeType,
       );
     }
-    throw const OcAccessError('资料库重定向次数过多');
+    throw const OcAccessError._('资料库重定向次数过多', 'redirectLimit');
   }
 
-  Future<void> login(Future<String?> Function() password) {
+  Future<void> login(
+    Future<String?> Function() password, {
+    _OcConnectionTrace? trace,
+  }) {
+    trace?.enter(_OcStage.guestLogin);
     if (_retryAfter?.isAfter(DateTime.now()) == true) {
       return Future.error(_rejection!);
     }
-    return _login ??= _authenticate(password)
+    return _login ??= _authenticate(password, trace)
         .then((_) {
           _rejection = null;
           _retryAfter = null;
         })
         .onError((OcAccessError e, StackTrace stack) {
-          if (e.status == 401 || e.status == 403 || e.status == 429) {
+          if (e._reason == 'guestRejected' ||
+              (e._reason == 'guestHttp' && e.status == 429)) {
             _rejection = e;
             _retryAfter = DateTime.now().add(const Duration(minutes: 1));
           }
@@ -203,31 +219,53 @@ class _Visitor {
         .whenComplete(() => _login = null);
   }
 
-  Future<void> _authenticate(Future<String?> Function() secret) async {
+  Future<void> _authenticate(
+    Future<String?> Function() secret,
+    _OcConnectionTrace? trace,
+  ) async {
     _generation++;
     if (location.scheme != 'https' &&
         !{'localhost', '127.0.0.1', '::1'}.contains(location.host)) {
-      throw const OcAccessError('带口令的资料库需要 HTTPS');
+      throw const OcAccessError._('带口令的资料库需要 HTTPS', 'httpsRequired');
     }
+    trace?.enter(_OcStage.readPassword);
     final pw = await secret();
     if (pw == null || pw.isEmpty) {
-      throw const OcAccessError('此资料库需要访客口令，请在导入页填写');
+      throw const OcAccessError._('此资料库需要访客口令，请在导入页填写', 'passwordRequired');
     }
-    final session = await request(location.resolve('/api/session'));
-    if (session.status != 200 || session.json is! Map) {
-      throw const OcAccessError('无法建立访客会话');
+    final session = await request(
+      location.resolve('/api/session'),
+      trace: trace,
+      stage: _OcStage.session,
+    );
+    if (session.status != 200) {
+      throw OcAccessError('建立访客会话失败（HTTP ${session.status}）', session.status);
     }
-    final csrf = (session.json as Map)['csrfToken'];
+    final data = session.json;
+    if (data is! Map) {
+      throw const OcAccessError._('访客会话接口返回的数据格式无法识别', 'format');
+    }
+    final csrf = data['csrfToken'];
     final auth = await request(
       location.resolve('/api/session/guest'),
       body: {'password': pw},
       csrf: csrf is String ? csrf : null,
+      trace: trace,
+      stage: _OcStage.guestLogin,
     );
     if (auth.status == 401 || auth.status == 403) {
-      throw OcAccessError('访客口令无效或已过期', auth.status);
+      throw OcAccessError._(
+        '站点拒绝访客登录（HTTP ${auth.status}），请检查访客口令和访问权限。',
+        'guestRejected',
+        auth.status,
+      );
     }
     if (auth.status != 200) {
-      throw OcAccessError('站点未接受访客登录（HTTP ${auth.status}）', auth.status);
+      throw OcAccessError._(
+        '站点未接受访客登录（HTTP ${auth.status}）',
+        'guestHttp',
+        auth.status,
+      );
     }
   }
 
@@ -235,20 +273,32 @@ class _Visitor {
     Uri url, {
     required bool guest,
     required Future<String?> Function() secret,
+    _OcConnectionTrace? trace,
   }) async {
-    if (guest && _login != null) await _login;
+    if (guest && _login != null) {
+      trace?.enter(_OcStage.guestLogin);
+      await _login;
+    }
     final generation = _generation;
-    var r = await request(url);
+    var r = await request(url, trace: trace, stage: _OcStage.catalog);
     if (guest && r.needsLogin) {
       if (generation == _generation) {
-        await login(secret);
+        await login(secret, trace: trace);
       } else if (_login != null) {
+        trace?.enter(_OcStage.guestLogin);
         await _login;
       }
-      r = await request(url);
+      r = await request(url, trace: trace, stage: _OcStage.catalog);
     }
-    if (r.status != 200 || (guest && r.needsLogin)) {
+    if (r.status != 200) {
       throw OcAccessError('资料读取失败（HTTP ${r.status}），可在导入页更新连接', r.status);
+    }
+    if (guest && r.needsLogin) {
+      throw OcAccessError._(
+        '登录后站点仍要求访客验证，请在导入页重新连接。',
+        'sessionRequired',
+        r.status,
+      );
     }
     return r;
   }

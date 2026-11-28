@@ -118,7 +118,7 @@ void main() {
     final box = tester.getRect(header(id, role));
     if (!role) return box.centerRight - const Offset(18, 0);
     final avatar = tester.getRect(key('character-avatar-$id'));
-    final button = tester.getRect(key('character-fullscreen-$id'));
+    final button = tester.getRect(key('character-position-$id'));
     return Offset(button.left - 20, avatar.center.dy);
   }
 

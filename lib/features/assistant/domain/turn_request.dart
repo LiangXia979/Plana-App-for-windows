@@ -67,7 +67,7 @@ class AgentTurnRequest {
   /// 自定义过的规则主体;null = 用默认规则。
   final List<PresetRule>? customRules;
 
-  /// User-authored preferences for API turns. Subscription runtimes omit them.
+  /// Optional preset supplement for an explicitly selected custom API.
   final String apiSupplement;
 
   /// 用户选的模式(`comic`、`mode:comic` 这类),拿来挑条件段。

@@ -9,6 +9,40 @@ class AppLocalizationsJa extends AppLocalizations {
   AppLocalizationsJa([String locale = 'ja']) : super(locale);
 
   @override
+  String get updateReleaseNotes => '更新内容';
+
+  @override
+  String get updateNotesUnavailable => 'このバージョンの更新内容は未記載です。';
+
+  @override
+  String get updateReleasePage => 'リリースページ';
+
+  @override
+  String get updateDownload => '更新をダウンロード';
+
+  @override
+  String get updateDownloading => '更新をダウンロードして検証中';
+
+  @override
+  String get updateRunInstaller => 'インストーラーを開く';
+
+  @override
+  String get updateOpenPackageFolder => 'ポータブル版のフォルダーを開く';
+
+  @override
+  String get updatePackageMissing =>
+      '検証可能な Windows パッケージがありません。リリースページで添付ファイルを確認できます。';
+
+  @override
+  String get updateIntegrityFailed => '更新パッケージの検証に失敗しました。再度ダウンロードしてください。';
+
+  @override
+  String get updateDownloadFailed => 'ダウンロードできませんでした。接続と空き容量を確認して、もう一度お試しください。';
+
+  @override
+  String get updateLaunchFailed => '更新パッケージを開けません。再試行するか、リリースページを確認してください。';
+
+  @override
   String get downloadWindowsPackage => 'Windows 版をダウンロード';
 
   @override
@@ -377,7 +411,7 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get rulesLocalOnly =>
-      'モデルで有効にすると、Plana のチャンネルとカスタム API では通常のルールに続けて補足を送信します。Codex や Antigravity などのサブスクリプションではこのセクションを除外します。';
+      'モデルで有効にすると、カスタム API でのみ通常のルールに続けて補足を送信します。Plana バックエンドと Codex や Antigravity などのサブスクリプションでは、このセクションを除外します。';
 
   @override
   String get refCharacterStyle => 'キャラクター&絵柄';
@@ -1057,13 +1091,13 @@ class AppLocalizationsJa extends AppLocalizations {
   String get refMutexVibePaused => '与 Vibe 互斥,已暂停 Vibe 参考';
 
   @override
-  String get refMutexCharRefPaused => '与角色参考互斥,已暂停角色参考';
+  String get refMutexCharRefPaused => '与精确参考互斥,已暂停精确参考';
 
   @override
   String get refLibrary => '参考图库';
 
   @override
-  String get importCharRef => '导入角色参考图';
+  String get importCharRef => '导入精确参考图';
 
   @override
   String filesImportFailed(int n) {
@@ -1124,13 +1158,13 @@ class AppLocalizationsJa extends AppLocalizations {
   }
 
   @override
-  String get charRefLibrary => '角色参考图库';
+  String get charRefLibrary => '精确参考图库';
 
   @override
   String get searchName => '搜索名称…';
 
   @override
-  String get noCharRefs => '还没有角色参考图';
+  String get noCharRefs => '还没有精确参考图';
 
   @override
   String get noMatchingRefs => '没有匹配的参考图';
@@ -1376,16 +1410,16 @@ class AppLocalizationsJa extends AppLocalizations {
   String get setAsBaseImage => '已设为图生图底图';
 
   @override
-  String get addedVibeMutex => '已加入 Vibe · 与角色参考互斥,已暂停角色参考';
+  String get addedVibeMutex => '已加入 Vibe · 与精确参考互斥,已暂停精确参考';
 
   @override
   String get addedVibe => '已加入 Vibe 参考';
 
   @override
-  String get addedCharRefMutex => '已加入角色参考 · 与 Vibe 互斥,已暂停 Vibe';
+  String get addedCharRefMutex => '已加入精确参考 · 与 Vibe 互斥,已暂停 Vibe';
 
   @override
-  String get addedCharRef => '已加入角色参考';
+  String get addedCharRef => '已加入精确参考';
 
   @override
   String get importReplace => '完全覆盖';
@@ -2800,7 +2834,7 @@ class AppLocalizationsJa extends AppLocalizations {
   String get catGallery => '图库作品';
 
   @override
-  String get catCharLib => '角色参考库';
+  String get catCharLib => '精确参考库';
 
   @override
   String get actClean => '清理';
@@ -2860,7 +2894,7 @@ class AppLocalizationsJa extends AppLocalizations {
   }
 
   @override
-  String get clearCharRefLib => '清空角色参考库';
+  String get clearCharRefLib => '清空精确参考库';
 
   @override
   String get clearCharRefLibBody => '将删除库内全部文件,不可恢复。图库作品里的参数快照不受影响。';
@@ -3266,7 +3300,7 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String charRefImportFailed(String name, String error) {
-    return '角色参考「$name」失败: $error';
+    return '精确参考「$name」失败: $error';
   }
 
   @override
@@ -6089,7 +6123,7 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get desktopEachCanvasKeepsItsOwnPromptsCharactersPresets =>
-      '每张画布分别保存提示词、角色、预设和采样参数。\n\nVibe、角色参考、图生图、重绘和 LoRA 在画布之间共享。';
+      '每张画布分别保存提示词、角色、预设和采样参数。\n\nVibe、精确参考、图生图、重绘和 LoRA 在画布之间共享。';
 
   @override
   String get skipStep => '跳过';
@@ -6257,10 +6291,10 @@ class AppLocalizationsJa extends AppLocalizations {
   String get desktopChangesAreSavedAutomatically => '修改后自动保存';
 
   @override
-  String get desktopImportCharacterReferenceImages => '导入角色参考图库';
+  String get desktopImportCharacterReferenceImages => '导入精确参考图库';
 
   @override
-  String get desktopSelectImagesToAddAsCharacterReferences => '点选图片加入角色参考';
+  String get desktopSelectImagesToAddAsCharacterReferences => '点选图片加入精确参考';
 
   @override
   String get desktopCouldNotSaveCheckFolderPermissionsAndAvailable =>
@@ -6651,7 +6685,7 @@ class AppLocalizationsJa extends AppLocalizations {
       '历史内容或参考图片无法读取，当前画布未替换';
 
   @override
-  String get desktopAddCharacterReference => '加入角色参考';
+  String get desktopAddCharacterReference => '加入精确参考';
 
   @override
   String get desktopDisabled => '已禁用';
@@ -7933,6 +7967,55 @@ class AppLocalizationsJa extends AppLocalizations {
   String get editInspirationBlock => 'インスピレーションを編集';
 
   @override
+  String get completionPlacement => 'プロンプト補完の表示位置';
+
+  @override
+  String get studioCompletionPlacement => '全画面編集のプロンプト補完位置';
+
+  @override
+  String get studioCompletionPlacementHint =>
+      '補完候補をカーソル付近か、全画面エディター右側のインスペクターの下に表示します。';
+
+  @override
+  String get completionPlacementHint => '補完候補をカーソル付近またはプロンプトカードの横に表示します。';
+
+  @override
+  String get completionFollow => '追従';
+
+  @override
+  String get completionSide => '側面に固定';
+
+  @override
+  String get increaseTagWeight => 'ウェイトを上げる';
+
+  @override
+  String get decreaseTagWeight => 'ウェイトを下げる';
+
+  @override
+  String get danbooruWiki => 'Danbooru Wiki';
+
+  @override
+  String get deleteWholeBlock => 'ブロックを削除';
+
+  @override
+  String get wholeBlock => 'ブロック';
+
+  @override
+  String get disableBlock => 'ブロックを無効化';
+
+  @override
+  String get enableBlock => 'ブロックを有効化';
+
+  @override
+  String get unpackBlock => 'ブロックを展開';
+
+  @override
+  String get selectBlockTag => '編集するタグを選択してください。';
+
+  @override
+  String get pairedPromptBlock => '正負ペア';
+
+  @override
   String get foldAfterInspirationSave => '保存後にブロックにまとめる';
 
   @override
@@ -8381,4 +8464,624 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get compareMetadataHint => '生成情報を含む元画像ならプロンプトも比較できます';
+
+  @override
+  String get studioSearchLibrary => '名前・ピンイン・タグで検索…';
+
+  @override
+  String get studioNoMatches => '一致する項目がありません';
+
+  @override
+  String get studioOriginalWeights => '元の重み';
+
+  @override
+  String get studioBlockWeight => 'ブロックの重み';
+
+  @override
+  String get studioIndependentWeights => 'タグごとの重みを保持';
+
+  @override
+  String get studioCopyBlock => 'ブロックをコピー';
+
+  @override
+  String get studioParent => '親に戻る';
+
+  @override
+  String get temporaryBatchPick => '画像を複数選択…';
+
+  @override
+  String get temporaryBatchTarget => '保存先ギャラリー';
+
+  @override
+  String get temporaryBatchFile => 'ギャラリーに収録';
+
+  @override
+  String get temporaryBatchZip => '選択した画像を ZIP に保存';
+
+  @override
+  String temporaryBatchAll(int count, String name) {
+    return '未収録の $count 枚を「$name」に収録';
+  }
+
+  @override
+  String temporaryBatchCount(int count, int total) {
+    return '$total 枚中 $count 枚選択';
+  }
+
+  @override
+  String temporaryBatchFiled(int count) {
+    return '$count 枚を収録しました';
+  }
+
+  @override
+  String get studioMain => 'メインプロンプト';
+
+  @override
+  String get studioSections => 'メインプロンプトとセクション';
+
+  @override
+  String get studioPosOnly => '正のみ';
+
+  @override
+  String get studioNegOnly => '負のみ';
+
+  @override
+  String get studioGlobal => '全体';
+
+  @override
+  String get studioWritePositive => '入力先：正';
+
+  @override
+  String get studioWriteNegative => '入力先：負';
+
+  @override
+  String get studioSection => 'セクション';
+
+  @override
+  String get studioFocusHere => 'この欄に入力';
+
+  @override
+  String get studioPack => 'ブロックにまとめる';
+
+  @override
+  String get studioBoth => '両方';
+
+  @override
+  String get studioExpand => '中央で展開して編集';
+
+  @override
+  String get studioBlock => 'ブロック編集';
+
+  @override
+  String get studioCopyComplete => 'プロンプト全文をコピー';
+
+  @override
+  String get studioFocused => '入力中';
+
+  @override
+  String get studioOutline => 'プロンプト構成';
+
+  @override
+  String get studioNoLocal => '挿入できるローカル素材はありません';
+
+  @override
+  String get studioTranslateFailed => '翻訳できませんでした。原文を挿入できます。';
+
+  @override
+  String get studioLoading => '素材を読み込み中…';
+
+  @override
+  String get studioNoPositive => 'このブロックには正のプロンプトがありません';
+
+  @override
+  String get studioNoNegative => 'このブロックには負のプロンプトがありません';
+
+  @override
+  String get studioLibrary => '素材から挿入';
+
+  @override
+  String get studioInspectHint => 'タグを選んで重みを調整し、ブロックをダブルクリックして編集します。';
+
+  @override
+  String get studioPosition => 'キャンバス上の位置';
+
+  @override
+  String get studioRemoveBlock => 'ブロックを削除';
+
+  @override
+  String get studioInspector => 'タグとブロックの詳細';
+
+  @override
+  String get studioNegative => 'ネガティブプロンプト';
+
+  @override
+  String get studioAddTags => '英語または中国語でタグを入力';
+
+  @override
+  String get studioUp => '親に戻る';
+
+  @override
+  String get studioRedo => 'やり直す';
+
+  @override
+  String get studioResetWeight => '重みをリセット';
+
+  @override
+  String get studioManual => '手動';
+
+  @override
+  String get studioCopyTag => 'タグをコピー';
+
+  @override
+  String get studioDisableTag => '一時無効化';
+
+  @override
+  String get studioDeleteTag => 'タグを削除';
+
+  @override
+  String get studioCompleting => '補完中';
+
+  @override
+  String get studioReturnInspector => '検査に戻る';
+
+  @override
+  String get temporaryName => '一時ギャラリー';
+
+  @override
+  String get temporaryScope => '現在のキャンバス・終了時に整理';
+
+  @override
+  String get temporaryCollectSaved => 'ダウンロードした画像を「保存済み」に追加';
+
+  @override
+  String get temporaryCollectHint => '画像をフォルダーに個別保存すると、Plana の「保存済み」にも登録します。';
+
+  @override
+  String get temporaryExitPolicy => '終了時の一時ギャラリーの整理';
+
+  @override
+  String get temporaryPolicyHint =>
+      'キャンバスごとに未収録の一時画像を整理します。お気に入りとギャラリーに保存した作品は保持します。';
+
+  @override
+  String get temporaryClearAll => 'すべて消去';
+
+  @override
+  String get temporaryKeepLatest => '最新分を保持';
+
+  @override
+  String get temporaryKeepCount => '各キャンバスで残す最新の未収録画像';
+
+  @override
+  String get temporaryKeepHint => '各キャンバスに残す一時画像の枚数です。';
+
+  @override
+  String get temporaryConfirmExit => '終了時の処理';
+
+  @override
+  String get temporaryConfirmHint => '未収録画像を整理する前に確認します。キャンバスごとに ZIP に保存できます。';
+
+  @override
+  String get temporaryDirectHint => '終了時に、上のルールに従って未収録の一時画像を整理します。';
+
+  @override
+  String get temporaryArchiveHint =>
+      '終了時に各キャンバスを個別保存先に ZIP で保存し、成功後に上のルールで整理します。';
+
+  @override
+  String get temporaryHistoryCount => '履歴バーの初期読み込み枚数';
+
+  @override
+  String get temporaryHistoryHint =>
+      'ギャラリーを開く・切り替える際にすべての履歴を読み込み、新しい画像は随時追加します。';
+
+  @override
+  String get temporaryHistoryHelp => '0 ですべて読み込みます。作成画面の履歴バーに適用されます。';
+
+  @override
+  String get temporaryFolder => '個別保存のフォルダーを選択';
+
+  @override
+  String get temporaryPacking => 'ZIP を作成中';
+
+  @override
+  String get temporaryCancelPack => '書き出しをキャンセル';
+
+  @override
+  String get temporaryDeleteQuestion => 'キャンバスと一時画像を削除しますか？';
+
+  @override
+  String get temporaryExitQuestion => '終了前に一時ギャラリーを整理';
+
+  @override
+  String get temporarySkipPrompt => 'この選択を記憶し、次回から確認しない';
+
+  @override
+  String get temporaryZipDelete => 'ZIP に書き出してキャンバスを削除';
+
+  @override
+  String get temporaryZipExit => 'キャンバス別に ZIP を書き出して終了';
+
+  @override
+  String get temporaryCleanDelete => '整理してキャンバスを削除';
+
+  @override
+  String get temporaryCleanExit => '整理して終了';
+
+  @override
+  String get temporaryStar => 'お気に入りに追加';
+
+  @override
+  String get temporaryFile => '通常のギャラリーに追加';
+
+  @override
+  String get temporaryFiled => '選択したギャラリーに追加しました';
+
+  @override
+  String get temporaryRecoveryQuestion => '前回の異常終了時に残った一時画像を消去しますか？';
+
+  @override
+  String get temporaryRecoveryHint => '登録済みの作品はギャラリーに残ります。';
+
+  @override
+  String get temporaryLoadError => '一時ギャラリーを読み込めません・再試行';
+
+  @override
+  String temporaryCount(int n) {
+    return '$n 枚';
+  }
+
+  @override
+  String temporaryMore(int n) {
+    return 'さらに読み込む（+$n）';
+  }
+
+  @override
+  String temporaryCloseCounts(int total, int collected, int kept, int removed) {
+    return '合計 $total 枚のうち、ギャラリー登録済みが $collected 枚、次回まで保持する画像が $kept 枚、消去する画像が $removed 枚です。';
+  }
+
+  @override
+  String temporaryRecovered(int n) {
+    return '前回の異常終了後に一時画像が $n 枚見つかりました';
+  }
+
+  @override
+  String temporaryPacked(int n) {
+    return 'キャンバス別に $n 個の ZIP を書き出しました';
+  }
+
+  @override
+  String get temporaryBusy =>
+      '一時ギャラリーで生成、待機、保存中の処理があります。完了またはキャンセルしてからお試しください。';
+
+  @override
+  String temporaryOpenFailed(String error) {
+    return '一時ギャラリーを開けません：$error';
+  }
+
+  @override
+  String temporaryActionFailed(String error) {
+    return '操作に失敗しました：$error';
+  }
+
+  @override
+  String temporarySavedPath(String path) {
+    return '$path に保存しました';
+  }
+
+  @override
+  String temporaryCleanupFailed(String error) {
+    return '一時ギャラリーの処理が完了しませんでした：$error';
+  }
+
+  @override
+  String get temporaryAsk => '毎回確認';
+
+  @override
+  String get temporaryDirectClean => 'すぐに整理';
+
+  @override
+  String get temporaryArchiveThenClean => 'ZIP 保存後に整理';
+
+  @override
+  String get temporaryInitialCountLabel => 'ギャラリーを開くときの読み込み枚数';
+
+  @override
+  String temporaryLimitedHistory(int n) {
+    return 'ギャラリーを開く・切り替える際に最新の $n 枚を読み込み、新しい画像は随時追加します。';
+  }
+
+  @override
+  String temporarySingleLead(String quantity) {
+    return '未収録の一時画像を $quantity 削除します。';
+  }
+
+  @override
+  String temporaryMultiLead(int canvases, String quantity) {
+    return '$canvases 個のキャンバスで、未収録の一時画像を計 $quantity 削除します。';
+  }
+
+  @override
+  String temporaryCleanStat(int n) {
+    return '$n 枚を削除';
+  }
+
+  @override
+  String temporaryCollectedStat(int n) {
+    return '$n 枚は収録済み';
+  }
+
+  @override
+  String temporaryKeptStat(int n) {
+    return '$n 枚を次回まで保持';
+  }
+
+  @override
+  String temporarySingleDetail(String name) {
+    return '対象キャンバス：$name。お気に入りとギャラリーに保存した作品は保持されます。';
+  }
+
+  @override
+  String temporaryMultiDetail(String details) {
+    return 'キャンバス別：$details。ZIP は各キャンバスの名前で個別に保存されます。';
+  }
+
+  @override
+  String temporaryCanvasCountDetail(String name, String status) {
+    return '$name（$status）';
+  }
+
+  @override
+  String get temporaryRememberHint =>
+      '「ZIP に保存して終了」で「ZIP 保存後に整理」、「整理して終了」で「すぐに整理」が記憶されます。';
+
+  @override
+  String get temporarySingleZipExit => 'ZIP に保存して終了';
+
+  @override
+  String get guideBrowseManual => '使い方ガイドを開く';
+
+  @override
+  String get guideBanner => '初めてお使いですか？画像生成の接続方法と保存先を設定できます。';
+
+  @override
+  String get guideOpen => '初期設定を開く';
+
+  @override
+  String get guideWelcome => 'ようこそ';
+
+  @override
+  String get guideAppearance => '外観';
+
+  @override
+  String get guideGeneration => '画像生成の接続';
+
+  @override
+  String get guideBotStep => 'Bot 認証と拡張';
+
+  @override
+  String get guideStorage => '保存とギャラリー';
+
+  @override
+  String get guideFinish => '完了とクイックガイド';
+
+  @override
+  String get guideWelcomeSub => 'ワークスペースを知る';
+
+  @override
+  String get guideAppearanceSub => 'テーマと配色';
+
+  @override
+  String get guideAccessSub => 'アカウントと接続先';
+
+  @override
+  String get guideBotSub => '生成または拡張機能';
+
+  @override
+  String get guideStorageSub => '保存先・ギャラリー・形式';
+
+  @override
+  String get guideFinishSub => '設定を確認';
+
+  @override
+  String guideProgress(int step, int total, String title) {
+    return 'ステップ $step / $total · $title';
+  }
+
+  @override
+  String get guideLater => '後から「マイページ」で設定を変更できます。';
+
+  @override
+  String get guideCompleteBack => '完了して戻る';
+
+  @override
+  String get guideStart => '創作を始める';
+
+  @override
+  String get guideSkipExtensions => '拡張機能をスキップ';
+
+  @override
+  String get guideNeedAccess => 'トークンを保存するか、接続設定をスキップしてください。';
+
+  @override
+  String get guideNeedBot => 'Bot で生成するには認証してください。';
+
+  @override
+  String get guideIntroLead => '外観、画像生成の接続方法、保存先を設定できます。';
+
+  @override
+  String get guideWrite => 'プロンプトを書く';
+
+  @override
+  String get guideWriteBody =>
+      '3 ペインでセクションとキャラクターを編集し、補完やライブラリからの挿入を使えます。AI アシスタントは API または ChatGPT サブスクリプションで下書きできます。';
+
+  @override
+  String get guideCanvases => '複数のキャンバスを使う';
+
+  @override
+  String get guideCanvasesBody =>
+      '＋でキャンバスを追加し、タブのダブルクリックで名前を変更できます。プロンプト、サイズ、一時画像はキャンバスごとに保持されます。';
+
+  @override
+  String get guideContinueImage => '画像から創作を続ける';
+
+  @override
+  String get guideImageBody =>
+      '生成情報のある画像をドロップし、取り込むプロンプト、キャラクター、パラメーターを選べます。その他の画像は参照画像や元画像に使えます。';
+
+  @override
+  String get guideThemeLead => 'キャンバスプレビューでテーマと配色を確認できます。';
+
+  @override
+  String get guideThemePreview => 'キャンバスプレビュー';
+
+  @override
+  String get guideOfficial => '公式トークン';
+
+  @override
+  String get guideOfficialHint => 'NovelAI のアクセストークンを使用';
+
+  @override
+  String get guideEmailHint => 'NovelAI アカウントでログイン';
+
+  @override
+  String get guideThirdHint => 'NovelAI または OpenAI 互換形式';
+
+  @override
+  String get guideBotHint => '招待済みのアカウントを次のステップで認証';
+
+  @override
+  String get guideAccessLead => '画像生成の接続方法を選びます。スキップして先にワークスペースを使うこともできます。';
+
+  @override
+  String get guideLocalProxy => 'ローカルプロキシを設定';
+
+  @override
+  String get guideAuthorize => '画像生成に使う Bot を認証';
+
+  @override
+  String get guideOptional => '任意の拡張機能';
+
+  @override
+  String get guideOptionalBody =>
+      '招待済みのアカウントで拡張機能を利用できます。公式・サードパーティ接続で生成する場合はスキップできます。';
+
+  @override
+  String get guidePerks =>
+      'Anima・Krea 2 などの追加モデル、公開 Vibe・絵師リスト・キャラクター OC、WD Tagger の画像タグ付け。';
+
+  @override
+  String get guideBackupOptions =>
+      'Plana クラウドは Bot 認証でアイデアと Vibe を同期します。Google ドライブは Google ログイン、ローカルバックアップはログインなしで利用できます。';
+
+  @override
+  String get guideStorageLead => '書き出し先、現在のキャンバスのギャラリー、画像形式を選びます。';
+
+  @override
+  String get guideDirectory => '個別保存先';
+
+  @override
+  String get guideDirectoryHint => '画像の個別保存と一時ギャラリーの ZIP はこのフォルダーを使います。';
+
+  @override
+  String get guideUnset => '初回保存時に選択';
+
+  @override
+  String get guidePickFolder => 'フォルダーを選択';
+
+  @override
+  String get guideClearFolder => '未指定に戻す';
+
+  @override
+  String get guideCurrentGallery => '現在のキャンバスのギャラリー';
+
+  @override
+  String get guideStandard => '標準ギャラリー';
+
+  @override
+  String get guideStandardHint => '生成した画像とパラメーターを自動で保存します。';
+
+  @override
+  String get guideTempHint =>
+      'キャンバスごとに一時保存します。終了時の整理前にギャラリーへ登録するか ZIP に書き出せます。';
+
+  @override
+  String get guideNewTemp => '新規キャンバスも一時ギャラリーで開始';
+
+  @override
+  String get guideFormat => '個別保存の既定形式';
+
+  @override
+  String get guideJpgHint =>
+      'JPG は生成情報を保持しません。復元したい場合は PNG または WebP と「元のメタデータを保持」を選んでください。';
+
+  @override
+  String get guideReady => '画像生成の接続を設定しました。';
+
+  @override
+  String get guideNotReady => '設定を保存しました。生成を始めるときに「マイページ → アカウントと接続」で登録できます。';
+
+  @override
+  String get guideNoAccess => '未設定';
+
+  @override
+  String get guideSavedOfficial => '公式トークン · 保存済み';
+
+  @override
+  String get guideBotReady => 'Bot アカウント · 認証済み';
+
+  @override
+  String get guideNoBot => '未認証 · 必要時に有効化';
+
+  @override
+  String get guideSaveFormat => '保存先と形式';
+
+  @override
+  String get guideMode => 'ギャラリーモード';
+
+  @override
+  String get guideTips => 'デスクトップのヒント';
+
+  @override
+  String get guideImportTip => '生成情報をキャンバスに取り込む';
+
+  @override
+  String get guideImportTipBody => '原画像を創作ページにドロップし、プレビューで取り込む項目を選びます。';
+
+  @override
+  String get guideStudioTip => 'プロンプトワークベンチを開く';
+
+  @override
+  String get guideStudioTipBody =>
+      'プロンプトカードを展開すると 3 ペイン画面が開きます。名前付きブロックを選ぶと全体や個々のタグを編集できます。';
+
+  @override
+  String get guideTempTip => '一時画像を選択して登録・書き出し';
+
+  @override
+  String get guideTempTipBody =>
+      '一時ギャラリーの ZIP 横の矢印から、選択した画像を標準ギャラリーに登録するか ZIP に保存できます。';
+
+  @override
+  String get guideToolsTip => '画像を比較して生成情報を確認';
+
+  @override
+  String get guideToolsTipBody =>
+      '画像比較で原画像を A・B に置きます。画像メタデータでは情報の確認・編集とコピーの一括出力ができます。';
+
+  @override
+  String get temporaryNewCanvas => '新規キャンバスは一時ギャラリーで開始';
+
+  @override
+  String get temporaryNewCanvasHint =>
+      '新規作成・複製・復元したキャンバスを一時ギャラリーで開始します。既存のキャンバスは変わりません。';
+
+  @override
+  String get guideTempDetail =>
+      'お気に入りや通常ギャラリーへ移した画像は残ります。個別保存と ZIP は選んだフォルダーへ書き出され、「保存済みに追加」が有効な場合は個別保存も Plana に残ります。ZIP 書き出し後も終了時の整理は適用されます。';
+
+  @override
+  String get guideNewTempShort => '新規キャンバスも一時ギャラリー';
 }

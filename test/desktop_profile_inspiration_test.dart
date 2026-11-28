@@ -212,6 +212,14 @@ void main() {
       expect(find.byType(TokenManagePage), findsOneWidget);
       expect(key('profile-sidebar'), findsOneWidget);
       await section(tester, 'tools');
+      tester.view.physicalSize = const Size(1920, 1000);
+      await tester.pumpAndSettle();
+      final toolsPane = tester.getRect(key('profile-content'));
+      expect(
+        toolsPane.left,
+        closeTo(tester.getRect(key('profile-sidebar')).right + 20, 1),
+      );
+      expect(toolsPane.right, closeTo(1920 - 20, 1));
       final input = find
           .descendant(
             of: find.byType(ToolsPage),
@@ -299,19 +307,21 @@ void main() {
     (tester) async {
       await pumpUntilComplete(
         tester,
-        c.read(saveSettingsProvider.notifier).patch(
-          (settings) => settings.copyWith(meta: SaveMeta.custom),
-        ),
+        c
+            .read(saveSettingsProvider.notifier)
+            .patch((settings) => settings.copyWith(meta: SaveMeta.custom)),
       );
       await mount(tester, const DesktopProfilePage());
 
       Future<void> reveal(String label) => tester.scrollUntilVisible(
         find.text(label),
         300,
-        scrollable: find.descendant(
-          of: key('profile-content'),
-          matching: find.byType(Scrollable),
-        ).first,
+        scrollable: find
+            .descendant(
+              of: key('profile-content'),
+              matching: find.byType(Scrollable),
+            )
+            .first,
       );
       TextStyle renderedStyle(String label) =>
           tester.renderObject<RenderParagraph>(find.text(label)).text.style!;

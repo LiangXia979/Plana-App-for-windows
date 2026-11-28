@@ -1,11 +1,15 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:plana_app/core/ui/desktop_text_selection.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:plana_app/core/store/app_stores.dart';
 import 'package:plana_app/core/theme/app_theme.dart';
+import 'package:plana_app/features/editor/data/suggestions.dart';
 import 'package:plana_app/features/editor/editor_models.dart';
 import 'package:plana_app/features/editor/editor_settings.dart';
 import 'package:plana_app/features/editor/editor_state.dart';
@@ -64,6 +68,7 @@ void main() {
         child: RepaintBoundary(
           key: capture,
           child: MaterialApp(
+            debugShowCheckedModeBanner: false,
             theme: theme.copyWith(
               textTheme: theme.textTheme.apply(fontFamily: 'Microsoft YaHei'),
             ),
@@ -71,7 +76,7 @@ void main() {
               data: MediaQuery.of(
                 context,
               ).copyWith(textScaler: TextScaler.linear(scale)),
-              child: child!,
+              child: DesktopTextSelection(child: child!),
             ),
             home: Scaffold(
               body: Align(
@@ -120,10 +125,65 @@ void main() {
     expect(find.byType(FoldInspector), findsOneWidget);
   }
 
-  Finder bodyField() => find.descendant(
-    of: find.byType(FoldInspector),
-    matching: find.byType(AnnotatedField),
-  );
+  Finder bodyField({bool positive = true}) {
+    final large = find.byKey(ValueKey('studio-text-$positive'));
+    return large.evaluate().isNotEmpty
+        ? find.descendant(of: large, matching: find.byType(AnnotatedField))
+        : find.descendant(
+            of: find.byType(FoldInspector),
+            matching: find.byType(AnnotatedField),
+          );
+  }
+
+  for (final expanded in [false, true]) {
+    testWidgets(
+      'Ctrl-drag keeps both fragments inside the block editor (expanded=$expanded)',
+      (tester) async {
+        await mount(tester);
+        await inspect(tester);
+        if (expanded) {
+          await tester.tap(find.byIcon(Icons.open_in_full));
+          await tester.pumpAndSettle();
+        }
+        final field = tester.state<EditableTextState>(
+          find.descendant(of: bodyField(), matching: find.byType(EditableText)),
+        );
+        Future<void> select(String word) async {
+          await tester.pump(const Duration(milliseconds: 550));
+          final render = field.renderEditable;
+          final i = field.widget.controller.text.indexOf(word);
+          Offset point(int offset) => render.localToGlobal(
+            render.getLocalRectForCaret(TextPosition(offset: offset)).center,
+          );
+          final mouse = await tester.startGesture(
+            point(i),
+            kind: PointerDeviceKind.mouse,
+          );
+          await mouse.moveTo(
+            Offset.lerp(point(i), point(i + word.length), .6)!,
+          );
+          await tester.pump();
+          await mouse.moveTo(point(i + word.length));
+          await tester.pump();
+          await mouse.up();
+          await tester.pumpAndSettle();
+        }
+
+        await select('artist:jyt');
+        await tester.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);
+        await select('hat');
+        await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
+        await tester.pumpAndSettle();
+        final controller = field.widget.controller;
+        final fragments = DesktopTextRanges.of(
+          controller,
+        ).selected.map((r) => r.textInside(controller.text)).toList();
+        expect(fragments, [contains('artist:jyt'), contains('hat')]);
+        expect(fragments.join(), isNot(contains('blue eyes')));
+        await finish(tester);
+      },
+    );
+  }
 
   testWidgets(
     'temporary block can acquire a negative side without adopting loose negatives',
@@ -174,6 +234,97 @@ void main() {
     },
   );
 
+  for (final library in [true, false]) {
+    testWidgets(
+      'one-sided block always offers both header tabs and lazily saves its own counterpart, library=$library',
+      (t) async {
+        final original = PromptFoldLink.forEntry(
+          'local-style',
+          positiveName: '画风',
+          positiveBody: '0.4::artist:jyt::, {blue eyes}, ~hat~',
+        );
+        gen.setPrompts(
+          positive: outputOf(raw),
+          positiveRaw: raw,
+          negative: 'loose negative',
+          negativeRaw: 'loose negative',
+          promptFoldLinks: [if (library) original],
+        );
+        await mount(t);
+        await inspect(t);
+        final inspector = find.byType(FoldInspector);
+        final pos = find.byKey(const ValueKey('fold-inspector-正面'));
+        final neg = find.byKey(const ValueKey('fold-inspector-负面'));
+        final expand = find.descendant(
+          of: inspector,
+          matching: find.byIcon(Icons.open_in_full),
+        );
+        final unpack = find.descendant(
+          of: inspector,
+          matching: find.widgetWithText(TextButton, '解散为散词'),
+        );
+        final reset = find.descendant(
+          of: inspector,
+          matching: find.widgetWithText(TextButton, '重置权重'),
+        );
+        final disable = find.descendant(
+          of: inspector,
+          matching: find.widgetWithText(TextButton, '禁用整块'),
+        );
+        expect(
+          t.getRect(reset).left - t.getRect(unpack).right,
+          closeTo(t.getRect(unpack).left - t.getRect(disable).right, 1),
+        );
+        expect(t.getRect(pos).right, lessThan(t.getRect(neg).right));
+        expect(t.getRect(neg).right, lessThan(t.getRect(expand).left));
+        expect(t.getCenter(neg).dy, closeTo(t.getCenter(expand).dy, 2));
+        expect(
+          find.descendant(of: inspector, matching: find.text('完成')),
+          findsNothing,
+        );
+        expect(find.byKey(const ValueKey('fold-whole-more')), findsNothing);
+        await t.tap(neg);
+        await t.pumpAndSettle();
+        expect(t.widget<AnnotatedField>(bodyField()).controller.text, '');
+        expect(gen.state.negativePromptRaw, 'loose negative');
+        expect(gen.state.promptFoldLinks, [if (library) original]);
+        await t.enterText(
+          find.descendant(of: bodyField(), matching: find.byType(TextField)),
+          '1.5::haze::',
+        );
+        await t.pumpAndSettle();
+        final created = gen.state.promptFoldLinks.single;
+        expect(created.paired, isTrue);
+        expect(created.positiveName, '画风');
+        expect(created.negativeBody, '1.5::haze::');
+        expect(created.sourceEntryId, library ? original.sourceEntryId : null);
+        expect(gen.state.promptRaw, raw);
+        final scope = ProviderScope.containerOf(t.element(inspector));
+        scope.read(editorProvider.notifier).undo();
+        await t.pumpAndSettle();
+        expect(t.widget<AnnotatedField>(bodyField()).controller.text, '');
+        expect(gen.state.negativePrompt, 'loose negative');
+        scope.read(editorProvider.notifier).redo();
+        await t.pumpAndSettle();
+        expect(
+          t.widget<AnnotatedField>(bodyField()).controller.text,
+          '1.5::haze::',
+        );
+        await t.tap(find.byKey(const ValueKey('fold-whole-clear-weight')));
+        await t.pumpAndSettle();
+        expect(gen.state.promptFoldLinks.single.negativeBody, 'haze');
+        expect(gen.state.promptRaw, raw);
+        await t.tap(pos);
+        await t.pumpAndSettle();
+        expect(
+          t.widget<AnnotatedField>(bodyField()).controller.text,
+          original.positiveBody,
+        );
+        await finish(t);
+      },
+    );
+  }
+
   for (final temporary in [true, false]) {
     testWidgets(
       'disabled folded title is struck in the parent editor, temporary $temporary',
@@ -209,7 +360,7 @@ void main() {
         await tester.tap(
           find.descendant(
             of: find.byType(FoldInspector),
-            matching: find.text('禁用'),
+            matching: find.text('禁用整块'),
           ),
         );
         await tester.pumpAndSettle();
@@ -222,7 +373,7 @@ void main() {
         await tester.tap(
           find.descendant(
             of: find.byType(FoldInspector),
-            matching: find.text('启用'),
+            matching: find.text('启用整块'),
           ),
         );
         await tester.pumpAndSettle();
@@ -233,7 +384,7 @@ void main() {
         await tester.tap(
           find.descendant(
             of: find.byType(FoldInspector),
-            matching: find.text('禁用'),
+            matching: find.text('禁用整块'),
           ),
         );
         await tester.pumpAndSettle();
@@ -302,8 +453,45 @@ void main() {
   testWidgets(
     'member click opens weight actions and applies changes inside the block',
     (tester) async {
+      const body =
+          '0.4::artist:jyt::, {blue eyes}, watercolor (medium), '
+          'sunlight, year 2024, year 2025, soft colors, sky, clouds, '
+          'best quality, very aesthetic, high detail';
+      const positive = '<#画风: $body#>, sunrise';
+      const negative = '<#画风·排除: lowres, blur#>';
+      const link = PromptFoldLink(
+        id: 'watercolor',
+        positiveName: '画风',
+        positiveBody: body,
+        negativeName: '画风·排除',
+        negativeBody: 'lowres, blur',
+      );
+      for (final (name, translation) in [
+        ('artist:jyt', '画师 jyt'),
+        ('blue eyes', '蓝眼睛'),
+        ('watercolor (medium)', '水彩'),
+        ('sunlight', '阳光'),
+        ('clouds', '云'),
+        ('soft colors', '柔和色彩'),
+      ]) {
+        cacheTagMeta(name, trans: translation);
+      }
+      gen.setPrompts(
+        positive: outputOf(positive),
+        positiveRaw: positive,
+        negative: outputOf(negative),
+        negativeRaw: negative,
+        promptFoldLinks: [link],
+      );
       await mount(tester);
+      unawaited(
+        container
+            .read(editorSettingsProvider.notifier)
+            .patch((s) => s.copyWith(showTranslation: true)),
+      );
+      await tester.pumpAndSettle();
       await inspect(tester);
+      expect(find.text('正面 12'), findsOneWidget);
       final field = tester.widget<AnnotatedField>(bodyField());
       field.controller.selection = const TextSelection.collapsed(offset: 8);
       await tester.pumpAndSettle();
@@ -317,7 +505,46 @@ void main() {
       expect(find.byType(FoldInspector), findsOneWidget);
       expect(gen.state.promptRaw, contains('<#画风: 0.5::artist:jyt::'));
       expect(tester.widget<TagPanel>(actions).tok.tagMult, closeTo(.5, .00001));
+      expect(find.byKey(const ValueKey('desktop-tag-popover')), findsOneWidget);
+      final dock = tester.getRect(actions);
+      expect(
+        dock.top,
+        greaterThanOrEqualTo(tester.getRect(bodyField()).bottom),
+      );
+      field.controller.selection = TextSelection.collapsed(
+        offset: field.controller.text.indexOf('blue') + 1,
+      );
+      await tester.pumpAndSettle();
+      expect(tester.widget<TagPanel>(actions).tok.name, 'blue eyes');
+      expect(
+        find.descendant(
+          of: actions,
+          matching: find.textContaining('蓝眼睛', findRichText: true),
+        ),
+        findsOneWidget,
+      );
+      expect(tester.getRect(actions), dock);
       await captureDesktop(tester, capture, 'fold-inspector-member');
+      await finish(tester);
+    },
+  );
+
+  testWidgets(
+    'unpack in the block footer retains edited weights and supports undo',
+    (tester) async {
+      await mount(tester);
+      await inspect(tester);
+      final scoped = ProviderScope.containerOf(
+        tester.element(find.byType(FoldInspector)),
+      );
+      await tester.tap(find.text('解散为散词'));
+      await tester.pumpAndSettle();
+      expect(find.byType(FoldInspector), findsNothing);
+      expect(gen.state.prompt, outputOf(raw));
+      expect(gen.state.promptRaw, isNot(contains('<#画风:')));
+      scoped.read(editorProvider.notifier).undo();
+      await tester.pumpAndSettle();
+      expect(gen.state.promptRaw, raw);
       await finish(tester);
     },
   );
@@ -401,6 +628,15 @@ void main() {
         final prefix = charId == null
             ? 'desktop-section-$sectionId'
             : 'desktop-character-$charId';
+        await tester.tap(
+          find
+              .descendant(
+                of: find.byType(FoldInspector),
+                matching: find.byIcon(Icons.close),
+              )
+              .first,
+        );
+        await tester.pumpAndSettle();
         await tester.tap(find.byKey(ValueKey('$prefix-mode')));
         await tester.pumpAndSettle();
         expect(find.byType(FoldInspector), findsNothing);
@@ -454,19 +690,22 @@ void main() {
       await inspect(tester);
       await tester.tap(find.byKey(const ValueKey('fold-inspector-负面')));
       await tester.pumpAndSettle();
+      final parentScope = ProviderScope.containerOf(
+        tester.element(find.byType(FoldInspector)),
+      );
       await tester.tap(find.byIcon(Icons.open_in_full));
       await tester.pumpAndSettle();
       await tester.enterText(
-        find.descendant(of: bodyField(), matching: find.byType(TextField)),
+        find.descendant(
+          of: bodyField(positive: false),
+          matching: find.byType(TextField),
+        ),
         '0.6::bad anatomy::',
       );
       await tester.pumpAndSettle();
       expect(gen.state.promptRaw, raw);
       expect(gen.state.negativePromptRaw, '<#画风·排除: 0.6::bad anatomy::#>');
-      final scoped = ProviderScope.containerOf(
-        tester.element(find.byType(FoldInspector)),
-      );
-      expect(scoped.read(editorProvider).activePositive, isTrue);
+      expect(parentScope.read(editorProvider).activePositive, isTrue);
       expect(
         gen.state.promptFoldLinks.single.negativeBody,
         '0.6::bad anatomy::',
@@ -495,7 +734,9 @@ void main() {
       expect(bounds.top, greaterThanOrEqualTo(8));
       expect(bounds.bottom, lessThanOrEqualTo(752));
       final title = tester.getRect(find.text('#画风'));
-      final footer = tester.getRect(find.text('删除'));
+      final footer = tester.getRect(
+        find.byKey(const ValueKey('fold-whole-clear-weight')),
+      );
       expect(footer.bottom, lessThanOrEqualTo(bounds.bottom));
       final input = tester.widget<AnnotatedField>(bodyField());
       expect(
@@ -511,7 +752,10 @@ void main() {
       await tester.pumpAndSettle();
       expect(input.scrollController!.offset, greaterThan(100));
       expect(tester.getRect(find.text('#画风')), title);
-      expect(tester.getRect(find.text('删除')), footer);
+      expect(
+        tester.getRect(find.byKey(const ValueKey('fold-whole-clear-weight'))),
+        footer,
+      );
       expect(tester.takeException(), isNull);
       await captureDesktop(tester, capture, 'fold-inspector-dark-narrow');
       await finish(tester);
@@ -539,20 +783,19 @@ void main() {
         );
         expect(
           tester.getCenter(find.byIcon(Icons.open_in_full)).dx,
-          lessThan(tester.getCenter(find.byIcon(Icons.content_copy)).dx),
+          lessThan(tester.getCenter(find.byIcon(Icons.content_copy).first).dx),
         );
         await tester.tap(find.byIcon(Icons.open_in_full));
         await tester.pumpAndSettle();
-        expect(find.byType(Dialog), findsOneWidget);
-        expect(find.byType(FoldInspector), findsOneWidget);
+        final studio = find.byKey(const ValueKey('prompt-fullscreen-dialog'));
+        expect(studio, findsOneWidget);
+        expect(find.byType(FoldInspector), findsNothing);
+        expect(tester.getRect(studio).topLeft, Offset.zero);
         expect(
-          tester.widget<FoldInspector>(find.byType(FoldInspector)).fullscreen,
-          isTrue,
-        );
-        expect(tester.getSize(bodyField()).height, greaterThan(300));
-        expect(
-          ProviderScope.containerOf(tester.element(find.byType(FoldInspector))),
-          same(scoped),
+          ProviderScope.containerOf(
+            tester.element(bodyField()),
+          ).read(editorSessionsProvider),
+          same(scoped.read(editorSessionsProvider)),
         );
         await tester.enterText(
           find.descendant(of: bodyField(), matching: find.byType(TextField)),
@@ -571,9 +814,9 @@ void main() {
           capture,
           'fold-fullscreen-${character ? 'character' : 'main'}',
         );
-        await tester.tap(find.byIcon(Icons.close));
+        await tester.tap(find.byKey(const ValueKey('studio-back')));
         await tester.pumpAndSettle();
-        expect(find.byType(Dialog), findsNothing);
+        expect(studio, findsNothing);
         expect(parent.text, parentText);
         scoped.read(editorProvider.notifier).undo();
         await tester.pumpAndSettle();
@@ -603,12 +846,19 @@ void main() {
         find.byKey(const ValueKey('fold-inspector')),
       );
       expect(tester.getSize(bodyField()).height, greaterThan(24));
-      expect(tester.getRect(find.text('删除')).bottom, lessThan(panel.bottom));
+      expect(
+        tester
+            .getRect(find.byKey(const ValueKey('fold-whole-clear-weight')))
+            .bottom,
+        lessThan(panel.bottom),
+      );
       expect(panel.contains(tester.getCenter(foldHit().first)), isFalse);
       await tester.tap(find.byIcon(Icons.open_in_full));
       await tester.pumpAndSettle();
-      final title = tester.getRect(find.text('#画风'));
-      final footer = tester.getRect(find.text('删除'));
+      final titleFinder = find.byKey(const ValueKey('studio-back'));
+      final composer = find.byKey(const ValueKey('studio-focus-true'));
+      final title = tester.getRect(titleFinder);
+      final header = tester.getRect(composer);
       final scroll = tester
           .widget<AnnotatedField>(bodyField())
           .scrollController!;
@@ -620,8 +870,8 @@ void main() {
       );
       await tester.pumpAndSettle();
       expect(scroll.offset, greaterThan(100));
-      expect(tester.getRect(find.text('#画风')), title);
-      expect(tester.getRect(find.text('删除')), footer);
+      expect(tester.getRect(titleFinder), title);
+      expect(tester.getRect(composer), header);
       expect(tester.takeException(), isNull);
       await finish(tester);
     },
@@ -637,9 +887,23 @@ void main() {
       );
       await tester.tap(find.byIcon(Icons.open_in_full));
       await tester.pumpAndSettle();
-      await tester.tap(find.text('删除'));
+      if (find.text('移除此块').evaluate().isEmpty) {
+        await tester.tap(find.byTooltip('词条与块检视器'));
+        await tester.pumpAndSettle();
+      }
+      await tester.ensureVisible(find.text('移除此块'));
+      await tester.tap(find.text('移除此块'));
       await tester.pumpAndSettle();
-      expect(find.byType(Dialog), findsNothing);
+      final scaffold = tester.state<ScaffoldState>(
+        find.descendant(
+          of: find.byKey(const ValueKey('prompt-fullscreen-dialog')),
+          matching: find.byType(Scaffold),
+        ),
+      );
+      scaffold.closeEndDrawer();
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const ValueKey('studio-back')));
+      await tester.pumpAndSettle();
       expect(gen.state.prompt, 'sunrise');
       expect(gen.state.promptRaw, isEmpty);
       scoped.read(editorProvider.notifier).undo();

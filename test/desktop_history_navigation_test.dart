@@ -1,5 +1,8 @@
+import 'dart:ui' as ui;
+
 import 'package:flutter/material.dart';
 import 'package:flutter/gestures.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -26,6 +29,12 @@ class _Gallery extends GalleryNotifier {
   @override
   GalleryState build() => GalleryState(
     results: images,
+    trash: [
+      TrashedImage(
+        const ResultImage(id: 'deleted', width: 120, height: 240, seed: 0),
+        DateTime.now().millisecondsSinceEpoch,
+      ),
+    ],
     selectedId: images.isEmpty ? null : images[1].id,
   );
 }
@@ -114,7 +123,7 @@ void main() {
       await tester.tap(find.byTooltip('收起历史'));
       await tester.pumpAndSettle();
       expect(key('history-thumb-image-0'), findsNothing);
-      await tester.tap(find.text('历史记录 · 3'));
+      await tester.tap(find.text('历史 · 3'));
       await tester.pumpAndSettle();
       expect(key('history-thumb-image-0'), findsOneWidget);
 
@@ -128,14 +137,89 @@ void main() {
       await tester.pumpAndSettle();
 
       final header = tester.getRect(key('desktop-history-header'));
-      await tester.tapAt(Offset(header.center.dx, header.center.dy));
+      await tester.tapAt(Offset(header.right - 2, header.center.dy));
       await tester.pumpAndSettle();
       expect(key('history-thumb-image-0'), findsOneWidget);
       // Expanded whitespace is not a new accidental collapse target.
-      await tester.tapAt(tester.getCenter(key('desktop-history-header')));
+      await tester.tapAt(Offset(header.right - 2, header.center.dy));
       await tester.pumpAndSettle();
       expect(key('history-thumb-image-0'), findsOneWidget);
       expect(selected(), before);
+      expect(tester.takeException(), isNull);
+      await finish(tester);
+    },
+  );
+
+  testWidgets(
+    'collapsed history highlights both edges even over the action buttons',
+    (tester) async {
+      await mount(tester);
+      await tester.tap(find.byTooltip('收起历史'));
+      await tester.pumpAndSettle();
+      final bar = key('canvas-bottom-actions');
+      final rect = tester.getRect(bar);
+      final boundary = tester.renderObject<RenderRepaintBoundary>(
+        find.ancestor(of: bar, matching: find.byType(RepaintBoundary)).first,
+      );
+      Future<List<int>> edgeColors() async => (await tester.runAsync(() async {
+        final image = await boundary.toImage();
+        try {
+          final rgba = (await image.toByteData(
+            format: ui.ImageByteFormat.rawRgba,
+          ))!;
+          int colorAt(double x) {
+            final point = boundary.globalToLocal(Offset(x, rect.center.dy));
+            final index = point.dy.floor() * image.width + point.dx.floor();
+            return rgba.getUint32(4 * index);
+          }
+
+          return [colorAt(rect.left + 2), colorAt(rect.right - 2)];
+        } finally {
+          image.dispose();
+        }
+      }))!;
+
+      final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+      final outside = rect.topCenter - const Offset(0, 10);
+      await mouse.addPointer(location: outside);
+      await tester.pumpAndSettle();
+      final idle = await edgeColors();
+      await mouse.moveTo(tester.getCenter(find.text('历史 · 3')));
+      await tester.pumpAndSettle();
+      final hover = await edgeColors();
+      expect(hover.first, isNot(idle.first));
+      expect(hover.last, hover.first);
+      await mouse.moveTo(tester.getCenter(key('canvas-save-folder')));
+      await tester.pumpAndSettle();
+      expect(await edgeColors(), hover);
+      expect(key('history-thumb-image-0'), findsNothing);
+      await mouse.moveTo(outside);
+      await tester.pumpAndSettle();
+      expect(await edgeColors(), idle);
+      await mouse.removePointer();
+      await finish(tester);
+    },
+  );
+
+  testWidgets(
+    'the minimum desktop canvas keeps history and every action on one line',
+    (tester) async {
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = const Size(360, 640);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      addTearDown(tester.view.resetPhysicalSize);
+      await mount(tester);
+      final y = tester.getCenter(key('desktop-library-picker')).dy;
+      for (final id in [
+        'desktop-history-browse',
+        'canvas-save',
+        'canvas-save-folder',
+        'canvas-copy-image',
+        'canvas-regenerate',
+      ]) {
+        expect(key(id).hitTestable(), findsOneWidget);
+        expect(tester.getCenter(key(id)).dy, closeTo(y, 2));
+      }
       expect(tester.takeException(), isNull);
       await finish(tester);
     },
@@ -266,11 +350,25 @@ void main() {
       final headerRect = tester.getRect(key('desktop-library-picker'));
       final pickerRect = tester.getRect(key('desktop-history-browse'));
       final canvasRect = tester.getRect(find.byType(GalleryPage));
+      final actions = [
+        'canvas-save',
+        'canvas-save-folder',
+        'canvas-copy-image',
+        'canvas-regenerate',
+      ].map((id) => tester.getRect(key(id))).toList();
       expect(
-        canvasRect.right - pickerRect.right,
-        lessThan(20),
-        reason: 'Library controls align with the right edge of the history bar',
+        tester.getRect(find.text('历史 · 3')).right,
+        lessThan(headerRect.left),
       );
+      expect(headerRect.right, lessThanOrEqualTo(pickerRect.left));
+      expect(pickerRect.right, lessThan(actions.first.left));
+      for (var i = 0; i < actions.length; i++) {
+        expect(actions[i].center.dy, closeTo(pickerRect.center.dy, 2));
+        if (i > 0) {
+          expect(actions[i].left, greaterThanOrEqualTo(actions[i - 1].right));
+        }
+      }
+      expect(canvasRect.right - actions.last.right, lessThan(20));
       final stripRect = tester.getRect(find.byType(FilmStrip));
       expect(headerRect.bottom, lessThanOrEqualTo(stripRect.top));
       expect(stripRect.top - headerRect.bottom, lessThan(20));
@@ -380,8 +478,15 @@ void main() {
     'empty desktop canvas still exposes the current library selector',
     (tester) async {
       await mount(tester, empty: true);
+      expect(key('empty-gallery-trash'), findsNothing);
+      expect(container.read(galleryProvider).trash, hasLength(1));
       expect(key('desktop-history-browse'), findsOneWidget);
       expect(key('desktop-library-picker'), findsOneWidget);
+      await tester.tap(find.byTooltip('收起历史'));
+      await tester.pumpAndSettle();
+      await tester.tap(key('canvas-save'));
+      await tester.pumpAndSettle();
+      expect(find.byTooltip('展开历史'), findsOneWidget);
       await tester.tap(key('desktop-library-picker'));
       await tester.pumpAndSettle();
       expect(key('desktop-library-dialog'), findsOneWidget);

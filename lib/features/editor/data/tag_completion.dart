@@ -648,3 +648,39 @@ final tagCompletionProvider = Provider<TagCompletion>((ref) {
   ref.onDispose(tc.dispose);
   return tc;
 });
+
+/// Include styles saved on this device in the same completion list as online
+/// and offline tags. Both the sidebar and the studio use the same ordering.
+Future<SuggestResult> desktopPromptSuggestions(
+  WidgetRef ref,
+  String query, {
+  required bool includeStyles,
+}) async {
+  final search = ref.read(tagCompletionProvider).query(query);
+  if (!includeStyles) return search;
+  final (result, styles) = await (
+    search,
+    ref
+        .read(tagLibraryProvider.future)
+        .then(
+          (library) => ArtistOcLibrary.searchLocal(
+            query,
+            library.of(TagCategory.artist),
+            kind: SuggestionKind.artist,
+          ),
+          onError: (Object _) => const <Suggestion>[],
+        ),
+  ).wait;
+  if (styles.isEmpty) return result;
+  final names = styles.map((e) => e.text.toLowerCase()).toSet();
+  return SuggestResult(
+    tags: result.tags,
+    characters: result.characters,
+    ocs: result.ocs,
+    works: result.works,
+    artists: [
+      ...styles,
+      ...result.artists.where((e) => !names.contains(e.text.toLowerCase())),
+    ],
+  );
+}

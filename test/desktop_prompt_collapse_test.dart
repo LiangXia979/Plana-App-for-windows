@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/gestures.dart' show PointerDeviceKind;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:plana_app/core/platform/desktop.dart';
@@ -14,14 +15,13 @@ import 'package:plana_app/features/editor/editor_models.dart';
 import 'package:plana_app/features/editor/editor_page.dart';
 import 'package:plana_app/features/editor/widgets/chip_flow_view.dart';
 import 'package:plana_app/features/editor/widgets/annotated_field.dart';
-import 'package:plana_app/features/editor/widgets/editor_top_bar.dart';
-import 'package:plana_app/features/editor/widgets/tag_panel.dart';
 import 'package:plana_app/features/editor/data/suggestions.dart';
 import 'package:plana_app/features/editor/data/tag_translation_service.dart';
 import 'package:plana_app/features/generate/generate_state.dart';
 import 'package:plana_app/features/generate/canvas_state.dart';
 import 'package:plana_app/features/generate/widgets/character_card.dart';
 import 'package:plana_app/features/generate/widgets/prompt_card.dart';
+import 'package:plana_app/features/generate/widgets/prompt_token_counts.dart';
 import 'package:plana_app/features/generate/widgets/collapsed_prompt_preview.dart';
 import 'package:plana_app/features/inspiration/widgets/tag_card.dart';
 
@@ -32,6 +32,7 @@ void main() {
   late AppStores stores;
   late ProviderContainer container;
   final capture = GlobalKey();
+  final overlayCapture = GlobalKey();
   setUpAll(loadDesktopCaptureFonts);
   ProviderContainer openContainer() => ProviderContainer(
     overrides: [
@@ -89,7 +90,7 @@ void main() {
             data: MediaQuery.of(
               context,
             ).copyWith(textScaler: TextScaler.linear(scale)),
-            child: child!,
+            child: RepaintBoundary(key: overlayCapture, child: child!),
           ),
           home: Scaffold(
             body: RepaintBoundary(
@@ -110,17 +111,22 @@ void main() {
 
   Future<void> tap(WidgetTester tester, String id) async {
     await tester.ensureVisible(key(id));
-    if (id.startsWith('prompt-section-header-')) {
+    if (id == 'prompt-section-header-main' &&
+        container.read(generateProvider).sections.isEmpty) {
+      await tester.tapAt(
+        tester.getRect(key(id)).centerLeft + const Offset(8, 0),
+      );
+    } else if (id.startsWith('prompt-section-header-')) {
       await tester.tapAt(
         tester.getRect(key(id)).centerRight - const Offset(18, 0),
       );
     } else if (id.startsWith('character-header-')) {
       final charId = id.substring('character-header-'.length);
       final avatar = tester.getRect(key('character-avatar-$charId'));
-      final fullscreen = tester.getRect(key('character-fullscreen-$charId'));
-      final x = fullscreen.top > avatar.bottom
+      final position = tester.getRect(key('character-position-$charId'));
+      final x = position.top > avatar.bottom
           ? tester.getRect(key(id)).right - 18
-          : fullscreen.left - 20;
+          : position.left - 20;
       await tester.tapAt(Offset(x, avatar.center.dy));
     } else {
       await tester.tap(key(id));
@@ -683,6 +689,107 @@ void main() {
       await finish(tester);
     },
   );
+  testWidgets(
+    'creation headers own the tools and choose the requested role by ID',
+    (tester) async {
+      final gen = container.read(generateProvider.notifier);
+      await mount(
+        tester,
+        const Column(children: [PromptCard(), CharacterCard()]),
+        width: 360,
+      );
+      expect(key('character-fullscreen'), findsNothing);
+      expect(find.byTooltip('灵感库'), findsNothing);
+      expect(find.byTooltip('角色库'), findsNothing);
+      gen.setPrompts(positive: 'garden');
+      gen.addCharacter();
+      gen.addCharacter();
+      final roles = container.read(generateProvider).characters;
+      gen.updateCharacter(roles.first.id, name: '旅人', positive: 'blue cloak');
+      gen.updateCharacter(roles.last.id, name: '旅人', positive: 'red cloak');
+      await tester.pumpAndSettle();
+      final title = tester.getRect(find.text('提示词').first);
+      for (final control in [
+        'desktop-prompt-preset',
+        'desktop-editor-settings',
+      ]) {
+        expect(
+          tester.getRect(key(control)).center.dy,
+          closeTo(title.center.dy, 1),
+        );
+      }
+      final fullscreen = tester.getCenter(key('prompt-fullscreen-main')).dx;
+      final clear = tester.getCenter(find.byTooltip('清空正向提示词')).dx;
+      final preset = tester.getCenter(key('desktop-prompt-preset')).dx;
+      expect(fullscreen, lessThan(clear));
+      expect(clear, lessThan(preset));
+      expect(
+        preset,
+        lessThan(tester.getCenter(key('desktop-editor-settings')).dx),
+      );
+      final expand = key('character-fullscreen');
+      expect(
+        tester.getRect(expand).center.dy,
+        closeTo(tester.getRect(find.text('角色提示词').first).center.dy, 1),
+      );
+      final usage = find.descendant(
+        of: find.byType(PromptCard),
+        matching: find.byType(PromptTokenCounts),
+      );
+      final counts = tester.widget<PromptTokenCounts>(usage);
+      final breakdown = '正向 ${counts.positive} · 负面 ${counts.negative}';
+      expect(
+        find.descendant(of: usage, matching: find.byType(Text)),
+        findsOneWidget,
+      );
+      final progress = find
+          .descendant(
+            of: find.byType(PromptCard),
+            matching: find.byType(LinearProgressIndicator),
+          )
+          .last;
+      expect(
+        tester.getRect(usage).right,
+        closeTo(tester.getRect(progress).right, 1),
+      );
+      final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+      await mouse.addPointer();
+      await mouse.moveTo(tester.getCenter(usage));
+      await tester.pump(const Duration(seconds: 1));
+      await tester.pump(const Duration(milliseconds: 200));
+      expect(find.text(breakdown), findsOneWidget);
+      await captureDesktop(tester, overlayCapture, 'prompt-usage-hover');
+      await mouse.removePointer();
+      await tester.pumpAndSettle();
+      await captureDesktop(tester, capture, 'creation-editor-headers');
+      await tap(tester, 'character-fullscreen');
+      final second = find.byWidgetPredicate(
+        (w) => w is PopupMenuItem<String> && w.value == roles.last.id,
+      );
+      expect(
+        find.descendant(of: second, matching: find.text('2. 旅人')),
+        findsOneWidget,
+      );
+      await tester.tap(second);
+      await tester.pumpAndSettle();
+      final field = find
+          .descendant(
+            of: key('studio-text-true'),
+            matching: find.byType(TextField),
+          )
+          .first;
+      expect(tester.widget<TextField>(field).controller!.text, 'red cloak');
+      await tester.enterText(field, 'green cloak');
+      await tester.tap(key('studio-back'));
+      await tester.pumpAndSettle();
+      expect(
+        container.read(generateProvider).characters.map((c) => c.positive),
+        ['blue cloak', 'green cloak'],
+      );
+      await finish(tester);
+    },
+  );
+
   for (final target in ['main', 'section', 'character']) {
     testWidgets('large editor saves $target and synchronizes the sidebar', (
       tester,
@@ -711,17 +818,15 @@ void main() {
       await tap(
         tester,
         target == 'character'
-            ? 'character-fullscreen-$id'
+            ? 'character-fullscreen'
             : 'prompt-fullscreen-${id ?? 'main'}',
       );
-      final dialog = find.byType(Dialog);
+      final dialog = key('prompt-fullscreen-dialog');
       expect(dialog, findsOneWidget);
-      final largeEditor = find.byWidgetPredicate(
-        (widget) => widget is EditorPage && widget.floatingPanels,
-      );
+      final largeEditor = key('prompt-fullscreen-dialog');
       expect(
         tester.getSize(largeEditor).width,
-        tester.view.physicalSize.width / tester.view.devicePixelRatio - 48,
+        tester.view.physicalSize.width / tester.view.devicePixelRatio,
       );
       final field = find
           .descendant(of: dialog, matching: find.byType(TextField))
@@ -731,7 +836,7 @@ void main() {
         'fresh sidebar edit',
       );
       await tester.enterText(field, 'large window edit');
-      await tester.tap(find.byTooltip('保存并返回'));
+      await tester.tap(key('studio-back'));
       await tester.pumpAndSettle();
       expect(dialog, findsNothing);
       expect(
@@ -765,9 +870,7 @@ void main() {
         .setPrompts(positive: 'solo', negative: 'lowres');
     await mount(tester, const PromptCard());
     await tap(tester, 'prompt-fullscreen-main');
-    final largeEditor = find.byWidgetPredicate(
-      (widget) => widget is EditorPage && widget.floatingPanels,
-    );
+    final largeEditor = key('prompt-fullscreen-dialog');
     for (final size in [
       const Size(1600, 1000),
       const Size(1000, 800),
@@ -775,21 +878,18 @@ void main() {
     ]) {
       tester.view.physicalSize = size;
       await tester.pumpAndSettle();
-      expect(
-        tester.getRect(largeEditor),
-        Rect.fromLTWH(24, 24, size.width - 48, size.height - 48),
-      );
+      expect(tester.getRect(largeEditor), Offset.zero & size);
       expect(tester.takeException(), isNull);
     }
-    await tester.tapAt(const Offset(8, 8));
+    await tester.tap(key('studio-back'));
     await tester.pumpAndSettle();
-    expect(find.byType(Dialog), findsNothing);
+    expect(key('prompt-fullscreen-dialog'), findsNothing);
     expect(container.read(generateProvider).prompt, 'solo');
     expect(container.read(generateProvider).negativePrompt, 'lowres');
     await finish(tester);
   });
 
-  testWidgets('outside click closes the text dialog and retains fresh edits', (
+  testWidgets('return from the studio retains fresh text edits', (
     tester,
   ) async {
     container
@@ -798,12 +898,15 @@ void main() {
     await mount(tester, const PromptCard());
     await tap(tester, 'prompt-fullscreen-main');
     final field = find
-        .descendant(of: find.byType(Dialog), matching: find.byType(TextField))
+        .descendant(
+          of: key('studio-text-true'),
+          matching: find.byType(TextField),
+        )
         .first;
     await tester.enterText(field, 'fresh text edit');
-    await tester.tapAt(const Offset(8, 8));
+    await tester.tap(key('studio-back'));
     await tester.pumpAndSettle();
-    expect(find.byType(Dialog), findsNothing);
+    expect(key('prompt-fullscreen-dialog'), findsNothing);
     expect(
       tester.widget<TextField>(input('desktop-prompt')).controller!.text,
       'fresh text edit',
@@ -815,7 +918,7 @@ void main() {
 
   for (final selectedCount in [0, 1, 2]) {
     testWidgets(
-      'outside click saves chip input with $selectedCount selected tags',
+      'return from the studio commits pending chip input with $selectedCount selected tags',
       (tester) async {
         final gen = container.read(generateProvider.notifier);
         gen.setPrompts(positive: 'solo', negative: 'lowres');
@@ -833,27 +936,23 @@ void main() {
               .patch((s) => s.copyWith(chipMode: true)),
         );
         await mount(tester, const CharacterCard());
-        await tap(tester, 'character-fullscreen-$id');
-        final dialog = find.byType(Dialog);
-        final flow = find.descendant(
-          of: dialog,
-          matching: find.byType(ChipFlowView),
-        );
+        await tap(tester, 'character-fullscreen');
+        final dialog = key('prompt-fullscreen-dialog');
+        final flow = key('studio-chips-true');
         final chipState = tester.state<ChipFlowViewState>(flow);
         final bodyRect = tester.getRect(flow);
-        final headerRect = tester.getRect(find.byType(EditorTopBar));
+        final headerRect = tester.getRect(key('studio-back'));
         for (var i = 0; i < selectedCount; i++) {
           await tester.tapAt(chipState.chipAnchor(i)!.center);
           await tester.pumpAndSettle();
         }
         if (selectedCount > 0) {
-          expect(key('desktop-tag-popover'), findsOneWidget);
           expect(
-            find.byType(selectedCount == 1 ? TagPanel : BatchPanel),
-            findsOneWidget,
+            tester.widget<ChipFlowView>(flow).selection.length,
+            selectedCount,
           );
           expect(tester.getRect(flow), bodyRect);
-          expect(tester.getRect(find.byType(EditorTopBar)), headerRect);
+          expect(tester.getRect(key('studio-back')), headerRect);
         }
         final tail = find.descendant(
           of: flow,
@@ -864,7 +963,7 @@ void main() {
           tester.widget<ChipFlowView>(flow).selection.length,
           selectedCount,
         );
-        await tester.tapAt(const Offset(8, 8));
+        await tester.tap(key('studio-back'));
         await tester.pumpAndSettle();
         expect(dialog, findsNothing);
         expect(key('desktop-tag-popover'), findsNothing);
@@ -877,16 +976,13 @@ void main() {
           'hat',
         );
         expect(container.read(generateProvider).prompt, 'solo');
-        await tap(tester, 'character-fullscreen-$id');
-        final reopened = find.descendant(
-          of: dialog,
-          matching: find.byType(ChipFlowView),
-        );
+        await tap(tester, 'character-fullscreen');
+        final reopened = key('studio-chips-true');
         expect(
           tester.widget<ChipFlowView>(reopened).controller.text,
           'traveler, white shirt, blue sky',
         );
-        await tester.tapAt(const Offset(8, 8));
+        await tester.tap(key('studio-back'));
         await tester.pumpAndSettle();
         expect(tester.takeException(), isNull);
         await finish(tester);
@@ -921,13 +1017,8 @@ void main() {
 
       check(find.byType(ChipFlowView));
       await tap(tester, 'prompt-fullscreen-main');
-      check(
-        find.descendant(
-          of: find.byType(Dialog),
-          matching: find.byType(ChipFlowView),
-        ),
-      );
-      await tester.tapAt(const Offset(8, 8));
+      check(key('studio-chips-true'));
+      await tester.tap(key('studio-back'));
       await tester.pumpAndSettle();
       unawaited(
         container

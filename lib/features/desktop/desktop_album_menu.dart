@@ -27,7 +27,7 @@ class DesktopAlbumMenuController {
     String? albumId,
     Offset position,
   ) async {
-    if (_busy || albumId == favoritesId) return;
+    if (_busy || albumId == favoritesId || albumId == savedGalleryId) return;
     if (albumId == trashId) {
       await showGalleryTrashMenu(context, position);
       return;

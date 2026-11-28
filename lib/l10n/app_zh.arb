@@ -1,4 +1,15 @@
 {
+  "updateReleaseNotes": "更新内容",
+  "updateNotesUnavailable": "此版本尚未填写更新说明。",
+  "updateReleasePage": "查看发布页",
+  "updateDownload": "下载更新",
+  "updateDownloading": "正在下载并校验更新",
+  "updateRunInstaller": "打开安装程序",
+  "updateOpenPackageFolder": "打开免安装包目录",
+  "updatePackageMissing": "此版本没有可校验的 Windows 安装包，可在发布页查看附件。",
+  "updateIntegrityFailed": "更新包校验失败，请重新下载。",
+  "updateDownloadFailed": "下载未完成，请检查网络和可用磁盘空间后重试。",
+  "updateLaunchFailed": "无法打开下载的更新包，请重试或查看发布页。",
   "downloadWindowsPackage": "下载 Windows 版",
   "preciseRefUsesHigh": "已切换到 High，以启用精确参考。",
   "mediumPausesPreciseRefs": "Medium 已暂停精确参考。",
@@ -111,7 +122,7 @@
   "referenceStrength": "Strength 参考强度",
   "infoExtracted": "Info Extracted 信息提取",
   "normalizeStrength": "均衡强度",
-  "preciseReference": "角色参考",
+  "preciseReference": "精确参考",
   "fidelity": "Fidelity 保真度",
   "refCharacter": "角色",
   "refStyle": "风格",
@@ -121,7 +132,7 @@
   "v5ReferenceInpaint": "NAI 5 重绘会暂停使用精确参考。",
   "outfitNeedsV5": "服装参考仅在 NAI 5 下生效。",
   "rulesLocalGroup": "破限",
-  "rulesLocalOnly": "按模型启用后，Plana 渠道和自定义 API 会在普通规则后发送这里的补充说明。Codex、反重力等订阅会跳过此分区。",
+  "rulesLocalOnly": "按模型启用后，仅自定义 API 会在普通规则之后附加这里的说明。Plana 后端和 Codex、反重力等订阅会跳过此分区。",
   "refCharacterStyle": "角色&风格",
   "characters": "角色",
   "addCharacter": "添加角色",
@@ -599,9 +610,9 @@
   "more": "更多",
   "refDefaultName": "参考图",
   "refMutexVibePaused": "与 Vibe 互斥,已暂停 Vibe 参考",
-  "refMutexCharRefPaused": "与角色参考互斥,已暂停角色参考",
+  "refMutexCharRefPaused": "与精确参考互斥,已暂停精确参考",
   "refLibrary": "参考图库",
-  "importCharRef": "导入角色参考图",
+  "importCharRef": "导入精确参考图",
   "filesImportFailed": "{n} 个文件无法导入",
   "@filesImportFailed": {
     "placeholders": {
@@ -656,9 +667,9 @@
       }
     }
   },
-  "charRefLibrary": "角色参考图库",
+  "charRefLibrary": "精确参考图库",
   "searchName": "搜索名称…",
-  "noCharRefs": "还没有角色参考图",
+  "noCharRefs": "还没有精确参考图",
   "noMatchingRefs": "没有匹配的参考图",
   "charRefLibraryHint": "在生成页导入参考图后会自动收藏到这里",
   "confirmSelectionN": "确认选择 ({n})",
@@ -947,10 +958,10 @@
     }
   },
   "setAsBaseImage": "已设为图生图底图",
-  "addedVibeMutex": "已加入 Vibe · 与角色参考互斥,已暂停角色参考",
+  "addedVibeMutex": "已加入 Vibe · 与精确参考互斥,已暂停精确参考",
   "addedVibe": "已加入 Vibe 参考",
-  "addedCharRefMutex": "已加入角色参考 · 与 Vibe 互斥,已暂停 Vibe",
-  "addedCharRef": "已加入角色参考",
+  "addedCharRefMutex": "已加入精确参考 · 与 Vibe 互斥,已暂停 Vibe",
+  "addedCharRef": "已加入精确参考",
   "importReplace": "完全覆盖",
   "importNewSection": "新建分区",
   "importAppend": "额外添加",
@@ -1970,7 +1981,7 @@
   "catModels": "超分模型(遗留)",
   "catTagPrev": "灵感预览图",
   "catGallery": "图库作品",
-  "catCharLib": "角色参考库",
+  "catCharLib": "精确参考库",
   "actClean": "清理",
   "freedSize": "已释放 {size}",
   "@freedSize": {
@@ -2021,7 +2032,7 @@
       }
     }
   },
-  "clearCharRefLib": "清空角色参考库",
+  "clearCharRefLib": "清空精确参考库",
   "clearCharRefLibBody": "将删除库内全部文件,不可恢复。图库作品里的参数快照不受影响。",
   "clearCharRefLibBodyN": "将删除库内全部 {n} 个文件,不可恢复。图库作品里的参数快照不受影响。",
   "@clearCharRefLibBodyN": {
@@ -2288,7 +2299,7 @@
       }
     }
   },
-  "charRefImportFailed": "角色参考「{name}」失败: {error}",
+  "charRefImportFailed": "精确参考「{name}」失败: {error}",
   "@charRefImportFailed": {
     "placeholders": {
       "name": {
@@ -4381,7 +4392,7 @@
   "desktopAboutPlana": "关于 Plana",
   "desktopReloadEndpoints": "重新加载接口",
   "desktopRemoveReference": "移除参考图",
-  "desktopEachCanvasKeepsItsOwnPromptsCharactersPresets": "每张画布分别保存提示词、角色、预设和采样参数。\n\nVibe、角色参考、图生图、重绘和 LoRA 在画布之间共享。",
+  "desktopEachCanvasKeepsItsOwnPromptsCharactersPresets": "每张画布分别保存提示词、角色、预设和采样参数。\n\nVibe、精确参考、图生图、重绘和 LoRA 在画布之间共享。",
   "skipStep": "跳过",
   "desktopCreationControls": "创作参数",
   "desktopRightPanelTabs": "助手 · 灵感 · 法典",
@@ -4447,8 +4458,8 @@
   "desktopPlainTextIsOnAutomaticImportAndGeneration": "纯文本格式已开启，自动写入与自动出图暂不生效。",
   "desktopSourcesUsedToLookUpArtistPromptsAnd": "查询画师串与角色时使用的资料来源",
   "desktopChangesAreSavedAutomatically": "修改后自动保存",
-  "desktopImportCharacterReferenceImages": "导入角色参考图库",
-  "desktopSelectImagesToAddAsCharacterReferences": "点选图片加入角色参考",
+  "desktopImportCharacterReferenceImages": "导入精确参考图库",
+  "desktopSelectImagesToAddAsCharacterReferences": "点选图片加入精确参考",
   "desktopCouldNotSaveCheckFolderPermissionsAndAvailable": "保存失败，请检查文件夹权限和剩余空间",
   "desktopBackToCreate": "返回创作",
   "desktopDirectorTools": "导演工具",
@@ -4572,7 +4583,7 @@
   "desktopTheRelayChargesPerImageCheckWalletTransactions": "中转按每张计费，实际扣款以钱包流水为准；可在顶部余额中设置。",
   "desktopCouldNotLoadCanvasHistoryTheOriginalHistory": "无法读取画布历史，原记录已保留",
   "desktopCouldNotLoadTheHistoryOrReferencesThe": "历史内容或参考图片无法读取，当前画布未替换",
-  "desktopAddCharacterReference": "加入角色参考",
+  "desktopAddCharacterReference": "加入精确参考",
   "desktopDisabled": "已禁用",
   "desktopDoubleClickToEnlarge": "双击放大查看",
   "desktopUpscaleFactor": "放大倍率 Scale",
@@ -5074,6 +5085,22 @@
   "semanticPromptGroupingLite": "语义分块 · 轻量版",
   "saveSelectionAsInspiration": "存为灵感块",
   "editInspirationBlock": "编辑灵感",
+  "completionPlacement": "提示词补全位置",
+  "studioCompletionPlacement": "大屏编辑提示词补全位置",
+  "studioCompletionPlacementHint": "在光标附近或大屏编辑器右侧检视器下方显示补全建议",
+  "completionPlacementHint": "在光标附近或提示词卡片侧面显示补全建议",
+  "completionFollow": "跟随",
+  "completionSide": "固定侧面",
+  "increaseTagWeight": "提高权重",
+  "decreaseTagWeight": "降低权重",
+  "danbooruWiki": "D 站 Wiki",
+  "deleteWholeBlock": "删除整块",
+  "wholeBlock": "整块",
+  "disableBlock": "禁用整块",
+  "enableBlock": "启用整块",
+  "unpackBlock": "解散为散词",
+  "selectBlockTag": "点击块内词条即可编辑",
+  "pairedPromptBlock": "正负配对",
   "foldAfterInspirationSave": "保存后自动合并成块",
   "foldAfterInspirationSaveHint": "把选中的提示词存入灵感库后，在原位置合并为一个命名块。",
   "savedWithoutFolding": "已存入灵感库。当前选区已变化或与其他块共用权重，保留原文。",
@@ -5267,5 +5294,372 @@
   "compareZoomIn": "放大",
   "compareZoomOut": "缩小",
   "compareTagPosition": "位置",
-  "compareMetadataHint": "使用带生成信息的原图可同时比对提示词"
+  "compareMetadataHint": "使用带生成信息的原图可同时比对提示词",
+  "studioSearchLibrary": "搜索灵感名称、拼音或词条…",
+  "studioNoMatches": "没有匹配的灵感",
+  "studioOriginalWeights": "原权重",
+  "studioBlockWeight": "整块权重",
+  "studioIndependentWeights": "保留块内独立权重",
+  "studioCopyBlock": "复制整块",
+  "studioParent": "返回上级",
+  "temporaryBatchPick": "多选挑图批量处理…",
+  "temporaryBatchTarget": "目标图库",
+  "temporaryBatchFile": "转入标准图库",
+  "temporaryBatchZip": "仅打包所选 ZIP",
+  "@temporaryBatchAll": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      },
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "@temporaryBatchCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      },
+      "total": {
+        "type": "int"
+      }
+    }
+  },
+  "@temporaryBatchFiled": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "temporaryBatchAll": "整批转入「{name}」（{count} 张未收录）",
+  "temporaryBatchCount": "已选 {count} / {total} 张",
+  "temporaryBatchFiled": "已转入 {count} 张",
+  "studioMain": "主体提示词",
+  "studioSections": "主提示词与分区",
+  "studioPosOnly": "仅正面",
+  "studioNegOnly": "仅负面",
+  "studioGlobal": "全局主体",
+  "studioWritePositive": "写入：正面",
+  "studioWriteNegative": "写入：负面",
+  "studioSection": "分区",
+  "studioFocusHere": "切到此栏输入",
+  "studioPack": "合并成块",
+  "studioBoth": "同屏",
+  "studioExpand": "在中栏展开编辑",
+  "studioBlock": "块编辑",
+  "studioCopyComplete": "复制完整提示词",
+  "studioFocused": "当前输入焦点",
+  "studioOutline": "提示词大纲",
+  "studioNoLocal": "暂无可插入的本地灵感",
+  "studioTranslateFailed": "暂时无法翻译，可按原文插入。",
+  "studioLoading": "正在读取灵感库…",
+  "studioNoPositive": "此块没有正面提示词",
+  "studioNoNegative": "此块没有负面提示词",
+  "studioLibrary": "灵感库快插",
+  "studioInspectHint": "点选词条调整权重，双击块进入编辑。",
+  "studioPosition": "画布站位",
+  "studioRemoveBlock": "移除此块",
+  "studioInspector": "词条与块检视器",
+  "studioNegative": "负面排除词",
+  "studioAddTags": "输入英文或中文添加标签",
+  "studioUp": "返回上一级",
+  "studioRedo": "重做",
+  "studioResetWeight": "重置权重",
+  "studioManual": "手动",
+  "studioCopyTag": "复制词条",
+  "studioDisableTag": "暂时禁用",
+  "studioDeleteTag": "删除词条",
+  "studioCompleting": "正在补全",
+  "studioReturnInspector": "返回检视",
+  "temporaryName": "临时图库",
+  "temporaryScope": "当前画布 · 退出时清理",
+  "temporaryCollectSaved": "收录到「已保存」图库",
+  "temporaryCollectHint": "单独保存图片时，同时收录到 Plana 的「已保存」图库。",
+  "temporaryExitPolicy": "临时图库退出清理",
+  "temporaryPolicyHint": "按画布处理未收录的临时图片，已收藏或已保存到图库的作品不受影响。",
+  "temporaryClearAll": "全部清理",
+  "temporaryKeepLatest": "保留最近",
+  "temporaryKeepCount": "每画布保留最新未收录图",
+  "temporaryKeepHint": "每个画布各自保留此数量的临时图片。",
+  "temporaryConfirmExit": "退出时处理方式",
+  "temporaryConfirmHint": "有未收录临时图待清理时弹窗确认，可选择先按画布打包 ZIP。",
+  "temporaryDirectHint": "退出时直接按上方规则清理未收录的临时图。",
+  "temporaryArchiveHint": "退出时先按画布打包 ZIP 到单独保存文件夹，成功后再按上方规则清理。",
+  "temporaryHistoryCount": "底栏历史初始加载数",
+  "temporaryHistoryHint": "打开或切换图库时加载全部历史图，本轮新图继续追加。",
+  "temporaryHistoryHelp": "填 0 表示全部加载。此设置仅影响创作页底栏的显示。",
+  "temporaryFolder": "选择单独保存文件夹",
+  "temporaryPacking": "正在打包 ZIP",
+  "temporaryCancelPack": "取消打包",
+  "temporaryDeleteQuestion": "删除画布及其临时图片？",
+  "temporaryExitQuestion": "退出前处理临时图库",
+  "temporarySkipPrompt": "记住本次选择，下次退出不再询问",
+  "temporaryZipDelete": "打包 ZIP 并删除画布",
+  "temporaryZipExit": "按画布打包 ZIP 并退出",
+  "temporaryCleanDelete": "清理并删除画布",
+  "temporaryCleanExit": "清理并退出",
+  "temporaryStar": "收藏到图库",
+  "temporaryFile": "加入标准图库",
+  "temporaryFiled": "已加入所选图库",
+  "temporaryRecoveryQuestion": "清理上次异常退出留下的临时图片？",
+  "temporaryRecoveryHint": "已收录到正式图库的作品会继续保留。",
+  "temporaryLoadError": "临时图库未能载入 · 重试",
+  "temporaryCount": "{n} 张",
+  "@temporaryCount": {
+    "placeholders": {
+      "n": {
+        "type": "int"
+      }
+    }
+  },
+  "temporaryMore": "加载更多（+{n}）",
+  "@temporaryMore": {
+    "placeholders": {
+      "n": {
+        "type": "int"
+      }
+    }
+  },
+  "temporaryCloseCounts": "共 {total} 张，{collected} 张已收录到图库，{kept} 张将留到下次，{removed} 张将被清理。",
+  "@temporaryCloseCounts": {
+    "placeholders": {
+      "total": {
+        "type": "int"
+      },
+      "collected": {
+        "type": "int"
+      },
+      "kept": {
+        "type": "int"
+      },
+      "removed": {
+        "type": "int"
+      }
+    }
+  },
+  "temporaryRecovered": "上次异常退出留下 {n} 张临时图片",
+  "@temporaryRecovered": {
+    "placeholders": {
+      "n": {
+        "type": "int"
+      }
+    }
+  },
+  "temporaryPacked": "已按画布打包 {n} 个 ZIP",
+  "@temporaryPacked": {
+    "placeholders": {
+      "n": {
+        "type": "int"
+      }
+    }
+  },
+  "temporaryBusy": "临时图库仍在生成、排队或保存，请在任务完成或取消后重试。",
+  "temporaryOpenFailed": "无法打开临时图库：{error}",
+  "@temporaryOpenFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "temporaryActionFailed": "操作失败：{error}",
+  "@temporaryActionFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "temporarySavedPath": "已保存到 {path}",
+  "@temporarySavedPath": {
+    "placeholders": {
+      "path": {
+        "type": "String"
+      }
+    }
+  },
+  "temporaryCleanupFailed": "临时图库处理未完成：{error}",
+  "@temporaryCleanupFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "temporaryAsk": "每次询问",
+  "temporaryDirectClean": "直接清理",
+  "temporaryArchiveThenClean": "打包后清理",
+  "temporaryInitialCountLabel": "打开或切换图库时初始加载",
+  "temporaryLimitedHistory": "打开或切换图库时初始加载最近 {n} 张，本轮新图继续追加。",
+  "@temporaryLimitedHistory": {
+    "placeholders": {
+      "n": {
+        "type": "int"
+      }
+    }
+  },
+  "temporarySingleLead": "本次有 {quantity}未收录临时图将被清理。",
+  "@temporarySingleLead": {
+    "placeholders": {
+      "quantity": {
+        "type": "String"
+      }
+    }
+  },
+  "temporaryMultiLead": "{canvases} 个画布共有 {quantity}未收录临时图将被清理。",
+  "@temporaryMultiLead": {
+    "placeholders": {
+      "canvases": {
+        "type": "int"
+      },
+      "quantity": {
+        "type": "String"
+      }
+    }
+  },
+  "temporaryCleanStat": "{n} 张待清理",
+  "@temporaryCleanStat": {
+    "placeholders": {
+      "n": {
+        "type": "int"
+      }
+    }
+  },
+  "temporaryCollectedStat": "{n} 张已收录保留",
+  "@temporaryCollectedStat": {
+    "placeholders": {
+      "n": {
+        "type": "int"
+      }
+    }
+  },
+  "temporaryKeptStat": "{n} 张留到下次",
+  "@temporaryKeptStat": {
+    "placeholders": {
+      "n": {
+        "type": "int"
+      }
+    }
+  },
+  "temporarySingleDetail": "涉及画布：{name}。已收藏或已保存到图库的作品不受影响。",
+  "@temporarySingleDetail": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "temporaryMultiDetail": "按画布拆分：{details}。打包 ZIP 会按画布名分别归档。",
+  "@temporaryMultiDetail": {
+    "placeholders": {
+      "details": {
+        "type": "String"
+      }
+    }
+  },
+  "temporaryCanvasCountDetail": "{name}（{status}）",
+  "@temporaryCanvasCountDetail": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      },
+      "status": {
+        "type": "String"
+      }
+    }
+  },
+  "temporaryRememberHint": "选择「打包 ZIP 并退出」会记为「打包后清理」，选择「清理并退出」会记为「直接清理」。",
+  "temporarySingleZipExit": "打包 ZIP 并退出",
+  "guideBrowseManual": "浏览使用手册",
+  "guideBanner": "初次使用 Plana？可以先设置生成接入和图片保存位置。",
+  "guideOpen": "打开使用引导",
+  "guideWelcome": "欢迎",
+  "guideAppearance": "外观",
+  "guideGeneration": "生成接入",
+  "guideBotStep": "Bot 授权与扩展",
+  "guideStorage": "保存与图库",
+  "guideFinish": "完成与速查",
+  "guideWelcomeSub": "认识桌面工作台",
+  "guideAppearanceSub": "主题与配色",
+  "guideAccessSub": "账号与接口",
+  "guideBotSub": "生成或可选扩展",
+  "guideStorageSub": "目录、图库与格式",
+  "guideFinishSub": "核对设置，开始创作",
+  "guideProgress": "第 {step} 步，共 {total} 步 · {title}",
+  "@guideProgress": {
+    "placeholders": {
+      "step": {
+        "type": "int"
+      },
+      "total": {
+        "type": "int"
+      },
+      "title": {
+        "type": "String"
+      }
+    }
+  },
+  "guideLater": "之后可以在「我的」中调整这些设置。",
+  "guideCompleteBack": "完成并返回",
+  "guideStart": "开始创作",
+  "guideSkipExtensions": "跳过扩展",
+  "guideNeedAccess": "请保存令牌，或暂时跳过接入设置。",
+  "guideNeedBot": "使用 Bot 生成需要先完成授权。",
+  "guideIntroLead": "选好外观、生成接入和保存习惯，就可以在桌面工作台开始创作。",
+  "guideWrite": "写提示词",
+  "guideWriteBody": "在三栏工作台编排分区和角色，边写边补全，也能从灵感库快插。AI 助手可通过 API 或 ChatGPT 订阅起草提示词。",
+  "guideCanvases": "管理多画布",
+  "guideCanvasesBody": "点画布栏的＋新建，双击标签改名。每个画布分别保留提示词、画幅和临时图库。",
+  "guideContinueImage": "从图片继续创作",
+  "guideImageBody": "拖入带生成参数的图片，可逐项选择提示词、角色和参数。普通图片可以用作参考图或图生图底图。",
+  "guideThemeLead": "更改明暗模式或配色，可以在画布预览里看到效果。",
+  "guideThemePreview": "画布预览",
+  "guideOfficial": "官方 Token",
+  "guideOfficialHint": "使用 NovelAI 访问令牌",
+  "guideEmailHint": "使用 NovelAI 官方账号登录",
+  "guideThirdHint": "NovelAI 或 OpenAI 兼容格式",
+  "guideBotHint": "使用受邀账号，在下一步授权",
+  "guideAccessLead": "选择生成图片的方式，也可以暂时跳过，先浏览工作台。",
+  "guideLocalProxy": "本机代理快速配置",
+  "guideAuthorize": "授权 Bot 以生成图片",
+  "guideOptional": "可选扩展",
+  "guideOptionalBody": "受邀账号可在这里开启扩展。使用官方或第三方接口生成图片时，可以跳过这一步。",
+  "guidePerks": "Anima、Krea 2 等额外模型，公共 Vibe、画师串和角色 OC，以及 WD Tagger 图片反推。",
+  "guideBackupOptions": "Plana 云备份通过 Bot 同步灵感库与 Vibe。Google 云端硬盘使用 Google 登录，本地文件备份可直接使用。",
+  "guideStorageLead": "选择单图导出位置、当前画布的图库和单图格式。",
+  "guideDirectory": "单独保存文件夹",
+  "guideDirectoryHint": "单图保存和临时图库 ZIP 共用此位置。",
+  "guideUnset": "首次保存时选择",
+  "guidePickFolder": "选择文件夹",
+  "guideClearFolder": "恢复未指定",
+  "guideCurrentGallery": "当前画布的图库",
+  "guideStandard": "标准图库",
+  "guideStandardHint": "生成时自动归档，保留原图与生成参数。",
+  "guideTempHint": "按画布暂存；未收录的图片按退出规则处理，可提前收录或打包 ZIP。",
+  "guideNewTemp": "新建画布也默认使用临时图库",
+  "guideFormat": "默认单图保存格式",
+  "guideJpgHint": "JPG 不保留生成参数。需要从导出图恢复参数时，请选 PNG 或 WebP，并在保存设置中保留原始元数据。",
+  "guideReady": "生成接入已配置，可以开始创作。",
+  "guideNotReady": "偏好已保存。准备生成时，可在「我的 → 账号与接入」添加账号。",
+  "guideNoAccess": "暂未配置",
+  "guideSavedOfficial": "官方 Token · 已保存",
+  "guideBotReady": "Bot 账户 · 已授权",
+  "guideNoBot": "暂未授权，可按需开启",
+  "guideSaveFormat": "保存与格式",
+  "guideMode": "图库模式",
+  "guideTips": "桌面速查",
+  "guideImportTip": "把参数带回画布",
+  "guideImportTipBody": "把原图拖到创作页，在导入预览里勾选要使用的部分。",
+  "guideStudioTip": "打开大屏提示词编辑",
+  "guideStudioTipBody": "点提示词卡的展开按钮进入三栏工作台。点命名块可以编辑整块或块内词条。",
+  "guideTempTip": "多选收录或打包临时图",
+  "guideTempTipBody": "在临时图库打开「打包 ZIP」旁的箭头，可挑图转入标准图库，或只打包所选。",
+  "guideToolsTip": "去工具箱比图、查参数",
+  "guideToolsTipBody": "在「图片比对」把两张原图放入 A、B 槽。在「图片元数据」可查看、改写或批量导出副本。",
+  "temporaryNewCanvas": "新建画布默认使用临时图库",
+  "temporaryNewCanvasHint": "新建、复制或恢复画布时自动使用临时图库；已有画布保持原样。",
+  "guideTempDetail": "收藏或转入标准图库的图片会保留；单张保存与打包 ZIP 写入所选文件夹（开启「收录到已保存」时单张保存也会在 Plana 留一份）；打包 ZIP 后临时图仍按退出规则处理。",
+  "guideNewTempShort": "新画布默认临时图库"
 }

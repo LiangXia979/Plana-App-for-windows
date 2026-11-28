@@ -74,60 +74,79 @@ class SidebarLibraryScope extends StatelessWidget {
       final label = remoteLabels[index - 1];
       final compact = index == 1 ? label : compactLibraryLabel(label);
       final selected = publicSelected || sourceIndex >= 0;
-      return PopupMenuButton<int>(
-        key: const ValueKey('sidebar-remote-picker'),
-        tooltip: compact == label ? context.l10n.selectLibrarySource : label,
-        position: PopupMenuPosition.under,
-        onSelected: onScope,
-        itemBuilder: (_) => [
-          for (final (i, label) in remoteLabels.indexed)
-            CheckedPopupMenuItem<int>(
-              key: ValueKey('sidebar-scope-${i + 1}'),
-              value: i + 1,
-              checked: index == i + 1,
-              child: Text(label),
+      final color = selected ? scheme.primary : scheme.onSurfaceVariant;
+      final switchButton = Semantics(
+        selected: selected,
+        child: TextButton(
+          key: const ValueKey('sidebar-remote-switch'),
+          onPressed: () => onScope(index),
+          style: TextButton.styleFrom(
+            minimumSize: const Size(0, 42),
+            padding: const EdgeInsetsDirectional.only(start: 7, end: 24),
+            textStyle: labelStyle,
+            foregroundColor: color,
+            backgroundColor: selected ? scheme.primaryContainer : null,
+            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(9),
             ),
-        ],
-        child: DecoratedBox(
-          decoration: BoxDecoration(
-            color: selected ? scheme.primaryContainer : null,
-            borderRadius: BorderRadius.circular(9),
           ),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 7),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(
-                  index == 1
-                      ? Icons.public
-                      : Icons.collections_bookmark_outlined,
-                  size: 17,
-                  color: selected ? scheme.primary : scheme.onSurfaceVariant,
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                index == 1 ? Icons.public : Icons.collections_bookmark_outlined,
+                size: 17,
+              ),
+              const SizedBox(width: 4),
+              Flexible(
+                child: Text(
+                  compact,
+                  semanticsLabel: label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                 ),
-                const SizedBox(width: 4),
-                Flexible(
-                  child: Text(
-                    compact,
-                    semanticsLabel: label,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: labelStyle.copyWith(
-                      color: selected
-                          ? scheme.primary
-                          : scheme.onSurfaceVariant,
-                    ),
-                  ),
-                ),
-                Icon(
-                  Icons.arrow_drop_down,
-                  size: 18,
-                  color: selected ? scheme.primary : scheme.onSurfaceVariant,
-                ),
-              ],
-            ),
+              ),
+            ],
           ),
         ),
+      );
+      return Stack(
+        alignment: AlignmentDirectional.centerEnd,
+        children: [
+          if (compact == label)
+            switchButton
+          else
+            Tooltip(message: label, child: switchButton),
+          Padding(
+            padding: const EdgeInsetsDirectional.only(end: 2),
+            child: SizedBox.square(
+              dimension: 20,
+              child: PopupMenuButton<int>(
+                key: const ValueKey('sidebar-remote-picker'),
+                tooltip: context.l10n.selectLibrarySource,
+                position: PopupMenuPosition.under,
+                offset: const Offset(0, 11),
+                padding: EdgeInsets.zero,
+                style: IconButton.styleFrom(
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  shape: const CircleBorder(),
+                ),
+                icon: Icon(Icons.arrow_drop_down, color: color, size: 18),
+                onSelected: onScope,
+                itemBuilder: (_) => [
+                  for (final (i, name) in remoteLabels.indexed)
+                    CheckedPopupMenuItem<int>(
+                      key: ValueKey('sidebar-scope-${i + 1}'),
+                      value: i + 1,
+                      checked: index == i + 1,
+                      child: Text(name),
+                    ),
+                ],
+              ),
+            ),
+          ),
+        ],
       );
     }
 
@@ -232,6 +251,7 @@ class _ScopeScrollStripState extends State<ScopeScrollStrip> {
           controller: widget.controller,
           showTrack: _overflow,
           shiftWheelOnly: true,
+          dragWithMouse: false,
           child: Padding(
             padding: EdgeInsets.only(
               top: _overflow ? HorizontalScrollStrip.dragAreaHeight : 0,

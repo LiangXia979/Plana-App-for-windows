@@ -838,7 +838,7 @@ class _AssistantPageState extends ConsumerState<AssistantPage> {
       ('retry', '从这里重新生成', Icons.refresh, !running && ask != null),
     ];
     final overlay =
-        Overlay.of(context).context.findRenderObject()! as RenderBox;
+        Navigator.of(context).overlay!.context.findRenderObject()! as RenderBox;
     final point = position == null
         ? overlay.size.center(Offset.zero)
         : overlay.globalToLocal(position);
@@ -926,7 +926,7 @@ class _AssistantPageState extends ConsumerState<AssistantPage> {
       ('cancel', '取消发送', Icons.close, true),
     ];
     final overlay =
-        Overlay.of(context).context.findRenderObject()! as RenderBox;
+        Navigator.of(context).overlay!.context.findRenderObject()! as RenderBox;
     final point = position == null
         ? overlay.size.center(Offset.zero)
         : overlay.globalToLocal(position);

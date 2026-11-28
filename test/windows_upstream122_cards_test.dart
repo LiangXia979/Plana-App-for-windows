@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'package:flutter/gestures.dart' show PointerDeviceKind;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -187,10 +188,10 @@ void main() {
       expect(counts().negative, negative);
       final header = key('character-header-a');
       final avatar = tester.getRect(key('character-avatar-a'));
-      final fullscreen = tester.getRect(key('character-fullscreen-a'));
-      final x = fullscreen.top > avatar.bottom
+      final positionButton = tester.getRect(key('character-position-a'));
+      final x = positionButton.top > avatar.bottom
           ? tester.getRect(header).right - 18
-          : fullscreen.left - 20;
+          : positionButton.left - 20;
       await tester.tapAt(Offset(x, avatar.center.dy));
       await tester.pumpAndSettle();
       expect(input('desktop-character-a'), findsNothing);
@@ -201,7 +202,15 @@ void main() {
       );
       await tester.pumpAndSettle();
       expect(counts().negative, isNull);
-      expect(find.text('—'), findsOneWidget);
+      final usage = find.text('$positive / ${tokenLimitOf('NAI 5.0 Full')}');
+      expect(usage, findsOneWidget);
+      final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+      await mouse.addPointer();
+      await mouse.moveTo(tester.getCenter(usage));
+      await tester.pump(const Duration(seconds: 1));
+      await tester.pump(const Duration(milliseconds: 200));
+      expect(find.text('正向 $positive · Medium 使用固定负面'), findsOneWidget);
+      await mouse.removePointer();
       expect(c.read(generateProvider).characters.single.negative, 'red hair');
       gen.applyParams(
         c.read(generateProvider).params.copyWith(naiEffort: NaiEffort.high),
@@ -214,7 +223,7 @@ void main() {
   );
 
   testWidgets(
-    'section positive and negative counts remain visible when collapsed',
+    'collapsed sections keep the local breakdown available on their usage count',
     (tester) async {
       c
           .read(generateProvider.notifier)

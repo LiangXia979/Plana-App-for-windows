@@ -9,12 +9,19 @@ class PromptPresetMenuButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
     return IconButton(
       key: const ValueKey('desktop-prompt-preset'),
-      tooltip: l10nNow.desktopSwitchPreset,
-      icon: const Icon(Icons.bookmarks_outlined),
-      iconSize: 18,
-      padding: const EdgeInsets.all(5),
+      tooltip: context.l10n.desktopSwitchPreset,
+      icon: const Icon(Icons.bookmarks_outlined, size: 18),
+      style: IconButton.styleFrom(
+        padding: EdgeInsets.zero,
+        fixedSize: const Size.square(30),
+        minimumSize: Size.zero,
+        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+        backgroundColor: scheme.surfaceContainerHigh,
+        foregroundColor: scheme.onSurfaceVariant,
+      ),
       onPressed: () => showPromptPresetManager(context),
     );
   }

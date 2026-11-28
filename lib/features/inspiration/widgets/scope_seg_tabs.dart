@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import '../../../core/theme/app_theme.dart';
 
 /// 「我的 / 公共库」分段:滑动指示器 + 渐变标签(随 [controller] 的动画走),
-/// 整段任意位置可点。灵感页与选角色面板共用。
+/// 整段任意位置可点。
 class ScopeSegTabs extends StatelessWidget {
   const ScopeSegTabs({
     super.key,

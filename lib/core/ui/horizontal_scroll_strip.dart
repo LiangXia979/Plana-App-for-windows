@@ -2,6 +2,32 @@ import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+/// Translate a vertical mouse wheel over a horizontal viewport or its track.
+/// Native horizontal input and wheel events at the ends can keep bubbling.
+void scrollHorizontallyWithWheel(
+  PointerSignalEvent event,
+  ScrollController controller,
+) {
+  if (event is! PointerScrollEvent ||
+      event.kind != PointerDeviceKind.mouse ||
+      event.scrollDelta.dx != 0 ||
+      event.scrollDelta.dy == 0 ||
+      !controller.hasClients) {
+    return;
+  }
+  final position = controller.position;
+  final delta = position.axisDirection == AxisDirection.left
+      ? -event.scrollDelta.dy
+      : event.scrollDelta.dy;
+  if ((delta > 0 && position.extentAfter == 0) ||
+      (delta < 0 && position.extentBefore == 0)) {
+    return;
+  }
+  GestureBinding.instance.pointerSignalResolver.register(event, (_) {
+    position.pointerScroll(delta);
+  });
+}
+
 /// A desktop chip row with a separate, draggable track below its controls.
 class HorizontalScrollStrip extends StatelessWidget {
   const HorizontalScrollStrip({
@@ -10,6 +36,7 @@ class HorizontalScrollStrip extends StatelessWidget {
     required this.child,
     this.showTrack = true,
     this.shiftWheelOnly = false,
+    this.dragWithMouse = true,
   }) : _hasScrollView = false;
 
   /// Wraps a lazy horizontal scroll view that already owns [controller].
@@ -19,6 +46,7 @@ class HorizontalScrollStrip extends StatelessWidget {
     required this.child,
     this.showTrack = true,
     this.shiftWheelOnly = false,
+    this.dragWithMouse = true,
   }) : _hasScrollView = true;
 
   static const dragAreaHeight = 18.0;
@@ -27,28 +55,13 @@ class HorizontalScrollStrip extends StatelessWidget {
   final Widget child;
   final bool showTrack;
   final bool shiftWheelOnly;
+  final bool dragWithMouse;
   final bool _hasScrollView;
 
   void _onWheel(PointerSignalEvent event) {
-    if (event is! PointerScrollEvent ||
-        event.kind != PointerDeviceKind.mouse ||
-        (shiftWheelOnly && !HardwareKeyboard.instance.isShiftPressed) ||
-        event.scrollDelta.dx != 0 ||
-        event.scrollDelta.dy == 0 ||
-        !controller.hasClients) {
-      return;
+    if (!shiftWheelOnly || HardwareKeyboard.instance.isShiftPressed) {
+      scrollHorizontallyWithWheel(event, controller);
     }
-    final position = controller.position;
-    final delta = position.axisDirection == AxisDirection.left
-        ? -event.scrollDelta.dy
-        : event.scrollDelta.dy;
-    if ((delta > 0 && position.extentAfter == 0) ||
-        (delta < 0 && position.extentBefore == 0)) {
-      return;
-    }
-    GestureBinding.instance.pointerSignalResolver.register(event, (_) {
-      position.pointerScroll(delta);
-    });
   }
 
   @override
@@ -57,9 +70,9 @@ class HorizontalScrollStrip extends StatelessWidget {
     final theme = ScrollbarTheme.of(context);
     return ScrollConfiguration(
       behavior: behavior.copyWith(
-        dragDevices: shiftWheelOnly
-            ? (Set.of(behavior.dragDevices)..remove(PointerDeviceKind.mouse))
-            : {...behavior.dragDevices, PointerDeviceKind.mouse},
+        dragDevices: dragWithMouse
+            ? {...behavior.dragDevices, PointerDeviceKind.mouse}
+            : (Set.of(behavior.dragDevices)..remove(PointerDeviceKind.mouse)),
         scrollbars: false,
       ),
       child: Listener(

@@ -7,6 +7,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:image/image.dart' as img;
 import 'package:plana_app/core/platform/desktop.dart';
 import 'package:plana_app/core/store/app_stores.dart';
+import 'package:plana_app/core/store/storage_settings.dart';
 import 'package:plana_app/features/gallery/albums/album_state.dart';
 import 'package:plana_app/features/gallery/gallery_dates.dart';
 import 'package:plana_app/features/gallery/gallery_state.dart';
@@ -39,7 +40,18 @@ void main() {
   tearDown(() async {
     await stores.flushForExit();
     container.dispose();
-    await root.delete(recursive: true);
+    expect(root.parent.absolute.path, Directory.systemTemp.absolute.path);
+    expect(root.uri.pathSegments.where((s) => s.isNotEmpty).last, startsWith('plana_trash_'));
+    // Windows can briefly retain a read handle on the temporary gallery.
+    for (var attempt = 0; ; attempt++) {
+      try {
+        await root.delete(recursive: true);
+        break;
+      } on PathAccessException catch (error) {
+        if (error.osError?.errorCode != 32 || attempt >= 20) rethrow;
+        await Future<void>.delayed(const Duration(milliseconds: 50));
+      }
+    }
   });
 
   test(
@@ -49,6 +61,7 @@ void main() {
       final albums = container.read(albumsProvider.notifier);
       final album = await albums.create('旅行');
       await albums.organize({ids[1]}, {album});
+      await gallery().markSaved([ids[1], ids[1]]);
       gallery().setFavorite(ids[1], true);
       await stores.gallery.idle;
       final before = await stores.gallery.readImage(ids[1]);
@@ -66,6 +79,14 @@ void main() {
       expect(trash(), [ids[2], ids[1]]);
       expect(await gallery().restoreTrash([ids[1], ids[2]]), 2);
       expect(live(), ids.reversed.toList());
+      expect(
+        container
+            .read(galleryProvider)
+            .results
+            .where((r) => r.saved)
+            .map((r) => r.id),
+        [ids[1]],
+      );
       expect(trash(), isEmpty);
       expect(
         container
@@ -81,14 +102,32 @@ void main() {
   );
 
   test(
+    'automatic cap protects saved works while cleaning older unsaved works',
+    () async {
+      final saved = add(1), old = add(2), recent = add(3);
+      await gallery().markSaved([saved]);
+      await container.read(storageSettingsProvider.future);
+      await container
+          .read(storageSettingsProvider.notifier)
+          .patch((s) => s.copyWith(galleryCap: 1));
+      await gallery().enforceCap();
+      expect(live(), [recent, saved]);
+      expect(await stores.gallery.readImage(saved), png);
+      expect(await stores.gallery.readImage(old), isNull);
+    },
+  );
+
+  test(
     'restoring a copy with an older creation date returns it ahead of surviving originals',
     () async {
       final original = add(1);
       final later = add(2);
       final albums = container.read(albumsProvider.notifier);
       final target = await albums.create('独立副本');
+      await gallery().markSaved([original]);
       final copy = (await gallery().copyResults({original}, {target})).single;
       expect(live(), [copy, later, original]);
+      expect(container.read(galleryProvider).results.first.saved, isFalse);
       await gallery().deleteResults([copy, later]);
       final newest = add(3);
       await gallery().restoreTrash([later]);

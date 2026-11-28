@@ -9,6 +9,7 @@ AgentResult agentResultFromDraw(
   Map<String, dynamic>? draw, {
   List<PromptBlock> blocks = const [],
   Map<String, Map<String, String>> resources = const {},
+  Map<String, String> ocLookups = const {},
   String reasoning = '',
 }) {
   final d = draw ?? const <String, dynamic>{};
@@ -25,5 +26,6 @@ AgentResult agentResultFromDraw(
         if (c is Map<String, dynamic>) AgentCharacter.fromJson(c),
     ],
     resources: resources,
+    ocLookups: ocLookups,
   );
 }

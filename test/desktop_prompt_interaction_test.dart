@@ -190,6 +190,62 @@ void main() {
     );
   }
 
+  for (final prefix in ['desktop-prompt', 'desktop-character-c3']) {
+    testWidgets(
+      'selecting across visible lines near the viewport edge keeps the sidebar still ($prefix)',
+      (tester) async {
+        await mount(tester);
+        final render = editable(tester, prefix);
+        final line = render.getLocalRectForCaret(
+          const TextPosition(offset: 900),
+        );
+        final y = viewport(tester).bottom - 12;
+        scroll.jumpTo(scroll.offset + render.localToGlobal(line.center).dy - y);
+        await tester.pumpAndSettle();
+        final before = scroll.offset;
+        final start = Offset(render.localToGlobal(Offset.zero).dx + 25, y);
+        final mouse = await tester.startGesture(
+          start,
+          kind: PointerDeviceKind.mouse,
+        );
+        await mouse.moveBy(const Offset(72, 1));
+        for (var i = 0; i < 20; i++) {
+          await tester.pump(const Duration(milliseconds: 20));
+        }
+        final ctl = tester.widget<AnnotatedField>(field(prefix)).controller;
+        expect(ctl.selection.isCollapsed, isFalse);
+        expect(scroll.offset, closeTo(before, .01));
+        await mouse.up();
+        await tester.pumpAndSettle();
+        expect(scroll.offset, closeTo(before, .01));
+
+        final diagonal = await tester.startGesture(
+          start - const Offset(0, 30),
+          kind: PointerDeviceKind.mouse,
+        );
+        await diagonal.moveTo(start + const Offset(55, 0));
+        for (var i = 0; i < 20; i++) {
+          await tester.pump(const Duration(milliseconds: 20));
+        }
+        expect(ctl.selection.isCollapsed, isFalse);
+        expect(scroll.offset, closeTo(before, .01));
+        await diagonal.up();
+        await tester.pumpAndSettle();
+        expect(scroll.offset, closeTo(before, .01));
+        await tester.sendEventToBinding(
+          PointerScrollEvent(
+            position: start,
+            scrollDelta: const Offset(0, 110),
+          ),
+        );
+        await tester.pumpAndSettle();
+        expect(scroll.offset, greaterThan(before));
+        await finish(tester);
+      },
+      variant: TargetPlatformVariant({TargetPlatform.windows}),
+    );
+  }
+
   for (final up in [false, true]) {
     testWidgets(
       'character drag retains its origin across outer scroll ${up ? 'up' : 'down'}',
@@ -265,6 +321,47 @@ void main() {
       variant: TargetPlatformVariant({TargetPlatform.windows}),
     );
   }
+
+  testWidgets(
+    'replacing a document cancels its in-flight mouse selection and edge scroll',
+    (tester) async {
+      await mount(tester);
+      const prefix = 'desktop-prompt';
+      final render = editable(tester, prefix);
+      final oldPoint = render.localToGlobal(
+        render.getLocalRectForCaret(const TextPosition(offset: 4)).center,
+      );
+      final mouse = await tester.startGesture(
+        oldPoint,
+        kind: PointerDeviceKind.mouse,
+      );
+      await mouse.moveBy(const Offset(66, 2));
+      await tester.pump();
+      final ctl = tester.widget<AnnotatedField>(field(prefix)).controller;
+      expect(ctl.selection.isCollapsed, isFalse);
+      final imported = List.generate(
+        95,
+        (i) => 'imported prompt $i',
+      ).join(', ');
+      gen().setPrompts(positive: imported, negative: 'blur');
+      gen().addCharactersFrom([
+        (positive: 'silver hair', negative: '', position: null),
+      ], replace: true);
+      await tester.pump();
+      final afterImport = scroll.offset;
+      await mouse.moveTo(Offset(oldPoint.dx, viewport(tester).bottom - 1));
+      for (var i = 0; i < 8; i++) {
+        await tester.pump(const Duration(milliseconds: 24));
+      }
+      await mouse.up();
+      await tester.pumpAndSettle();
+      expect(ctl.text, imported);
+      expect(ctl.selection.isCollapsed, isTrue);
+      expect(scroll.offset, closeTo(afterImport, 1));
+      await finish(tester);
+    },
+    variant: TargetPlatformVariant.only(TargetPlatform.windows),
+  );
 
   testWidgets(
     'double-click word dragging keeps word boundaries',

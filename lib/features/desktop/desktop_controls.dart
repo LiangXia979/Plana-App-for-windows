@@ -68,6 +68,12 @@ class _DesktopControlsState extends ConsumerState<_DesktopControls> {
             key: widget.canvasTabsKey,
             trailing: widget.collapseButton,
           ),
+          Divider(
+            key: const ValueKey('desktop-canvas-bar-divider'),
+            height: 1,
+            thickness: 1,
+            color: context.scheme.outlineVariant.withValues(alpha: .65),
+          ),
           const GenerateTopBar(),
           Expanded(
             child: Scrollbar(

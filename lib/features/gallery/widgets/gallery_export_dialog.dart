@@ -71,26 +71,18 @@ class _GalleryExportDialogState extends ConsumerState<_GalleryExportDialog> {
   }
 
   List<ResultImage> _scopeImages() {
-    if (widget.albumId == favoritesId) {
-      return ref
-          .read(galleryProvider)
-          .results
-          .where((image) => image.favorite)
-          .toList();
-    }
     final albums = ref.read(albumsProvider);
-    if (!albums.exists(widget.albumId)) throw StateError('图库已被删除');
-    return ref
-        .read(galleryProvider)
-        .results
-        .where((image) => albums.contains(widget.albumId, image.id))
-        .toList();
+    final id = widget.albumId;
+    if (!isFixedGallery(id) && !albums.exists(id)) throw StateError('图库已被删除');
+    return albums.imagesIn(id, ref.read(galleryProvider).results);
   }
+
+  static const _sampleRule = '每组优先保留本次选中的图，其次是收藏，其余按最新保留。同一优先级取最新一张，忽略种子。';
 
   String _operation(GalleryExportCleanup mode) => switch (mode) {
     GalleryExportCleanup.none => '保留图库图片',
     GalleryExportCleanup.selected => '删除所选图片',
-    GalleryExportCleanup.keepSamples => '删除图库其余图片，每种设置与 tag 仅保留最新一张样图',
+    GalleryExportCleanup.keepSamples => '删除图库其余图片，每组保留一张样图',
     GalleryExportCleanup.deleteAlbum =>
       widget.albumId == null ? '清空全部作品，保留基础图库' : '清空图库并删除图库',
   };
@@ -171,7 +163,7 @@ class _GalleryExportDialogState extends ConsumerState<_GalleryExportDialog> {
                     if (plan.options.cleanup ==
                         GalleryExportCleanup.keepSamples) ...[
                       const SizedBox(height: 8),
-                      Text('保留 ${plan.retainedCount} 张样图，忽略种子，每组取最新一张。'),
+                      Text('保留 ${plan.retainedCount} 张样图。$_sampleRule'),
                       if (plan.unknownCount > 0)
                         Text('${plan.unknownCount} 张缺少完整生成信息，会分别保留。'),
                     ],
@@ -323,6 +315,8 @@ class _GalleryExportDialogState extends ConsumerState<_GalleryExportDialog> {
         _phase = '正在导出';
         _total = plan.items.length;
       });
+      final gallery = ref.read(galleryProvider.notifier);
+      await stores.temporaryGallery.checkExportDirectory(directory);
       report = await exportGalleryImages(
         plan,
         store: stores.gallery,
@@ -337,12 +331,17 @@ class _GalleryExportDialogState extends ConsumerState<_GalleryExportDialog> {
           }
         },
       );
-      if (!mounted) return;
-      setState(() {
-        _committing = true;
-        _phase = '正在完成导出';
-      });
-      final cleanupMessage = await _applyCleanup(plan, report);
+      final String cleanupMessage;
+      try {
+        if (!mounted) return;
+        setState(() {
+          _committing = true;
+          _phase = '正在完成导出';
+        });
+        cleanupMessage = await _applyCleanup(plan, report);
+      } finally {
+        await gallery.markSaved(report.savedIds);
+      }
       if (!mounted) return;
       if (report.savedIds.isNotEmpty) {
         await ref.read(desktopSaveDirectoryProvider.notifier).select(directory);
@@ -397,7 +396,10 @@ class _GalleryExportDialogState extends ConsumerState<_GalleryExportDialog> {
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                Text(l10nNow.desktopExportImages, style: context.texts.headlineSmall),
+                Text(
+                  l10nNow.desktopExportImages,
+                  style: context.texts.headlineSmall,
+                ),
                 const SizedBox(height: 8),
                 Text('「${widget.albumName}」· 已选 ${widget.selected.length} 张'),
                 const SizedBox(height: 18),
@@ -530,7 +532,7 @@ class _GalleryExportDialogState extends ConsumerState<_GalleryExportDialog> {
                             GalleryExportCleanup.none => '不选以上选项时，只导出图片。',
                             GalleryExportCleanup.selected => '导出成功后删除所选图片。',
                             GalleryExportCleanup.keepSamples =>
-                              '清理当前图库全部图片（包含未选导出的图片），每组保留最新一张；忽略种子。',
+                              '清理范围包括当前图库中未选导出的图片。$_sampleRule',
                             GalleryExportCleanup.deleteAlbum =>
                               widget.albumId == null
                                   ? '清空全部作品（包含未选导出的图片），保留基础图库。'
@@ -545,7 +547,8 @@ class _GalleryExportDialogState extends ConsumerState<_GalleryExportDialog> {
                           Padding(
                             padding: const EdgeInsets.only(top: 6),
                             child: Text(
-                              l10nNow.desktopAllImagesIsTheDefaultGalleryThisAction,
+                              l10nNow
+                                  .desktopAllImagesIsTheDefaultGalleryThisAction,
                               style: TextStyle(
                                 fontSize: 12,
                                 color: scheme.onSurfaceVariant,

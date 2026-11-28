@@ -16,6 +16,8 @@ class Suggestion {
     this.insertText,
     this.natural = false,
     this.local = false,
+    this.previewUrl,
+    this.mosaic = false,
   });
 
   /// 英文标签 / 实体名
@@ -31,6 +33,8 @@ class Suggestion {
 
   /// 出自本机的灵感库,而不是后端公共库。目前只有 OC 两边都有,本地的排前面。
   final bool local;
+  final String? previewUrl;
+  final bool mosaic;
 
   /// 中文翻译
   final String? trans;
@@ -54,6 +58,8 @@ class Suggestion {
     String? insertText,
     bool? natural,
     bool? local,
+    String? previewUrl,
+    bool? mosaic,
   }) => Suggestion(
     text: text ?? this.text,
     kind: kind ?? this.kind,
@@ -64,6 +70,8 @@ class Suggestion {
     insertText: insertText ?? this.insertText,
     natural: natural ?? this.natural,
     local: local ?? this.local,
+    previewUrl: previewUrl ?? this.previewUrl,
+    mosaic: mosaic ?? this.mosaic,
   );
 }
 

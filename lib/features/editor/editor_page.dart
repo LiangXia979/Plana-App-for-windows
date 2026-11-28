@@ -1,7 +1,8 @@
+import '../../core/ui/desktop_text_selection.dart';
 import 'widgets/fold_icon.dart';
 import 'dart:async';
 
-import 'package:flutter/foundation.dart' show listEquals, mapEquals;
+import 'package:flutter/foundation.dart' show listEquals, mapEquals, setEquals;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -11,13 +12,13 @@ import '../../core/platform/desktop.dart';
 import '../../core/store/storage_lifecycle.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/theme/editor_theme.dart';
+import '../../core/theme/theme_settings.dart';
 import '../generate/generate_state.dart';
 import '../generate/canvas_state.dart';
 import '../generate/models.dart' show GenerateState, PromptSection;
 import '../generate/widgets/common.dart' show hintSnack;
 import 'data/suggestions.dart';
 import 'data/tag_completion.dart';
-import 'data/tag_favorites.dart';
 import 'data/tag_translation_service.dart';
 import 'editor_models.dart';
 import 'editor_settings.dart';
@@ -32,6 +33,7 @@ import 'widgets/editor_settings_sheet.dart';
 import 'widgets/editor_top_bar.dart';
 import 'widgets/inline_editor_chrome.dart';
 import 'widgets/desktop_tag_popover.dart';
+import 'widgets/desktop_completion_menu.dart';
 import 'widgets/fold_inspector.dart';
 import 'widgets/rich_tag_controller.dart';
 import 'widgets/tag_panel.dart';
@@ -61,6 +63,9 @@ class EditorPage extends ConsumerStatefulWidget {
     this.scrollAnchor,
   });
 
+  /// The main editor and its header controls share a tap region on each canvas.
+  static Object mainPromptTapGroup(String canvasId) => (EditorPage, canvasId);
+
   final bool positive;
   final bool embedded;
 
@@ -87,12 +92,18 @@ class _EditorPageState extends ConsumerState<EditorPage>
   bool _loaded = false;
   String? _loadedCanvasId;
   final ScrollController _scroll = ScrollController();
-  final _inlineTextKey = GlobalKey<AnnotatedFieldState>();
+  var _inlineTextKey = GlobalKey<AnnotatedFieldState>();
   final _inlineChipKey = GlobalKey<ChipFlowViewState>();
   int? _chipAnchor;
   int _panelAnchorRevision = 0;
   bool _chipDragging = false;
-  final _popoverTapGroup = Object();
+  final _ownPopoverTapGroup = Object();
+  Object get _popoverTapGroup =>
+      widget.embedded && widget.charId == null && widget.sectionId == null
+      ? EditorPage.mainPromptTapGroup(
+          ref.read(canvasWorkspaceProvider).activeId,
+        )
+      : _ownPopoverTapGroup;
   String? _inspectedFold;
   Rect? _foldAnchor;
 
@@ -126,11 +137,13 @@ class _EditorPageState extends ConsumerState<EditorPage>
   SuggestResult _result = const SuggestResult();
   int _queryGen = 0; // 递增序号:作废在途异步补全(被后续输入/移光标取代)
   bool _loading = false; // 补全查询进行中(显示加载态)
-  bool _translating = false; // 「翻译为英文」LLM 在途(补全条切「翻译中」态)
+  int? _translatingQuery;
+  bool get _translating => _translatingQuery != null;
   bool _sheetOpen = false; // 形态 B(分类竖向列表)弹层是否打开
   Tok? _panelTok; // 光标所在词条(显示词条栏)
   bool _cursorDragging = false; // 正在拖水滴手柄挪光标(吸底面板暂时收起)
-  (int, int)? _multiRange; // 划词多选覆盖的词条区间 [first, last](批量面板)
+  Set<int>? _multiSelection;
+  DesktopTextRanges get _textRanges => DesktopTextRanges.of(_controller);
   double _multiMult = 1.0; // 批量面板的统一数值权重读数
   List<String> _related = const []; // 当前词的关联标签(异步拉取)
   String? _relatedFor; // _related 归属的词名(防过期回调窜词)
@@ -149,7 +162,6 @@ class _EditorPageState extends ConsumerState<EditorPage>
   final ChromeScrollTracker _chromeScroll = ChromeScrollTracker();
 
   /// 底栏展开钮拉出的收藏托盘是否展开。
-  bool _trayOpen = false;
 
   /// 正文形态。设置即真相 —— 底栏那颗切换直接改设置,不另存一份局部状态,
   /// 免得「设置里是芯片、页面还停在文本」这种两头对不上的中间态。
@@ -181,6 +193,7 @@ class _EditorPageState extends ConsumerState<EditorPage>
       },
     );
     _controller.addListener(_onCtrl);
+    _textRanges.addListener(_onPinnedRangesChanged);
     _focus.addListener(_onFieldFocus);
     _sessions = ref.read(editorSessionsProvider);
     _sessions.prepareInputs.add(_prepareInputForSwitch);
@@ -215,42 +228,24 @@ class _EditorPageState extends ConsumerState<EditorPage>
     });
   }
 
-  (String, String) _drafts(GenerateState gen) {
-    if (widget.charId == null) {
-      if (widget.sectionId != null) {
-        final section = gen.sections
-            .where((s) => s.id == widget.sectionId)
-            .firstOrNull;
-        return (
-          pickEditorText(section?.positiveRaw ?? '', section?.positive ?? ''),
-          pickEditorText(section?.negativeRaw ?? '', section?.negative ?? ''),
-        );
-      }
-      return (
-        pickEditorText(gen.promptRaw, gen.prompt),
-        pickEditorText(gen.negativePromptRaw, gen.negativePrompt),
-      );
-    }
-    final char = gen.characters.where((c) => c.id == widget.charId).firstOrNull;
-    return (
-      pickEditorText(char?.positiveRaw ?? '', char?.positive ?? ''),
-      pickEditorText(char?.negativeRaw ?? '', char?.negative ?? ''),
-    );
-  }
+  (String, String) _drafts(GenerateState gen) =>
+      editorDrafts(gen, charId: widget.charId, sectionId: widget.sectionId);
 
-  List<PromptFoldLink> _links(GenerateState gen) => widget.charId == null
-      ? widget.sectionId == null
-            ? gen.promptFoldLinks
-            : [
-                for (final s in gen.sections)
-                  if (s.id == widget.sectionId) ...s.foldLinks,
-              ]
-      : [
-          for (final character in gen.characters)
-            if (character.id == widget.charId) ...character.foldLinks,
-        ];
+  List<PromptFoldLink> _links(GenerateState gen) =>
+      editorFoldLinks(gen, charId: widget.charId, sectionId: widget.sectionId);
 
   void _loadFromGenerate(bool positive) {
+    if (widget.embedded && _loaded) {
+      // An import or canvas change starts a new editing session. The previous
+      // field's click count, drag anchor and pinned ranges refer to the old text.
+      _inlineTextKey.currentState?.cancelMouseGesture();
+      _inlineTextKey = GlobalKey<AnnotatedFieldState>();
+      _dismissDesktopPanel();
+      _muting = true;
+      _textRanges.replace(const []);
+      _muting = false;
+      _syncedText = null;
+    }
     _inspectedFold = null;
     _foldAnchor = null;
     final drafts = _drafts(ref.read(generateProvider));
@@ -294,6 +289,7 @@ class _EditorPageState extends ConsumerState<EditorPage>
     _transSvc.removeListener(_refreshAnnotations);
     _focus.removeListener(_onFieldFocus);
     _tabAnim.dispose();
+    _textRanges.removeListener(_onPinnedRangesChanged);
     _controller.dispose();
     _input.dispose();
     if (_focus.hasFocus) _focus.unfocus(); // 带着焦点被销毁,键盘会赖着不走
@@ -332,7 +328,7 @@ class _EditorPageState extends ConsumerState<EditorPage>
     if (_panelTok != null && _query.isEmpty) _reroute();
     // 补全条与收藏托盘的译文也是显示时现查(transOf)。结果快照没变,不重建
     // 就一直空着 —— 只重绘注音层不够,那是另一棵树。
-    if (!_result.isEmpty || _trayOpen) setState(() {});
+    if (!_result.isEmpty) setState(() {});
   }
 
   /// 把注音未命中的词喂给后端翻译通道(增强模式;离线模式 no-op)。
@@ -394,11 +390,13 @@ class _EditorPageState extends ConsumerState<EditorPage>
   void _syncFromProvider(EditorState next) {
     if (!mounted) return;
     if (next.activeText != _syncedText) {
+      final newSidebarDocument = widget.embedded && _syncedText == null;
       _muting = true;
       _controller.value = TextEditingValue(
         text: next.activeText,
         selection: TextSelection.collapsed(
-          offset: widget.embedded && !_inlineFocus.hasFocus
+          offset:
+              newSidebarDocument || (widget.embedded && !_inlineFocus.hasFocus)
               ? 0
               : next.activeText.length,
         ),
@@ -408,7 +406,14 @@ class _EditorPageState extends ConsumerState<EditorPage>
       _prevSel = _controller.selection;
       _muting = false;
       _setChromeHidden(false); // 撤销 / 切正负换了一整份正文,收着的放回来
-      _reroute();
+      // A studio edit also updates the sidebar controller underneath its route.
+      // Only a visible editor should open actions at its restored caret.
+      if (newSidebarDocument ||
+          (widget.embedded && ModalRoute.isCurrentOf(context) == false)) {
+        _dismissDesktopPanel();
+      } else {
+        _reroute();
+      }
       _feedTranslation(next.activeText); // 载入/切 tab 的既有文本也问翻译
     }
   }
@@ -479,7 +484,7 @@ class _EditorPageState extends ConsumerState<EditorPage>
       _inspectedFold = name;
       _foldAnchor = anchor;
       _panelTok = null;
-      _multiRange = null;
+      _multiSelection = null;
       _panelAnchorRevision++;
     });
   }
@@ -528,36 +533,30 @@ class _EditorPageState extends ConsumerState<EditorPage>
   bool _snapCaretOutOfFold() {
     final sel = _controller.selection;
     if (!sel.isValid || !sel.isCollapsed) return false;
-    final off = sel.baseOffset;
-    for (final r in parseFoldRefs(_controller.text, _foldBodies)) {
-      if (off <= r.start || off >= r.end) continue;
-      _muting = true;
-      final to = (off - r.start) < (r.end - off) ? r.start : r.end;
-      _prevSel = TextSelection.collapsed(offset: to);
-      _controller.selection = _prevSel;
-      _muting = false;
-      _routeCursor();
-      return true;
-    }
-    return false;
+    final offset = snapFoldCaret(_controller.text, _foldBodies, sel.baseOffset);
+    if (offset == sel.baseOffset) return false;
+    _muting = true;
+    _prevSel = TextSelection.collapsed(offset: offset);
+    _controller.selection = _prevSel;
+    _muting = false;
+    _routeCursor();
+    return true;
   }
 
   /// 单字删除若落在占位符上,改判为整只删除。删除点 d 用闭区间
   /// (`>= r.start`):退格删的是 d 左边那个字,d 落在 start 时删的正是
   /// `<`,该算命中。
   bool _guardFoldEdit(String next) {
-    if (next.length != _prevText.length - 1) return false;
-    final d = _controller.selection.baseOffset;
-    if (d < 0) return false;
-    for (final r in parseFoldRefs(_prevText, _foldBodies)) {
-      if (d >= r.start && d < r.end) {
-        final (out, cursor) = deleteFoldRef(_prevText, r);
-        _applyText(out, cursor);
-        Haptics.selection();
-        return true;
-      }
-    }
-    return false;
+    final edit = deleteFoldOnSingleEdit(
+      _prevText,
+      next,
+      _controller.selection.baseOffset,
+      _foldBodies,
+    );
+    if (edit == null) return false;
+    _applyText(edit.$1, edit.$2);
+    Haptics.selection();
+    return true;
   }
 
   /// 双击/长按选词的 tag 捕获(web handleDoubleClick 同款):
@@ -583,10 +582,10 @@ class _EditorPageState extends ConsumerState<EditorPage>
 
   /// 打字:补全当前词,隐藏词条栏/批量面板
   void _routeTyping() {
-    if (_panelTok != null || _multiRange != null) {
+    if (_panelTok != null || _multiSelection != null) {
       setState(() {
         _panelTok = null;
-        _multiRange = null;
+        _multiSelection = null;
       });
     }
     _scheduleQuery();
@@ -595,34 +594,41 @@ class _EditorPageState extends ConsumerState<EditorPage>
   /// 移光标:点在词里(右邻是词正文,或多词标签名内部的空格)→词条栏;
   /// 逗号/词条间空隙/行尾→清空(那是添加位)。设置里关掉则恒不出。
   /// 选区盖住 ≥2 枚词条时 dock 换成批量面板(web multiSelectPanel 移植)。
+  void _onPinnedRangesChanged() {
+    if (mounted &&
+        _loaded &&
+        !_muting &&
+        !_chipMode &&
+        _prevText == _controller.text) {
+      _routeCursor();
+    }
+  }
+
   void _routeCursor() {
     _clearSuggest();
     final text = _controller.text;
-    final sel = _controller.selection;
-    if (sel.isValid && !sel.isCollapsed) {
+    final ranges = _textRanges.selected;
+    if (ranges.isNotEmpty) {
       final toks = parseToks(text);
-      var first = -1, last = -1;
-      for (var i = 0; i < toks.length; i++) {
-        if (toks[i].segEnd > sel.start && toks[i].segStart < sel.end) {
-          if (first < 0) first = i;
-          last = i;
-        }
-      }
-      if (first >= 0 && last > first) {
+      final selected = {
+        for (var i = 0; i < toks.length; i++)
+          if (ranges.any(
+            (r) => toks[i].segEnd > r.start && toks[i].segStart < r.end,
+          ))
+            i,
+      };
+      if (selected.length > 1) {
         setState(() {
           _panelTok = null;
-          // 新进多选才重算起步读数;同一批里连点 ± 保持读数连贯
-          if (_multiRange == null) {
-            _multiMult = _sharedMult(toks, {
-              for (var i = first; i <= last; i++) i,
-            });
+          if (!setEquals(_multiSelection, selected)) {
+            _multiMult = _sharedMult(toks, selected);
           }
-          _multiRange = (first, last);
+          _multiSelection = selected;
         });
         return;
       }
     }
-    if (_multiRange != null) setState(() => _multiRange = null);
+    if (_multiSelection != null) setState(() => _multiSelection = null);
     final off = _controller.selection.baseOffset;
     Tok? tok;
     if (_settings.enableTagPanel) {
@@ -715,7 +721,14 @@ class _EditorPageState extends ConsumerState<EditorPage>
     }
   }
 
+  Future<SuggestResult> _suggest(String word) => desktopPromptSuggestions(
+    ref,
+    word,
+    includeStyles: widget.embedded && _settings.entitySuggest,
+  );
+
   void _scheduleQuery() {
+    _continuousCompletion = false;
     if (widget.embedded && !_inlineFocus.hasFocus) {
       _clearSuggest();
       return;
@@ -731,6 +744,16 @@ class _EditorPageState extends ConsumerState<EditorPage>
       _clearSuggest();
       return;
     }
+    if (widget.embedded && _query != word) {
+      _queryGen++;
+      setState(() {
+        _query = word;
+        _translatingQuery = null;
+        _loading = true;
+        _result = const SuggestResult();
+        _panelAnchorRevision++;
+      });
+    }
     _debounce = Timer(const Duration(milliseconds: 250), () async {
       if (!mounted) return;
       // 注意:不能因 IME composing 有效就 return——手机软键盘(英文预测/中文拼音)
@@ -742,7 +765,7 @@ class _EditorPageState extends ConsumerState<EditorPage>
         _query = word;
         _loading = true;
       });
-      var res = await ref.read(tagCompletionProvider).query(word);
+      var res = await _suggest(word);
       if (!mounted || gen != _queryGen) return;
       // 实体建议关闭:只留标签行(引擎缓存不区分设置,出口过滤)
       if (!_settings.entitySuggest) res = SuggestResult(tags: res.tags);
@@ -762,22 +785,21 @@ class _EditorPageState extends ConsumerState<EditorPage>
   /// 补全查询词 = 光标**左侧**的名字部分。在两 tag 间插入时后一个 tag
   /// 会与新输入并成一个 token(`tag1, bl|tag2` → `bltag2`),只取左侧
   /// (`bl`)才不会把后面的英文混进查询、搜个空。
-  String _currentWord() {
-    final text = _controller.text;
-    final off = _controller.selection.baseOffset;
-    final toks = parseToks(text);
-    final i = tokIndexAt(text, off, toks);
-    if (i < 0) return '';
-    final t = toks[i];
-    final cut = off.clamp(t.nameStart, t.nameEnd);
-    return text.substring(t.nameStart, cut);
-  }
+  String _currentWord() =>
+      completionWordAt(_controller.text, _controller.selection.baseOffset);
 
   void _clearSuggest() {
+    _continuousCompletion = false;
     _debounce?.cancel();
     _queryGen++; // 使在途异步补全作废
-    if (_query.isEmpty && _result.isEmpty && !_loading) return;
+    if (_query.isEmpty &&
+        _result.isEmpty &&
+        !_loading &&
+        !(widget.embedded && _translating)) {
+      return;
+    }
     setState(() {
+      if (widget.embedded) _translatingQuery = null;
       _query = '';
       _result = const SuggestResult();
       _loading = false;
@@ -823,32 +845,15 @@ class _EditorPageState extends ConsumerState<EditorPage>
   /// 编辑器设置弹层:开关即时生效(经 build 的 ref.listen 反映到当前会话)。
   Future<void> _openSettings() async {
     _focus.unfocus();
-    if (widget.embedded) {
-      await showDialog<void>(
-        context: context,
-        builder: (ctx) => Dialog(
-          clipBehavior: Clip.antiAlias,
-          child: SizedBox(
-            width: 480,
-            child: Theme(
-              data: editorTheme(ctx),
-              child: const EditorSettingsSheet(desktop: true),
-            ),
-          ),
-        ),
-      );
-    } else {
-      await showModalBottomSheet<void>(
-        context: context,
-        // 内容超过默认 9/16 屏高上限,自控高度(弹层内部滚动,封顶见 _maxHeight)
-        isScrollControlled: true,
-        showDragHandle: false,
-        backgroundColor: Colors.transparent,
-        barrierColor: Colors.black.withValues(alpha: .18),
-        builder: (ctx) =>
-            Theme(data: editorTheme(ctx), child: const EditorSettingsSheet()),
-      );
-    }
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: false,
+      backgroundColor: Colors.transparent,
+      barrierColor: Colors.black.withValues(alpha: .18),
+      builder: (ctx) =>
+          Theme(data: editorTheme(ctx), child: const EditorSettingsSheet()),
+    );
     if (mounted && !_chipMode) _focus.requestFocus();
   }
 
@@ -933,18 +938,8 @@ class _EditorPageState extends ConsumerState<EditorPage>
   /// 若 [at] 之后(跳过空格)没有分隔(逗号/换行),补上 `, ` 并把光标放
   /// 其后——选中补全即可直接打下一枚(web formatAutocompleteTagInsertion
   /// 同款追加);已有分隔则原样、光标留在词末。设置里可关。
-  (String, int) _withTrailingComma(String text, int at) {
-    if (!_settings.autoComma) return (text, at);
-    var k = at;
-    while (k < text.length && (text[k] == ' ' || text[k] == '\t')) {
-      k++;
-    }
-    final sep =
-        k < text.length &&
-        (text[k] == ',' || text[k] == '，' || text[k] == '\n');
-    if (sep) return (text, at);
-    return (text.replaceRange(at, at, ', '), at + 2);
-  }
+  (String, int) _withTrailingComma(String text, int at) =>
+      withPromptTrailingComma(text, at, autoComma: _settings.autoComma);
 
   void _pick(Suggestion s) {
     if (s.natural) {
@@ -961,46 +956,13 @@ class _EditorPageState extends ConsumerState<EditorPage>
     }
     final text = _controller.text;
     final off = _controller.selection.baseOffset;
-    final toks = parseToks(text);
-    final i = tokIndexAt(text, off, toks);
-    if (i < 0) {
-      // 光标在逗号/空隙上:落点干净
-      final ins = _insertTextOf(s, plainSlot: true);
-      final replaced = text.replaceRange(off, off, ins);
-      final (withComma, cursor) = _withTrailingComma(
-        replaced,
-        off + ins.length,
-      );
-      _applyText(withComma, cursor);
-      _focus.requestFocus();
-      return;
-    }
-    final t = toks[i];
-    // 光标右侧的名字残余:两 tag 间插入时后一个 tag 被并入了当前 token,
-    // 拆开成「ins, 后一tag」;否则(残余为空)= 常规整词替换 + 尾部补逗号。
-    final cut = off.clamp(t.nameStart, t.nameEnd);
-    final rightName = text.substring(cut, t.nameEnd).trimLeft();
-    if (rightName.isEmpty) {
-      // 整枚替换:被替换的词条本身没有权重/禁用语法时,落点才算干净
-      final ins = _insertTextOf(
-        s,
-        plainSlot: t.segStart == t.nameStart && t.segEnd == t.nameEnd,
-      );
-      final newText = text.replaceRange(t.nameStart, t.nameEnd, ins);
-      final end = t.segEnd + (ins.length - (t.nameEnd - t.nameStart));
-      final (withComma, cursor) = _withTrailingComma(newText, end);
-      _applyText(withComma, cursor);
-    } else {
-      // 拆分现有 token:落点夹在半截词里,不折
-      final ins = _insertTextOf(s, plainSlot: false);
-      final newText = text.replaceRange(
-        t.nameStart,
-        t.nameEnd,
-        '$ins, $rightName',
-      );
-      // 光标落到「ins, 」之后、后一 tag 之前,便于继续插入
-      _applyText(newText, t.nameStart + ins.length + 2);
-    }
+    final (next, cursor) = completePromptAt(
+      text,
+      off,
+      (plain) => _insertTextOf(s, plainSlot: plain),
+      autoComma: _settings.autoComma,
+    );
+    _applyText(next, cursor);
     _focus.requestFocus();
   }
 
@@ -1011,10 +973,21 @@ class _EditorPageState extends ConsumerState<EditorPage>
     if (_translating) return; // 在途,忽略重复点击
     final text = _controller.text;
     final off = _controller.selection.baseOffset;
-    setState(() => _translating = true);
+    final generation = _queryGen;
+    final input = _input.value;
+    final canvas = _loadedCanvasId;
+    final positive = widget.positive;
+    setState(() => _translatingQuery = generation);
     final en = await ref.read(tagCompletionProvider).translateNatural(s.text);
-    if (!mounted) return;
-    setState(() => _translating = false);
+    if (!mounted || _translatingQuery != generation) return;
+    setState(() => _translatingQuery = null);
+    if (widget.embedded &&
+        (generation != _queryGen ||
+            canvas != _loadedCanvasId ||
+            positive != widget.positive ||
+            (_chipMode && input.text != _input.text))) {
+      return;
+    }
     final ins = en?.trim() ?? '';
     if (ins.isEmpty) {
       hintSnack(
@@ -1044,6 +1017,7 @@ class _EditorPageState extends ConsumerState<EditorPage>
         : (text.replaceRange(off, off, ins), off + ins.length);
     final (withComma, cursor) = _withTrailingComma(replaced, end);
     _applyText(withComma, cursor);
+    if (widget.embedded) _clearSuggest();
     _focus.requestFocus();
   }
 
@@ -1078,34 +1052,6 @@ class _EditorPageState extends ConsumerState<EditorPage>
     }
   }
 
-  void _toggleTray() {
-    Haptics.selection();
-    setState(() => _trayOpen = !_trayOpen);
-    // 收藏卡带译文:缺的交给后端翻译通道(离线模式 no-op)
-    if (_trayOpen) _transSvc.request(ref.read(tagFavoritesProvider));
-  }
-
-  /// 托盘里点了一枚收藏:芯片模式接在末尾;文本模式落在光标处 —— 光标在词里
-  /// 就接在这枚词后面,在空隙里就插在原地。
-  void _insertFavorite(String tag) {
-    Haptics.selection();
-    if (_chipMode) {
-      _appendTag(tag);
-      return;
-    }
-    final text = _controller.text;
-    final sel = _controller.selection;
-    final off = sel.isValid ? sel.end : text.length;
-    final toks = parseToks(text);
-    final i = tokIndexAt(text, off, toks);
-    final (next, cursor) = insertUnitAt(
-      text,
-      i >= 0 ? toks[i].segEnd : off,
-      tag,
-    );
-    _applyText(next, cursor);
-  }
-
   /// 形态切换后的收尾:清掉另一头才有意义的状态。设置载回(冷启动时持久化的
   /// chipMode 到货)也走这里,所以这里只做清理,不碰焦点。
   void _onModeChanged(bool chip) {
@@ -1121,7 +1067,7 @@ class _EditorPageState extends ConsumerState<EditorPage>
       _foldAnchor = null;
       _chipMult = 1.0;
       _panelTok = null;
-      _multiRange = null;
+      _multiSelection = null;
       _chromeHidden = false;
       _resetInput();
     });
@@ -1382,12 +1328,20 @@ class _EditorPageState extends ConsumerState<EditorPage>
     return out;
   });
 
+  (String, int) _deleteSelectedTokens(Set<int> selected) {
+    final indices = selected.toList()..sort();
+    if (indices.last - indices.first + 1 == indices.length) {
+      return batchDelete(_controller.text, indices.first, indices.last);
+    }
+    return deleteUnits(_controller.text, _foldBodies, indices);
+  }
+
   void _multiExtract() {
-    final r = _multiRange;
+    final r = _multiSelection;
     if (r == null) return;
-    _extractUnits(_rangeSel(r), () {
-      final out = batchDelete(_controller.text, r.$1, r.$2);
-      setState(() => _multiRange = null);
+    _extractUnits(r, () {
+      final out = _deleteSelectedTokens(r);
+      setState(() => _multiSelection = null);
       return out;
     });
   }
@@ -1476,20 +1430,32 @@ class _EditorPageState extends ConsumerState<EditorPage>
 
   /// 批量改文本落地:重新覆盖同一批词条(数量不变的操作),面板保持。
   void _applyBatchKeep(String newText) {
-    final r = _multiRange;
+    final r = _multiSelection;
     if (r == null) return;
     final toks = parseToks(newText);
     if (toks.isEmpty) return;
-    final last = r.$2 < toks.length ? r.$2 : toks.length - 1;
-    final first = r.$1 <= last ? r.$1 : last;
+    final indices = r.where((i) => i < toks.length).toList()..sort();
+    if (indices.isEmpty) return;
+    final runs = <TextRange>[];
+    for (var i = 0; i < indices.length; i++) {
+      final first = indices[i];
+      while (i + 1 < indices.length && indices[i + 1] == indices[i] + 1) {
+        i++;
+      }
+      runs.add(
+        TextRange(start: toks[first].segStart, end: toks[indices[i]].segEnd),
+      );
+    }
     _muting = true;
+    final active = runs.removeLast();
     _controller.value = TextEditingValue(
       text: newText,
       selection: TextSelection(
-        baseOffset: toks[first].segStart,
-        extentOffset: toks[last].segEnd,
+        baseOffset: active.start,
+        extentOffset: active.end,
       ),
     );
+    _textRanges.replace(runs);
     _prevText = newText;
     _syncedText = newText;
     _prevSel = _controller.selection;
@@ -1499,47 +1465,38 @@ class _EditorPageState extends ConsumerState<EditorPage>
     // _onCtrl 的路径都自己喂翻译」成为无例外的规矩,免得日后新增批量项踩坑。
     _feedTranslation(newText);
     Haptics.selection();
-    setState(() => _multiRange = (first, last));
+    setState(() => _multiSelection = indices.toSet());
   }
 
-  /// 选区区间 → 顶层单元下标集:单元与词条一一对应(一个逗号段一枚),
-  /// 两处多选下标同一个空间,批量操作因此能共用同一套函数。
-  Set<int> _rangeSel((int, int) r) => {for (var i = r.$1; i <= r.$2; i++) i};
-
   void _multiWrap(bool up) {
-    final r = _multiRange;
+    final r = _multiSelection;
     if (r == null) return;
-    _applyBatchKeep(
-      batchWrapUnits(_controller.text, _foldBodies, _rangeSel(r), up: up),
-    );
+    _applyBatchKeep(batchWrapUnits(_controller.text, _foldBodies, r, up: up));
   }
 
   void _multiStepMult(bool up) {
-    final r = _multiRange;
+    final r = _multiSelection;
     if (r == null) return;
     final step = _settings.weightStep;
     final next =
         ((_multiMult + (up ? step : -step)) * 100).roundToDouble() / 100;
     _multiMult = next;
-    _applyBatchKeep(
-      batchSetMultUnits(_controller.text, _foldBodies, _rangeSel(r), next),
-    );
+    _applyBatchKeep(batchSetMultUnits(_controller.text, _foldBodies, r, next));
   }
 
   void _multiClear() {
-    final r = _multiRange;
+    final r = _multiSelection;
     if (r == null) return;
     _multiMult = 1.0;
-    _applyBatchKeep(
-      batchClearWeightUnits(_controller.text, _foldBodies, _rangeSel(r)),
-    );
+    _applyBatchKeep(batchClearWeightUnits(_controller.text, _foldBodies, r));
   }
 
   /// 划词批量的「选中整组」:选区扩到整个权重组,经选区监听重进面板。
-  /// 先清 `_multiRange` —— 路由只在「新进多选」时重算起步读数,不清的话扩完
+  /// 先清 `_multiSelection` —— 路由只在「新进多选」时重算起步读数,不清的话扩完
   /// 读数还停在上一批,而调组权重得从组倍率起步才对得上。
   void _multiSelectGroup(WeightSpan g, Set<int> _) {
-    setState(() => _multiRange = null);
+    _textRanges.replace(const []);
+    setState(() => _multiSelection = null);
     _controller.selection = TextSelection(
       baseOffset: g.start,
       extentOffset: g.end,
@@ -1549,9 +1506,9 @@ class _EditorPageState extends ConsumerState<EditorPage>
   /// 批量禁用/启用:与多选模式同一条语义(第一枚散标签定目标,折叠跳过)。
   /// 从前按词条区间套 `~`,选区扫过折叠占位符时会把折叠拆散。
   void _multiToggleDisabled() {
-    final r = _multiRange;
+    final r = _multiSelection;
     if (r == null) return;
-    final sel = _rangeSel(r);
+    final sel = r;
     final units = topLevelUnits(_controller.text, _foldBodies);
     final target = _disableTarget(units, sel);
     if (target == null) return;
@@ -1561,10 +1518,10 @@ class _EditorPageState extends ConsumerState<EditorPage>
   }
 
   void _multiDelete() {
-    final r = _multiRange;
+    final r = _multiSelection;
     if (r == null) return;
-    final (text, cursor) = batchDelete(_controller.text, r.$1, r.$2);
-    setState(() => _multiRange = null);
+    final (text, cursor) = _deleteSelectedTokens(r);
+    setState(() => _multiSelection = null);
     _applyText(text, cursor);
   }
 
@@ -1589,8 +1546,9 @@ class _EditorPageState extends ConsumerState<EditorPage>
 
   /// 关闭批量面板:选区折叠到末端(触发重路由,回到单词条/空 dock)。
   void _multiClose() {
+    _textRanges.replace(const []);
     final sel = _controller.selection;
-    setState(() => _multiRange = null);
+    setState(() => _multiSelection = null);
     if (sel.isValid && !sel.isCollapsed) {
       _controller.selection = TextSelection.collapsed(offset: sel.end);
     }
@@ -1688,9 +1646,74 @@ class _EditorPageState extends ConsumerState<EditorPage>
     setState(() => _panelTok = null);
   }
 
+  bool _continuousCompletion = false;
+  final _completionKey = GlobalKey<DesktopCompletionMenuState>();
+
+  Rect? _completionAnchor() {
+    if (!_chipMode) return _inlineTextKey.currentState?.selectionAnchor();
+    final focusContext = _inputFocus.context;
+    final editable = focusContext
+        ?.findAncestorStateOfType<EditableTextState>()
+        ?.renderEditable;
+    if (editable != null && editable.hasSize && _input.selection.isValid) {
+      final rect = editable.getLocalRectForCaret(_input.selection.extent);
+      return Rect.fromPoints(
+        editable.localToGlobal(rect.topLeft),
+        editable.localToGlobal(rect.bottomRight),
+      );
+    }
+    final box = focusContext?.findRenderObject();
+    return box is RenderBox && box.hasSize
+        ? box.localToGlobal(Offset.zero) & box.size
+        : null;
+  }
+
+  void _pickFromSidebar(Suggestion item, {required bool keepOpen}) {
+    final query = _query, result = _result;
+    if (_chipMode) {
+      _resetInput();
+      _appendTag(_insertTextOf(item, plainSlot: true), quiet: keepOpen);
+      _inputFocus.requestFocus();
+    } else if (_continuousCompletion) {
+      final current = _controller.value;
+      final at = current.selection.extentOffset.clamp(0, current.text.length);
+      final before = current.text.substring(0, at);
+      final after = current.text.substring(at);
+      final separator =
+          before.trimRight().isEmpty || RegExp(r'[,，\n]\s*$').hasMatch(before)
+          ? ''
+          : ', ';
+      final insert = separator + _insertTextOf(item, plainSlot: true);
+      final (next, caret) = _withTrailingComma(
+        before + insert + after,
+        at + insert.length,
+      );
+      _applyText(next, caret);
+      _focus.requestFocus();
+    } else {
+      _pick(item);
+    }
+    _clearSuggest();
+    if (keepOpen) {
+      setState(() {
+        _continuousCompletion = true;
+        _query = query;
+        _result = result;
+        _panelAnchorRevision++;
+      });
+    }
+  }
+
   Rect? _desktopPanelAnchor() {
     if (_inspectedFold != null) return _foldAnchor;
-    if (!_chipMode) return _inlineTextKey.currentState?.selectionAnchor();
+    if (!_chipMode) {
+      final field = _inlineTextKey.currentState;
+      final tok = _panelTok;
+      if (widget.embedded && tok != null && _multiSelection == null) {
+        return field?.tokenAnchor(tok);
+      }
+      return field?.selectionAnchor();
+    }
     final index = _chipSel.contains(_chipAnchor)
         ? _chipAnchor
         : _chipSel.lastOrNull;
@@ -1709,7 +1732,7 @@ class _EditorPageState extends ConsumerState<EditorPage>
     _inlineChipKey.currentState?.cancelDrag();
     _clearSuggest();
     if (_chipMode) _setChipSel({});
-    if (_multiRange != null) _multiClose();
+    if (_multiSelection != null) _multiClose();
     _closePanel();
   }
 
@@ -1809,6 +1832,19 @@ class _EditorPageState extends ConsumerState<EditorPage>
         !widget.floatingPanels && (dock is TagPanel || dock is BatchPanel);
 
     if (widget.embedded) {
+      final completing = _query.isNotEmpty;
+      final block = _inspectedFold != null;
+      final singleTag = !completing && !block && dock is TagPanel;
+      final side = ref.watch(
+        themeSettingsProvider.select((s) => s.completionFixedToSide),
+      );
+      final placement = completing && side
+          ? DesktopPopoverPlacement.side
+          : block
+          ? DesktopPopoverPlacement.block
+          : singleTag
+          ? DesktopPopoverPlacement.token
+          : DesktopPopoverPlacement.below;
       final prefix = widget.charId != null
           ? 'desktop-character-${widget.charId}'
           : widget.sectionId != null
@@ -1819,6 +1855,19 @@ class _EditorPageState extends ConsumerState<EditorPage>
         child: Focus(
           focusNode: _inlineFocus,
           onKeyEvent: (_, event) {
+            final value = _chipMode ? _input.value : _controller.value;
+            if (value.composing.isValid && !value.composing.isCollapsed) {
+              return KeyEventResult.ignored;
+            }
+            if (_inlineHasFocus &&
+                _query.isNotEmpty &&
+                (_inputFocus.hasFocus || _focus.hasFocus) &&
+                !HardwareKeyboard.instance.isControlPressed &&
+                !HardwareKeyboard.instance.isAltPressed &&
+                !HardwareKeyboard.instance.isMetaPressed) {
+              final handled = _completionKey.currentState?.handleKey(event);
+              if (handled == KeyEventResult.handled) return handled!;
+            }
             if (_chipMode &&
                 event is KeyDownEvent &&
                 event.logicalKey == LogicalKeyboardKey.keyA &&
@@ -1851,29 +1900,62 @@ class _EditorPageState extends ConsumerState<EditorPage>
             },
             child: DesktopTagPopover(
               tapGroupId: _popoverTapGroup,
-              panelWidth: _inspectedFold == null ? 360 : 460,
-              maxPanelHeight: _inspectedFold == null ? 420 : 620,
-              avoidAnchor: _inspectedFold != null,
-              scrollPanel: _inspectedFold == null,
+              yieldToControlDrag: _inspectedFold == null && _query.isEmpty,
+              placement: placement,
+              chipRows: singleTag && _chipMode
+                  ? () => _inlineChipKey.currentState?.chipRows()
+                  : null,
+              panelWidth: completing
+                  ? 552
+                  : block
+                  ? 460
+                  : singleTag
+                  ? 242
+                  : 360,
+              maxPanelHeight: block ? 520 : 420,
+              avoidAnchor: completing || block,
+              followAnchor: completing || singleTag,
+              scrollPanel: !completing && !block && !singleTag,
               visible:
                   _inlineHasFocus &&
                   !_cursorDragging &&
                   !_chipDragging &&
-                  _query.isEmpty &&
-                  (_inspectedFold != null ||
+                  (_query.isNotEmpty ||
+                      _inspectedFold != null ||
                       _panelTok != null ||
-                      _multiRange != null ||
+                      _multiSelection != null ||
                       _chipSel.isNotEmpty),
-              anchor: _desktopPanelAnchor,
+              anchor: _query.isNotEmpty
+                  ? _completionAnchor
+                  : _desktopPanelAnchor,
               anchorRevision: _panelAnchorRevision,
-              panel: _dock(),
+              panel: _query.isNotEmpty
+                  ? DesktopCompletionMenu(
+                      key: _completionKey,
+                      query: _query,
+                      result: _result,
+                      loading: _loading,
+                      translating: _translating,
+                      onPick: _pickFromSidebar,
+                      onTranslate: () => _pickNatural(
+                        Suggestion(
+                          text: _query,
+                          kind: SuggestionKind.tag,
+                          natural: true,
+                        ),
+                      ),
+                      onRaw: () => _pickFromSidebar(
+                        Suggestion(text: _query, kind: SuggestionKind.tag),
+                        keepOpen: false,
+                      ),
+                      onClose: _clearSuggest,
+                    )
+                  : dock,
               onDismiss: _dismissDesktopPanel,
               child: InlineEditorChrome(
                 charId: widget.charId,
                 sectionId: widget.sectionId,
-                onInsertFavorite: _insertFavorite,
                 chipMode: settings.chipMode,
-                onSettings: _openSettings,
                 onToggleMode: _toggleChipMode,
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
@@ -1930,7 +2012,6 @@ class _EditorPageState extends ConsumerState<EditorPage>
                           padding: const EdgeInsets.symmetric(vertical: 2),
                         ),
                       ),
-                    if (_inlineHasFocus && _query.isNotEmpty) _dock(),
                   ],
                 ),
               ),
@@ -1947,16 +2028,12 @@ class _EditorPageState extends ConsumerState<EditorPage>
           // 桌面弹窗可直接关闭。移动端返回先收托盘或退选，再离开编辑器。
           canPop:
               widget.floatingPanels ||
-              (!_trayOpen &&
-                  !(settings.chipMode &&
-                      (_chipSel.isNotEmpty || _chipPlacing))),
+              !(settings.chipMode && (_chipSel.isNotEmpty || _chipPlacing)),
           onPopInvokedWithResult: (didPop, _) {
             if (didPop) {
               if (widget.floatingPanels) _prepareInputForSwitch();
               _save();
               _dismissKeyboard(); // 系统返回手势也走这里,不能只挂在返回按钮上
-            } else if (_trayOpen) {
-              setState(() => _trayOpen = false);
             } else if (_chipPlacing) {
               // 先退落位阶段,选中留着 —— 用户多半只是想改一下选哪几枚
               setState(() => _chipPlacing = false);
@@ -1966,6 +2043,7 @@ class _EditorPageState extends ConsumerState<EditorPage>
           },
           child: DesktopTagPopover(
             tapGroupId: _popoverTapGroup,
+            yieldToControlDrag: _inspectedFold == null && _query.isEmpty,
             panelWidth: _inspectedFold == null ? 360 : 460,
             maxPanelHeight: _inspectedFold == null ? 420 : 620,
             avoidAnchor: _inspectedFold != null,
@@ -1976,7 +2054,7 @@ class _EditorPageState extends ConsumerState<EditorPage>
                 !_chipDragging &&
                 (_inspectedFold != null ||
                     _panelTok != null ||
-                    _multiRange != null ||
+                    _multiSelection != null ||
                     _chipSel.isNotEmpty),
             anchor: _desktopPanelAnchor,
             anchorRevision: _panelAnchorRevision,
@@ -2123,9 +2201,6 @@ class _EditorPageState extends ConsumerState<EditorPage>
                     EditorBottomBar(
                       onToggleMode: _toggleChipMode,
                       chipMode: settings.chipMode,
-                      trayOpen: _trayOpen,
-                      onToggleTray: _toggleTray,
-                      onInsertFavorite: _insertFavorite,
                     ),
                   ],
                 ),
@@ -2216,6 +2291,10 @@ class _EditorPageState extends ConsumerState<EditorPage>
       return FoldInspector(
         key: ValueKey('fold-inspector-$name'),
         name: name,
+        sidebar: widget.embedded,
+        charId: widget.charId,
+        sectionId: widget.sectionId,
+        onUnpack: () => _unfoldByName(name),
         onEditInspiration:
             ref.watch(desktopModeProvider) ||
                 ref
@@ -2259,12 +2338,12 @@ class _EditorPageState extends ConsumerState<EditorPage>
           onExtract: _chipExtract,
         );
       }
-    } else if (_multiRange != null) {
-      final r = _multiRange!;
-      if (r.$1 < parseToks(_controller.text).length) {
+    } else if (_multiSelection != null) {
+      final r = _multiSelection!;
+      if (r.isNotEmpty && r.first < parseToks(_controller.text).length) {
         return _batchPanel(
           const ValueKey('dock-multi'),
-          _rangeSel(r),
+          r,
           _multiMult,
           onSelectGroup: _multiSelectGroup,
           onWrap: _multiWrap,
@@ -2300,6 +2379,8 @@ class _EditorPageState extends ConsumerState<EditorPage>
       final tok = _panelTok!;
       return TagPanel(
         key: const ValueKey('dock-tag'),
+        strip: widget.embedded ? DesktopTagStrip.floating : null,
+        tapGroupId: _popoverTapGroup,
         tok: tok,
         count: countOf(tok.name),
         related: tok.name == _relatedFor ? _related : const [],
@@ -2330,11 +2411,6 @@ class _EditorPageState extends ConsumerState<EditorPage>
         onAddRelated: _addRelated,
         onRename: _chipMode ? _chipRename : null,
         onClose: _chipMode ? () => _setChipSel({}) : _closePanel,
-        favorited: ref
-            .watch(tagFavoriteKeysProvider)
-            .contains(metaKey(tok.name)),
-        onToggleFavorite: () =>
-            ref.read(tagFavoritesProvider.notifier).toggle(tok.name),
       );
     }
     return const SizedBox.shrink(key: ValueKey('dock-empty'));

@@ -35,6 +35,7 @@ Future<({File? file, int packed, int failed})> packImagesZip(
   required SaveSettings settings,
   required String fileName,
   String? password,
+  Directory? stagingDirectory,
   bool Function(int done)? onEach,
 }) async {
   final ext = settings.format.name;
@@ -43,16 +44,18 @@ Future<({File? file, int packed, int failed})> packImagesZip(
   RandomAccessFile? raf;
   File? out;
   try {
-    final dir = Directory(
-      '${(await getTemporaryDirectory()).path}/$kShareCacheDir',
-    );
+    final dir =
+        stagingDirectory ??
+        Directory('${(await getTemporaryDirectory()).path}/$kShareCacheDir');
     await dir.create(recursive: true);
     // 上一次打的包先清掉:交出去的那份系统已经拷走,这里留着只占地方
-    for (final e in dir.listSync()) {
-      if (e is File && e.path.endsWith('.zip')) {
-        try {
-          e.deleteSync();
-        } catch (_) {}
+    if (stagingDirectory == null) {
+      for (final e in dir.listSync()) {
+        if (e is File && e.path.endsWith('.zip')) {
+          try {
+            e.deleteSync();
+          } catch (_) {}
+        }
       }
     }
     out = File('${dir.path}/$fileName');
@@ -136,6 +139,7 @@ Future<({File? file, int packed, int failed})> packImagesZip(
       cdSize += cd.length;
     }
     await raf.writeFrom(_endOfCentralDirectory(cds.length, cdSize, cdStart));
+    await raf.flush();
     await raf.close();
     raf = null;
     return (file: out, packed: packed, failed: failed);

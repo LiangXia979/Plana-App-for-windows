@@ -106,7 +106,8 @@ class RuntimeDiagnostics {
       diagnostics.event(
         'session-start',
         'version=$kAppVersion build=$kAppBuild '
-            'os=${Platform.operatingSystem} ${Platform.operatingSystemVersion}',
+            'os=${Platform.operatingSystem} ${Platform.operatingSystemVersion}'
+            '${Platform.isWindows ? ' windowsSemantics=connected-v2' : ''}',
       );
       return diagnostics;
     } catch (_) {

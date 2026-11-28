@@ -127,7 +127,7 @@ void main() {
       expect(find.byType(LiveParamSlider), findsOneWidget);
       container.read(generateProvider.notifier).setModel('NAI 4.5 Full');
       await tester.pumpAndSettle();
-      expect(find.text('角色参考'), findsOneWidget);
+      expect(find.text('精确参考'), findsOneWidget);
       expect(find.byType(LiveParamSlider), findsNWidgets(2));
       expect(
         tester.widget<LiveParamSlider>(find.byType(LiveParamSlider).first).max,
@@ -199,7 +199,7 @@ void main() {
         await tester.pump(kDoubleTapTimeout);
         await doubleClick(tester, second);
         expect(preview, findsOneWidget);
-        expect(find.text('${vibe ? 'Vibe 参考图' : '角色参考图'} · 2'), findsOneWidget);
+        expect(find.text('${vibe ? 'Vibe 参考图' : '精确参考'} · 2'), findsOneWidget);
         final image = tester.widget<Image>(previewImage);
         expect(image.image, isA<MemoryImage>());
         expect((image.image as MemoryImage).bytes, same(other));

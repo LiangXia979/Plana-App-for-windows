@@ -109,7 +109,7 @@ void main() {
         await tester.ensureVisible(key('prompt-fullscreen-$id'));
         await tester.tap(key('prompt-fullscreen-$id'));
         await tester.pumpAndSettle();
-        expect(find.byType(Dialog), findsOneWidget);
+        expect(key('prompt-fullscreen-dialog'), findsOneWidget);
         expect(find.text('排除'), findsNothing);
         await captureDesktop(
           tester,
@@ -117,7 +117,7 @@ void main() {
           'windows52-section-fullscreen-${(scale * 100).round()}',
         );
         expect(tester.takeException(), isNull);
-        Navigator.of(tester.element(find.byType(Dialog))).pop();
+        Navigator.of(tester.element(key('prompt-fullscreen-dialog'))).pop();
         await tester.pumpAndSettle();
         gen.setNaiEffort(NaiEffort.high);
         await tester.pumpAndSettle();

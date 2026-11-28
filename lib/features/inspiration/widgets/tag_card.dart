@@ -16,7 +16,7 @@ const _kMosaicCells = 12;
 
 /// 卡片预览图:无图 = 名称定色相的斜纹占位;http 走磁盘缓存;本机路径直读。
 /// 加载完淡入,让预览逐张柔和显现而非硬蹦(只淡第一次,见 [FadeInOnce])。
-/// 灵感页网格、选角色面板、角色卡头像共用。
+/// 灵感页网格和角色卡头像共用。
 class TagCardPreview extends StatelessWidget {
   const TagCardPreview({
     super.key,
@@ -126,7 +126,7 @@ class TagCardPreview extends StatelessWidget {
 
 /// 网格卡:预览图(无图=名称定色相的斜纹占位)+ 底部名称条 + 来源角标;
 /// 左上选择圈,右上 ⋮(我的)/ ❤ 收藏(公共)。点卡选择,长按看详情。
-/// 角上的按钮给了回调才画(选角色面板两样都不给)。
+/// 角上的按钮有回调时才显示。
 class TagCard extends StatelessWidget {
   const TagCard({
     super.key,

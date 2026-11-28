@@ -12,12 +12,11 @@ import '../../../core/theme/theme_settings.dart';
 import '../../../core/util/nai_tokenizer.dart';
 import '../../editor/editor_page.dart';
 import '../../editor/editor_state.dart' show editorSessionsProvider;
-import '../../editor/editor_models.dart' show outputOf, draftOf, pickEditorText;
+import '../../editor/editor_models.dart' show pickEditorText;
 import 'collapsed_prompt_preview.dart';
-import '../../inspiration/widgets/char_pick_sheet.dart';
+import '../../inspiration/character_library_cover.dart';
 import '../../inspiration/widgets/tag_card.dart' show TagCardPreview;
-import '../../inspiration/tag_models.dart'
-    show appendTagPromptsFolded, TagCategory, tagCategoryDef;
+import '../../inspiration/tag_models.dart' show TagCategory, tagCategoryDef;
 import '../canvas_state.dart';
 import '../char_position.dart';
 import '../generate_state.dart';
@@ -100,6 +99,41 @@ class CharacterCard extends ConsumerWidget {
       reorderIndex: reorderIndex,
       badge: CountBadge('$active / $cap', error: active > cap),
       actions: [
+        if (desktop && chars.length == 1)
+          PromptFullscreenButton(
+            key: const ValueKey('character-fullscreen'),
+            charId: chars.single.id,
+          )
+        else if (desktop && chars.length > 1)
+          PopupMenuButton<String>(
+            key: const ValueKey('character-fullscreen'),
+            tooltip: context.l10n.desktopOpenFullScreenPromptEditor,
+            padding: EdgeInsets.zero,
+            icon: const Icon(Icons.open_in_full, size: 16),
+            style: IconButton.styleFrom(
+              fixedSize: const Size(26, 32),
+              minimumSize: Size.zero,
+              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+            ),
+            itemBuilder: (_) => [
+              for (final (i, c) in chars.indexed)
+                PopupMenuItem(
+                  value: c.id,
+                  child: Text(
+                    '${i + 1}. ${characterDisplayName(context.l10n, c.name)}',
+                  ),
+                ),
+            ],
+            onSelected: (id) {
+              if (ref.read(canvasWorkspaceProvider).activeId == canvasId &&
+                  ref
+                      .read(generateProvider)
+                      .characters
+                      .any((c) => c.id == id)) {
+                showDesktopPromptEditor(context, ref, charId: id);
+              }
+            },
+          ),
         if (chars.isNotEmpty)
           RoundIconBtn(
             Icons.delete_sweep_outlined,
@@ -108,13 +142,6 @@ class CharacterCard extends ConsumerWidget {
             color: scheme.onSurfaceVariant,
             onTap: () => _confirmClear(context, notifier),
           ),
-        RoundIconBtn(
-          Icons.grid_view,
-          size: actionSize,
-          tooltip: context.l10n.characterLibrary,
-          color: canAdd ? scheme.onSurfaceVariant : scheme.outline,
-          onTap: canAdd ? () => _addFromLibrary(context, ref) : null,
-        ),
         RoundIconBtn(
           Icons.add,
           size: actionSize,
@@ -174,52 +201,6 @@ class CharacterCard extends ConsumerWidget {
     return desktop ? PromptReorderBoundary(child: card) : card;
   }
 
-  Future<void> _addFromLibrary(BuildContext context, WidgetRef ref) async {
-    final canvasId = ref.read(canvasWorkspaceProvider).activeId;
-    final s = ref.read(generateProvider);
-    final room = maxCharactersOf(s.params.model) - s.characters.length;
-    if (room <= 0) return;
-    final canvases = ref.read(canvasWorkspaceProvider.notifier);
-    final gen = ref.read(generateProvider.notifier);
-    final picked = await showCharPickSheet(context, max: room);
-    if (picked == null || picked.isEmpty || !context.mounted) return;
-    canvases.updatePrompts(canvasId, (p) {
-      final chars = [...p.characters];
-      final model = p.sampling?.model ?? s.params.model;
-      for (final pick in picked) {
-        if (chars.length >= maxCharactersOf(model)) break;
-        final draft = appendTagPromptsFolded(
-          positiveDraft: '',
-          negativeDraft: '',
-          entries: [pick.entry],
-        );
-        final positive = outputOf(draft.positiveDraft),
-            negative = outputOf(draft.negativeDraft);
-        chars.add(
-          CharacterPrompt(
-            id: gen.allocateItemId(),
-            name: pick.entry.name,
-            source: pick.entry.id,
-            positive: positive,
-            negative: negative,
-            positiveRaw: draftOf(draft.positiveDraft, positive),
-            negativeRaw: draftOf(draft.negativeDraft, negative),
-            foldLinks: draft.links,
-            position: nextSpawnPosition(
-              chars.map((c) => c.position),
-              freeform: isNai5Model(model),
-            ),
-            avatar: pick.preview,
-          ),
-        );
-      }
-      return p.copyWith(characters: chars);
-    });
-    if (ref.read(canvasWorkspaceProvider).activeId == canvasId) {
-      gen.openPanel(Panel.characters);
-    }
-  }
-
   Future<void> _confirmClear(
     BuildContext context,
     GenerateNotifier notifier,
@@ -276,9 +257,14 @@ class _CharacterTileState extends ConsumerState<_CharacterTile> {
   final _nameKey = GlobalKey();
   final _editorHeaderKey = GlobalKey();
 
-  Future<void> _previewAvatar() async {
-    final avatar = char.avatar;
-    if (_avatarPreviewOpen || avatar == null || avatar.isEmpty) return;
+  String? get _avatar {
+    if (char.avatar?.isNotEmpty == true) return char.avatar;
+    if (char.source == null && char.foldLinks.isEmpty) return null;
+    return ref.watch(characterLibraryCoverProvider(char)).value;
+  }
+
+  Future<void> _previewAvatar(String avatar) async {
+    if (_avatarPreviewOpen) return;
     _avatarPreviewOpen = true;
     try {
       await showImageProviderPreview(
@@ -339,60 +325,6 @@ class _CharacterTileState extends ConsumerState<_CharacterTile> {
     notifier.updateCharacter(
       char.id,
       name: trimmed.isEmpty ? fallback : trimmed,
-    );
-  }
-
-  Future<void> _pickFromLibrary(BuildContext context, WidgetRef ref) async {
-    final canvasId = ref.read(canvasWorkspaceProvider).activeId;
-    final canvases = ref.read(canvasWorkspaceProvider.notifier);
-    final picked = await showCharPickSheet(context);
-    if (picked == null || picked.isEmpty || !context.mounted) return;
-    final chosen = picked.first;
-    final current = ref
-        .read(canvasWorkspaceProvider)
-        .find(canvasId)
-        ?.prompts
-        .characters
-        .where((c) => c.id == char.id)
-        .firstOrNull;
-    if (current == null) return;
-    if (current.avatar == null &&
-        (current.positive.isNotEmpty || current.negative.isNotEmpty)) {
-      final ok = await confirmDialog(
-        context,
-        title: '替换「${current.name}」？',
-        message: '提示词将换成「${chosen.entry.name}」的。',
-        confirmLabel: '替换',
-      );
-      if (!ok || !context.mounted) return;
-    }
-    final draft = appendTagPromptsFolded(
-      positiveDraft: '',
-      negativeDraft: '',
-      entries: [chosen.entry],
-    );
-    final positive = outputOf(draft.positiveDraft),
-        negative = outputOf(draft.negativeDraft);
-    canvases.updatePrompts(
-      canvasId,
-      (p) => p.copyWith(
-        characters: [
-          for (final c in p.characters)
-            if (c.id == char.id)
-              c.copyWith(
-                name: chosen.entry.name,
-                positive: positive,
-                negative: negative,
-                positiveRaw: draftOf(draft.positiveDraft, positive),
-                negativeRaw: draftOf(draft.negativeDraft, negative),
-                foldLinks: draft.links,
-                avatar: chosen.preview,
-                source: chosen.entry.id,
-              )
-            else
-              c,
-        ],
-      ),
     );
   }
 
@@ -507,6 +439,11 @@ class _CharacterTileState extends ConsumerState<_CharacterTile> {
                           ),
                           const SizedBox(width: 8),
                           PromptTokenCounts(
+                            limit: ref.watch(
+                              generateProvider.select(
+                                (s) => tokenLimitOf(s.params.model),
+                              ),
+                            ),
                             positive: totalPromptTokens(
                               ref.watch(naiTokenizerProvider).value,
                               main: char.positive,
@@ -586,20 +523,16 @@ class _CharacterTileState extends ConsumerState<_CharacterTile> {
     const emptyWidth = 12.0;
     final leadingWidth =
         34 + 5 + 38 + widget.nameWidth + statusWidth + emptyWidth;
-    final actionsWidth = 26 + 16 + 15 + 5 + positionWidth + 4 + 30;
+    final actionsWidth = 16 + 15 + 5 + positionWidth + 2 + 30;
     final requiredWidth = leadingWidth + 8 + actionsWidth;
+    final avatar = _avatar;
     final leading = Row(
       children: [
         Tooltip(
-          message: char.avatar?.isNotEmpty == true
-              ? '左键从角色库选择 · 右键放大预览'
-              : '从角色库选择',
+          message: avatar == null ? '' : context.l10n.desktopImagePreview,
           child: InkWell(
             key: ValueKey('character-avatar-${char.id}'),
-            onTap: () => _pickFromLibrary(context, ref),
-            onSecondaryTap: char.avatar?.isNotEmpty == true
-                ? _previewAvatar
-                : null,
+            onTap: avatar == null ? null : () => _previewAvatar(avatar),
             borderRadius: BorderRadius.circular(8),
             child: ClipRRect(
               borderRadius: BorderRadius.circular(8),
@@ -607,7 +540,7 @@ class _CharacterTileState extends ConsumerState<_CharacterTile> {
                 width: 34,
                 height: 34,
                 child: TagCardPreview(
-                  url: char.avatar,
+                  url: avatar,
                   name: char.name,
                   decodeWidth: 34,
                   alignment: Alignment.topCenter,
@@ -690,10 +623,6 @@ class _CharacterTileState extends ConsumerState<_CharacterTile> {
       spacing: 2,
       runSpacing: 4,
       children: [
-        PromptFullscreenButton(
-          key: ValueKey('character-fullscreen-${char.id}'),
-          charId: char.id,
-        ),
         // 站位徽章
         Material(
           color: scheme.surfaceContainerHighest,
@@ -846,6 +775,7 @@ class _CharacterTileState extends ConsumerState<_CharacterTile> {
     final compact = ref.watch(
       themeSettingsProvider.select((t) => t.compactCharCards),
     );
+    final avatar = compact ? null : _avatar;
     final tokenizer = ref.watch(naiTokenizerProvider).value;
     final hasNeg =
         !ref.watch(generateProvider.select((s) => s.params.isNaiMedium)) &&
@@ -1027,10 +957,13 @@ class _CharacterTileState extends ConsumerState<_CharacterTile> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     _Avatar(
-                      url: char.avatar,
+                      key: ValueKey('character-avatar-${char.id}'),
+                      url: avatar,
                       name: characterDisplayName(context.l10n, char.name),
                       enabled: enabled,
-                      onTap: () => _pickFromLibrary(context, ref),
+                      onTap: avatar == null
+                          ? null
+                          : () => _previewAvatar(avatar),
                     ),
                     const SizedBox(width: 10),
                     Expanded(
@@ -1153,9 +1086,10 @@ const _greyscale = ColorFilter.matrix(<double>[
 ]);
 
 /// 竖向头像:固定使用角色库的 832:1216 比例,不随提示词高度拉伸。
-/// 点它从灵感角色库挑人。
+/// 有图时，轻点查看原图。
 class _Avatar extends StatelessWidget {
   const _Avatar({
+    super.key,
     required this.url,
     required this.name,
     required this.enabled,
@@ -1165,7 +1099,7 @@ class _Avatar extends StatelessWidget {
   final String? url;
   final String name;
   final bool enabled;
-  final VoidCallback onTap;
+  final VoidCallback? onTap;
 
   static const width = 72.0;
 
@@ -1176,7 +1110,7 @@ class _Avatar extends StatelessWidget {
       color: scheme.surfaceContainerHighest,
       child: Center(
         child: Icon(
-          Icons.person_search_outlined,
+          Icons.person_outline,
           size: 24,
           color: scheme.onSurfaceVariant,
         ),
@@ -1201,9 +1135,7 @@ class _Avatar extends StatelessWidget {
       );
     }
     return Tooltip(
-      message: url == null
-          ? context.l10n.pickFromCharLibrary
-          : context.l10n.swapCharacter,
+      message: url == null ? '' : context.l10n.desktopImagePreview,
       child: GestureDetector(
         onTap: onTap,
         behavior: HitTestBehavior.opaque,

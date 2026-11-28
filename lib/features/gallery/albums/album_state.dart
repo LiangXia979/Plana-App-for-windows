@@ -12,6 +12,8 @@ import '../../generate/generation_controller.dart';
 import '../gallery_state.dart';
 import 'album_models.dart';
 import 'album_summary.dart';
+import '../temporary_gallery_state.dart';
+import '../../generate/canvas_state.dart';
 
 final albumsProvider = NotifierProvider<AlbumsNotifier, AlbumsData>(
   AlbumsNotifier.new,
@@ -25,6 +27,11 @@ final albumSummariesProvider = Provider<Map<String?, AlbumSummary>>((ref) {
     ...summarizeAlbums(albums, images),
     favoritesId: (
       count: images.where((r) => r.favorite).length,
+      first: null,
+      cover: null,
+    ),
+    savedGalleryId: (
+      count: images.where((r) => r.saved).length,
       first: null,
       cover: null,
     ),
@@ -44,6 +51,13 @@ final galleryBrowseAlbumProvider = Provider<String?>((ref) {
 });
 
 final gallerySaveTargetProvider = Provider<GallerySaveTarget>((ref) {
+  final temp = ref.watch(temporaryCanvasProvider);
+  if (temp != null) {
+    final name = ref.watch(
+      canvasWorkspaceProvider.select((w) => w.active.name),
+    );
+    return GallerySaveTarget.temporary(temp, name);
+  }
   if (ref.watch(desktopModeProvider)) {
     final selection = ref.watch(desktopLibraryProvider);
     final captured = selection.capture(DateTime.now());
@@ -63,9 +77,7 @@ final galleryViewProvider = Provider<GalleryState>((ref) {
   final all = ref.watch(galleryProvider);
   final scope = ref.watch(galleryBrowseAlbumProvider);
   final albums = ref.watch(albumsProvider);
-  final images = scope == null
-      ? all.results
-      : all.results.where((r) => albums.contains(scope, r.id)).toList();
+  final images = albums.imagesIn(scope, all.results);
   final id = images.any((r) => r.id == all.selectedId)
       ? all.selectedId
       : images.firstOrNull?.id;

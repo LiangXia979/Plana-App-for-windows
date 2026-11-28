@@ -1,9 +1,3 @@
-/// 检查更新(只检查,不下载不安装)。
-///
-/// 链路:GitHub Releases API 拿最新 release → 按语义化版本比 → 有新版就提示,
-/// 用户点「去下载」跳外部浏览器打开 Release 页。**下载与安装交给浏览器和系统**,
-/// 本应用不碰 —— 所以既不需要 `REQUEST_INSTALL_PACKAGES`,也不需要 FileProvider,
-/// 更不需要自己校验安装包。
 library;
 
 import 'dart:async';
@@ -12,12 +6,19 @@ import 'dart:io';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:html/dom.dart' as dom;
+import 'package:html/parser.dart' as html;
+import 'package:xml/xml.dart';
 import 'package:http/http.dart' as http;
 
 import '../../core/app_info.dart';
 import '../../core/store/prefs_store.dart';
+import '../../core/store/app_stores.dart' show prefsStoreProvider;
 import '../../core/util/log.dart';
 import '../../l10n/l10n.dart';
+
+part 'windows_release_feed.dart';
 
 /// 检查更新失败。`toString()` 直接是可展示文案。
 class UpdateException implements Exception {
@@ -51,7 +52,7 @@ class GithubRelease {
     required this.notes,
     required this.url,
     required this.prerelease,
-    this.windowsDownload,
+    this.windowsPackage,
   });
 
   /// 形如 `v1.0.0-beta.2`(比较时会剥掉前导 v)。
@@ -62,58 +63,88 @@ class GithubRelease {
   /// Release 页地址,用户点「去下载」时用浏览器打开。
   final String url;
   final bool prerelease;
-  final Uri? windowsDownload;
+  final WindowsReleasePackage? windowsPackage;
 
-  static Uri? _windowsAsset(String tag, Object? assets) {
-    if (assets is! List) return null;
-    Uri? portable;
+  Uri? get windowsDownload => windowsPackage?.url;
+
+  /// 展示名:GitHub 上 release 标题常留空,回落到 tag。
+  String get display => name.isNotEmpty ? name : tag;
+
+  static GithubRelease? fromJson(
+    Map<String, dynamic> j, {
+    String repo = kGithubRepo,
+  }) {
+    if (j['draft'] == true) return null; // 草稿对外不存在
+    final tag = j['tag_name'];
+    final url = j['html_url'];
+    if (tag is! String ||
+        !validReleaseTag(tag) ||
+        url is! String ||
+        url.isEmpty) {
+      return null;
+    }
+    return GithubRelease(
+      windowsPackage: WindowsReleasePackage.pick(tag, j['assets'], repo: repo),
+      tag: tag,
+      name: (j['name'] as String?) ?? '',
+      notes: j['body_html'] is String
+          ? _readReleaseHtml(j['body_html'] as String)
+          : (j['body'] as String?) ?? '',
+      url: Uri.https('github.com', '/$repo/releases/tag/$tag').toString(),
+      prerelease: j['prerelease'] == true,
+    );
+  }
+}
+
+bool validReleaseTag(String tag) => RegExp(
+  r'^[vV]?\d+(?:\.\d+){2}(?:-[0-9A-Za-z]+(?:[.-][0-9A-Za-z]+)*)?(?:\+[0-9A-Za-z.-]+)?$',
+).hasMatch(tag);
+
+class WindowsReleasePackage {
+  const WindowsReleasePackage._(this.url, this.sha256, this.size);
+  final Uri url;
+  final String? sha256;
+  final int? size;
+  String get name => url.pathSegments.last;
+  bool get isInstaller => name.toLowerCase().endsWith('-setup.exe');
+
+  static WindowsReleasePackage? pick(
+    String tag,
+    Object? assets, {
+    String repo = kGithubRepo,
+  }) {
+    if (assets is! List || !validReleaseTag(tag)) return null;
+    WindowsReleasePackage? portable;
     for (final asset in assets.whereType<Map>()) {
       final name = asset['name'];
       final raw = asset['browser_download_url'];
       if (name is! String ||
           raw is! String ||
-          name.contains('/') ||
-          name.contains('\\')) {
+          !RegExp(
+            r'^Plana-Windows-[a-z0-9.+-]+-x64(?:-[a-z0-9.-]+)?(?:-setup\.exe|\.zip)$',
+            caseSensitive: false,
+          ).hasMatch(name)) {
         continue;
       }
-      final url = Uri.tryParse(raw);
-      if (url == null ||
-          url.scheme != 'https' ||
-          url.host != 'github.com' ||
-          url.hasPort ||
-          url.userInfo.isNotEmpty ||
-          url.hasQuery ||
-          url.hasFragment ||
-          url.pathSegments.join('/') !=
-              '$kGithubRepo/releases/download/$tag/$name') {
-        continue;
-      }
-      final file = name.toLowerCase();
-      if (!file.startsWith('plana-windows-') || !file.contains('-x64')) {
-        continue;
-      }
-      if (file.endsWith('-setup.exe')) return url;
-      if (file.endsWith('.zip')) portable ??= url;
+      final uri = Uri.https(
+        'github.com',
+        '/$repo/releases/download/$tag/$name',
+      );
+      if (Uri.tryParse(raw) != uri) continue;
+      final digest = asset['digest'];
+      final hash = digest is String
+          ? RegExp(r'^sha256:([0-9a-fA-F]{64})$').firstMatch(digest)?.group(1)
+          : null;
+      final size = asset['size'];
+      final package = WindowsReleasePackage._(
+        uri,
+        hash?.toLowerCase(),
+        size is int && size > 0 ? size : null,
+      );
+      if (package.isInstaller) return package;
+      portable ??= package;
     }
     return portable;
-  }
-
-  /// 展示名:GitHub 上 release 标题常留空,回落到 tag。
-  String get display => name.isNotEmpty ? name : tag;
-
-  static GithubRelease? fromJson(Map<String, dynamic> j) {
-    if (j['draft'] == true) return null; // 草稿对外不存在
-    final tag = j['tag_name'] as String?;
-    final url = j['html_url'] as String?;
-    if (tag == null || tag.isEmpty || url == null || url.isEmpty) return null;
-    return GithubRelease(
-      windowsDownload: _windowsAsset(tag, j['assets']),
-      tag: tag,
-      name: (j['name'] as String?) ?? '',
-      notes: (j['body'] as String?) ?? '',
-      url: url,
-      prerelease: j['prerelease'] == true,
-    );
   }
 }
 
@@ -222,29 +253,28 @@ Future<InstalledInfo> installedInfo() async {
 Future<GithubRelease?> fetchLatestRelease(
   String current, {
   String repo = kGithubRepo,
+  PrefsStore? prefs,
 }) async {
   if (repo.isEmpty || current.isEmpty) return null;
   try {
+    if (prefs != null) _checkCooldown(prefs, _apiCooldownKey);
     final resp = await http
         .get(
           Uri.parse('https://api.github.com/repos/$repo/releases?per_page=10'),
-          headers: const {'Accept': 'application/vnd.github+json'},
+          headers: const {'Accept': 'application/vnd.github.full+json'},
         )
         .timeout(const Duration(seconds: 15));
-    if (resp.statusCode == 429 ||
-        (resp.statusCode == 403 &&
-            resp.headers['x-ratelimit-remaining'] == '0')) {
-      logd('[update] GitHub API 限流');
-      throw UpdateException(l10nNow.ghRateLimited);
-    }
+    await _respectRateLimit(resp, prefs, _apiCooldownKey);
     if (resp.statusCode != 200) {
       throw UpdateException(l10nNow.updateHttpFailed(resp.statusCode));
     }
     final j = jsonDecode(utf8.decode(resp.bodyBytes));
     if (j is! List) throw UpdateException(l10nNow.updateBadFormat);
-    return pickNewer(current, j);
+    return pickNewer(current, j, repo: repo);
   } on TimeoutException {
     throw UpdateException(l10nNow.updateTimeout);
+  } on http.ClientException {
+    throw UpdateException(l10nNow.cantReachGithub);
   } on SocketException {
     throw UpdateException(l10nNow.cantReachGithub);
   } on TlsException {
@@ -261,16 +291,30 @@ Future<GithubRelease?> fetchLatestRelease(
 ///
 /// 已在正式版上的用户**不会**被推预发布 —— 否则装着 1.0.0 的人会被 1.1.0-beta.1
 /// 拽回测试轨道。仍在 beta 上的人则照收 beta。
-GithubRelease? pickNewer(String current, List<dynamic> releases) {
+GithubRelease? pickNewer(
+  String current,
+  List<dynamic> releases, {
+  String repo = kGithubRepo,
+}) {
   final onPrerelease = isPrerelease(current);
-  for (final r in releases) {
-    if (r is! Map<String, dynamic>) continue;
-    final rel = GithubRelease.fromJson(r);
-    if (rel == null) continue;
-    if (rel.prerelease && !onPrerelease) continue;
-    if (compareSemver(rel.tag, current) > 0) return rel;
+  Map<String, dynamic>? newest;
+  var bestTag = current;
+  for (final item in releases.whereType<Map<String, dynamic>>()) {
+    final tag = item['tag_name'];
+    if (tag is! String ||
+        !validReleaseTag(tag) ||
+        item['draft'] == true ||
+        (item['prerelease'] == true && !onPrerelease) ||
+        item['html_url'] is! String ||
+        (item['html_url'] as String).isEmpty) {
+      continue;
+    }
+    if (compareSemver(tag, bestTag) > 0) {
+      newest = item;
+      bestTag = tag;
+    }
   }
-  return null;
+  return newest == null ? null : GithubRelease.fromJson(newest, repo: repo);
 }
 
 // ── 自动检查的节流 ───────────────────────────────────────────────────────
@@ -300,4 +344,49 @@ bool shouldAutoCheck(
   final last = int.tryParse(prefs.get(_kLastCheckKey) ?? '');
   if (last == null) return true;
   return DateTime.now().millisecondsSinceEpoch - last > interval.inMilliseconds;
+}
+
+final updateServiceProvider = Provider<UpdateService>(
+  (ref) => UpdateService(ref.watch(prefsStoreProvider)),
+);
+
+class UpdateService {
+  UpdateService(this.prefs);
+  final PrefsStore prefs;
+  Future<UpdateCheck>? _pending;
+  bool _noticeOpen = false;
+
+  Future<UpdateCheck> check() => _pending ??= _check().whenComplete(() {
+    _pending = null;
+  });
+
+  Future<UpdateCheck> _check() async {
+    final installed = await installedInfo();
+    GithubRelease? release;
+    if (installed.isKnown && kGithubRepo.isNotEmpty) {
+      release = defaultTargetPlatform == TargetPlatform.windows
+          ? await _windowsRelease(installed.versionName, prefs)
+          : await fetchLatestRelease(installed.versionName, prefs: prefs);
+    }
+    return UpdateCheck(installed: installed, release: release);
+  }
+
+  bool beginNotice(String tag, {required bool automatic}) {
+    final previous = prefs.get('update_last_presented_tag');
+    if (_noticeOpen ||
+        (automatic && previous != null && compareSemver(tag, previous) <= 0)) {
+      return false;
+    }
+    _noticeOpen = true;
+    return true;
+  }
+
+  Future<void> rememberNotice(String tag) async {
+    final previous = prefs.get('update_last_presented_tag');
+    if (previous == null || compareSemver(tag, previous) > 0) {
+      await prefs.write(key: 'update_last_presented_tag', value: tag);
+    }
+  }
+
+  void endNotice() => _noticeOpen = false;
 }

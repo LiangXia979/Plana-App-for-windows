@@ -1,3 +1,4 @@
+import '../../../core/ui/horizontal_scroll_strip.dart';
 import '../../../core/ui/prefix_extent_list.dart';
 import '../../../l10n/l10n.dart';
 import 'dart:async';
@@ -95,11 +96,15 @@ class FilmStrip extends StatefulWidget {
     this.jobs = const [],
     this.selectedJobId,
     this.onSelectJob,
+    this.trailing,
     this.showMore = true,
     this.desktop = false,
     this.onImport,
+    this.batchSelection,
   });
 
+  final Widget? trailing;
+  final Set<String>? batchSelection;
   final bool showMore;
   final bool desktop;
   final ValueChanged<String>? onImport;
@@ -552,12 +557,13 @@ class _FilmStripState extends State<FilmStrip>
     return _FilmThumb(
       key: ValueKey('history-thumb-${r.id}'),
       vacant: entry.vacant,
+      batch: widget.batchSelection != null,
       result: r,
       desktop: widget.desktop,
       selected:
           !entry.ghost &&
-          r.id == widget.selectedId &&
-          widget.selectedJobId == null,
+          (widget.batchSelection?.contains(r.id) ??
+              (r.id == widget.selectedId && widget.selectedJobId == null)),
       onTap: () {
         _cancelDelete();
         widget.onSelect(r.id);
@@ -596,20 +602,26 @@ class _FilmStripState extends State<FilmStrip>
         crossAxisMargin: 2,
         minThumbLength: 36,
       ),
-      child: Scrollbar(
-        key: const ValueKey('desktop-history-scrollbar'),
-        controller: _sc,
-        thumbVisibility: true,
-        trackVisibility: true,
-        interactive: true,
-        thickness: 8,
-        radius: const Radius.circular(4),
-        scrollbarOrientation: ScrollbarOrientation.bottom,
-        child: ScrollConfiguration(
-          behavior: ScrollConfiguration.of(context).copyWith(scrollbars: false),
-          child: Padding(
-            padding: const EdgeInsets.only(bottom: _desktopScrollbarSpace),
-            child: child,
+      child: Listener(
+        behavior: HitTestBehavior.opaque,
+        onPointerSignal: (event) => scrollHorizontallyWithWheel(event, _sc),
+        child: Scrollbar(
+          key: const ValueKey('desktop-history-scrollbar'),
+          controller: _sc,
+          thumbVisibility: true,
+          trackVisibility: true,
+          interactive: true,
+          thickness: 8,
+          radius: const Radius.circular(4),
+          scrollbarOrientation: ScrollbarOrientation.bottom,
+          child: ScrollConfiguration(
+            behavior: ScrollConfiguration.of(
+              context,
+            ).copyWith(scrollbars: false),
+            child: Padding(
+              padding: const EdgeInsets.only(bottom: _desktopScrollbarSpace),
+              child: child,
+            ),
           ),
         ),
       ),
@@ -712,6 +724,10 @@ class _FilmStripState extends State<FilmStrip>
                           ),
                         ),
                       ),
+                      if (widget.trailing != null)
+                        SliverToBoxAdapter(
+                          child: Center(child: widget.trailing!),
+                        ),
                     ],
                   ),
                 ),
@@ -948,8 +964,10 @@ class _FilmThumb extends StatefulWidget {
     this.onImport,
     this.deleteButton,
     this.vacant = false,
+    this.batch = false,
   });
 
+  final bool batch;
   final ResultImage result;
   final bool desktop;
   final bool selected;
@@ -1014,6 +1032,31 @@ class _FilmThumbState extends State<_FilmThumb> {
                 height: _thumbH,
                 radius: 10,
               ),
+              if (result.fromTemporaryGallery &&
+                  (result.saved || result.favorite))
+                Positioned(
+                  left: 3,
+                  bottom: 3,
+                  child: DecoratedBox(
+                    decoration: BoxDecoration(
+                      color: Colors.black54,
+                      borderRadius: BorderRadius.circular(5),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        if (result.saved)
+                          const Icon(
+                            Icons.download_done,
+                            size: 15,
+                            color: Colors.white,
+                          ),
+                        if (result.favorite)
+                          const Icon(Icons.star, size: 15, color: Colors.amber),
+                      ],
+                    ),
+                  ),
+                ),
               if (result.badge != ResultBadge.none)
                 Positioned(
                   left: 4,
@@ -1025,6 +1068,36 @@ class _FilmThumbState extends State<_FilmThumb> {
         ),
       ),
     );
+    if (widget.batch) {
+      return Semantics(
+        checked: widget.selected,
+        button: true,
+        child: Stack(
+          children: [
+            draggable.child,
+            Positioned(
+              top: 3,
+              right: 3,
+              child: IgnorePointer(
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    color: widget.selected ? scheme.primary : scheme.surface,
+                    border: Border.all(color: scheme.outline),
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: SizedBox.square(
+                    dimension: 21,
+                    child: widget.selected
+                        ? Icon(Icons.check, size: 16, color: scheme.onPrimary)
+                        : null,
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
     final image = widget.desktop
         ? GalleryImageDrag(
             result: result,

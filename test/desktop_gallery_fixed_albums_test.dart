@@ -217,11 +217,16 @@ void main() {
   });
 
   testWidgets(
-    'fixed favorites and trash remain visible and browsing leaves save target and filmstrip unchanged',
+    'fixed favorites, saved and trash remain visible and browsing leaves save target and filmstrip unchanged',
     (tester) async {
       await mount(tester);
       final allCard = key('desktop-library-card-all');
       final favoriteCard = key('desktop-library-card-$favoritesId');
+      final savedCard = key('desktop-library-card-$savedGalleryId');
+      expect(savedCard, findsOneWidget);
+      expect(c.read(albumSummariesProvider)[savedGalleryId]!.count, 0);
+      await pumpUntilComplete(tester, gallery.markSaved([second]));
+      expect(c.read(albumSummariesProvider)[savedGalleryId]!.count, 1);
       final trashCard = key('desktop-library-card-$trashId');
       expect(allCard, findsOneWidget);
       expect(favoriteCard, findsOneWidget);
@@ -237,6 +242,18 @@ void main() {
           .map((r) => r.id)
           .toList();
       final selected = c.read(galleryProvider).selectedId;
+      await tester.tap(savedCard);
+      await tester.pumpAndSettle();
+      expect(
+        tester
+            .widgetList<GalleryImageTile>(find.byType(GalleryImageTile))
+            .map((t) => t.result.id),
+        [second],
+      );
+      expect(find.byTooltip('已保存'), findsOneWidget);
+      expect(c.read(gallerySaveTargetProvider).albumId, album);
+      await tester.tap(key('desktop-gallery-up'));
+      await tester.pumpAndSettle();
       await tester.tap(favoriteCard);
       await tester.pumpAndSettle();
       expect(
@@ -266,7 +283,7 @@ void main() {
   testWidgets(
     'virtual entries cannot become albums or save targets and are absent from save picker',
     (tester) async {
-      for (final id in [favoritesId, trashId]) {
+      for (final id in [favoritesId, savedGalleryId, trashId]) {
         expect(c.read(albumsProvider).exists(id), isFalse);
         expect(
           () => c.read(desktopLibraryProvider.notifier).choose(id),

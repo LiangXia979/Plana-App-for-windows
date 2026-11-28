@@ -58,6 +58,7 @@ AgentResult legacyLibraryReply(
     draw,
     reasoning: remote.reasoning,
     resources: resources,
+    ocLookups: parts['oc']!,
     blocks: blocks,
   );
 }
@@ -190,5 +191,11 @@ AgentResult libraryReply(
           parts,
           insertedCopies: _insertedCopies(source, context.ocPlan, resolve),
         );
-  return agentResultFromDraw(reply, draw, resources: ledger, blocks: blocks);
+  return agentResultFromDraw(
+    reply,
+    draw,
+    resources: ledger,
+    ocLookups: parts['oc']!,
+    blocks: blocks,
+  );
 }

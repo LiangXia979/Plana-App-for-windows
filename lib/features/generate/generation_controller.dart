@@ -640,6 +640,7 @@ class GenerationNotifier extends Notifier<GenPool> {
       galleryTarget:
           galleryTarget ??
           (ref.read(desktopModeProvider) &&
+                  ref.read(gallerySaveTargetProvider).canvasId == null &&
                   ref.read(desktopLibraryProvider).automatic
               ? ref.read(desktopLibraryProvider).capture(DateTime.now())
               : ref.read(gallerySaveTargetProvider)),
@@ -1621,7 +1622,9 @@ class GenerationNotifier extends Notifier<GenPool> {
       }
     } finally {
       // A later image can fail to save after earlier batch results succeeded.
-      if (origin != null && savedIds.isNotEmpty) {
+      if (origin != null &&
+          savedIds.isNotEmpty &&
+          galleryTarget.canvasId == null) {
         _recordHistory(origin, savedIds);
       }
     }

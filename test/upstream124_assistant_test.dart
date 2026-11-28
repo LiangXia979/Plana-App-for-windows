@@ -269,7 +269,7 @@ void main() {
   );
 
   test(
-    'custom APIs and Plana channels receive the supplement as ordinary user text',
+    'only a custom API attaches the enabled supplement to the user message',
     () async {
       for (final route in [AgentTrace.routeCustom, AgentTrace.routeBackend]) {
         final model = _Replies(['done']);
@@ -285,7 +285,12 @@ void main() {
             .drain<void>();
         final message = model.calls.single.single;
         expect(message.role, 'user');
-        expect(message.content, endsWith('Use a limited palette.'));
+        expect(
+          message.content,
+          route == AgentTrace.routeCustom
+              ? 'draw a skyline\n\nUse a limited palette.'
+              : 'draw a skyline',
+        );
       }
     },
   );

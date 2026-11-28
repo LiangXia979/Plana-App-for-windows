@@ -1,9 +1,11 @@
+import '../../../core/ui/desktop_text_selection.dart';
 import 'dart:async';
 import 'dart:math' as math;
 import 'dart:ui' show BoxHeightStyle, PointerDeviceKind;
 
 import 'package:flutter/foundation.dart' show mapEquals;
-import 'package:flutter/gestures.dart' show computePanSlop, kPrimaryButton;
+import 'package:flutter/gestures.dart'
+    show GestureBinding, computePanSlop, kPrimaryButton;
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart' show RenderEditable, RenderProxyBox;
 import 'package:flutter/scheduler.dart' show Ticker;
@@ -126,6 +128,27 @@ class AnnotatedFieldState extends State<AnnotatedField>
     );
   }
 
+  /// Use the visual line under the caret when a long token wraps.
+  Rect? tokenAnchor(Tok token) {
+    final render = _editable();
+    final caret = selectionAnchor();
+    if (render == null || caret == null) return caret;
+    final boxes = render.getBoxesForSelection(
+      TextSelection(baseOffset: token.nameStart, extentOffset: token.nameEnd),
+    );
+    for (final box in boxes) {
+      final rect = box.toRect();
+      final global = Rect.fromPoints(
+        render.localToGlobal(rect.topLeft),
+        render.localToGlobal(rect.bottomRight),
+      );
+      if (global.top <= caret.center.dy && global.bottom >= caret.center.dy) {
+        return global;
+      }
+    }
+    return caret;
+  }
+
   late final _handles = _WatchedHandles(this);
 
   // Flutter compensates a text drag using only the nearest Scrollable. In the
@@ -162,6 +185,10 @@ class AnnotatedFieldState extends State<AnnotatedField>
 
   void _mouseMove(PointerMoveEvent event) {
     if (event.pointer != _mousePointer) return;
+    if (event.buttons & kPrimaryButton == 0) {
+      cancelMouseGesture();
+      return;
+    }
     _mousePoint = event.position;
     if (!_mouseSelecting) {
       final slop = computePanSlop(
@@ -196,6 +223,15 @@ class AnnotatedFieldState extends State<AnnotatedField>
   void _mouseRelease(PointerEvent event) {
     if (event.pointer != _mousePointer) return;
     if (_mouseSelecting && event is PointerUpEvent) _syncMouseSelection();
+    _endMouseSelection();
+  }
+
+  /// The native text recognizer and our edge scrolling belong to the same drag.
+  /// Stop both before a replacement document can receive the old pointer's moves.
+  void cancelMouseGesture() {
+    final pointer = _mousePointer;
+    if (pointer == null) return;
+    GestureBinding.instance.cancelPointer(pointer);
     _endMouseSelection();
   }
 
@@ -241,7 +277,12 @@ class AnnotatedFieldState extends State<AnnotatedField>
     while (current != null) {
       final scrollable = Scrollable.maybeOf(current, axis: Axis.vertical);
       if (scrollable == null) break;
-      ancestors.add(scrollable);
+      final position = scrollable.position;
+      if (position.hasContentDimensions &&
+          position.physics.allowUserScrolling &&
+          position.maxScrollExtent > position.minScrollExtent) {
+        ancestors.add(scrollable);
+      }
       current = scrollable.context;
     }
     final view = View.of(context);
@@ -258,20 +299,22 @@ class AnnotatedFieldState extends State<AnnotatedField>
         window.contains(point) &&
         point.dx >= viewport.left &&
         point.dx <= viewport.right) {
-      final band = math.min(48.0, viewport.height / 2);
-      final proximity = point.dy < viewport.top + band
+      // Crossing words horizontally at the first/last visible line must not
+      // move the sidebar. Engage edge scrolling only after vertical intent.
+      final dy = point.dy - _mouseDown!.dy;
+      final band = math.min(
+        widget.scrollable ? 48.0 : 8.0,
+        viewport.height / 2,
+      );
+      final proximity = dy < -4 && point.dy < viewport.top + band
           ? -(viewport.top + band - point.dy) / band
-          : point.dy > viewport.bottom - band
+          : dy > 4 && point.dy > viewport.bottom - band
           ? (point.dy - viewport.bottom + band) / band
           : 0.0;
       final delta = proximity.clamp(-1.0, 1.0) * 800 * seconds;
       final textBounds = render.localToGlobal(Offset.zero) & render.size;
       for (final ancestor in ancestors) {
         final position = ancestor.position;
-        if (!position.physics.allowUserScrolling ||
-            !position.hasContentDimensions) {
-          continue;
-        }
         final pixels = position.pixels;
         final lower = math.max(
           position.minScrollExtent,
@@ -385,6 +428,9 @@ class AnnotatedFieldState extends State<AnnotatedField>
   TextSelection? _lastSel;
 
   void _onController() {
+    if (_mousePointer != null && _mouseText != widget.controller.text) {
+      cancelMouseGesture();
+    }
     final selection = widget.controller.selection;
     if (_mouseSelecting &&
         !_correctingMouse &&
@@ -420,7 +466,7 @@ class AnnotatedFieldState extends State<AnnotatedField>
   /// 松手事件就没人收了 —— 不在这里补一刀,拖动态会卡住,词条栏再也不出来。
   void _onFocusChanged() {
     if (!widget.focusNode.hasFocus) {
-      _endMouseSelection();
+      cancelMouseGesture();
       _pointerUp();
     }
   }
@@ -573,11 +619,16 @@ class AnnotatedFieldState extends State<AnnotatedField>
                   onPointerCancel: _mouseRelease,
                   child: _HandleDragReveal(
                     active: () => _dragging || _revealHold,
-                    mouseActive: () => _mouseSelecting || _mouseRevealHold,
+                    mouseActive: () =>
+                        _mousePointer != null || _mouseRevealHold,
                     padding: _revealPadding,
                     child: DefaultTextHeightBehavior(
                       textHeightBehavior: _kEvenLeading,
                       child: TextField(
+                        contextMenuBuilder: DesktopTextSelection.contextMenu,
+                        inputFormatters: [
+                          DesktopSelectionFormatter(widget.controller),
+                        ],
                         key: _fieldKey,
                         controller: widget.controller,
                         scrollController: _textScroll,
@@ -1074,6 +1125,7 @@ class _WeightWashPainter extends CustomPainter {
     for (final (a, b, c) in overlays) {
       drawRange(a, b, c);
     }
+    layout.dispose();
   }
 
   @override
@@ -1112,7 +1164,6 @@ class _FuriganaPainter extends CustomPainter {
   /// 翻译缓存版本(suggestions.transCacheRev):文本没变但缓存灌到了也要重绘。
   final int revision;
 
-  static const _transSize = 9.5;
   static const _gap = 3.0; // 基线到译文顶的间距
 
   @override
@@ -1129,7 +1180,10 @@ class _FuriganaPainter extends CustomPainter {
     )..layout(maxWidth: maxWidth);
 
     final lines = layout.computeLineMetrics();
-    if (lines.isEmpty) return;
+    if (lines.isEmpty) {
+      layout.dispose();
+      return;
+    }
     final lineTops = <double>[];
     var acc = 0.0;
     for (final l in lines) {
@@ -1137,7 +1191,7 @@ class _FuriganaPainter extends CustomPainter {
       acc += l.height;
     }
 
-    final transStyle = TextStyle(fontSize: _transSize, height: 1, color: color);
+    final transStyle = tagTranslationStyle(base).copyWith(color: color);
 
     // 收集(行号, 词左端, 译文, 排好版的画笔),按行从左到右画
     final items = <(int, double, String, TextPainter)>[];
@@ -1203,12 +1257,14 @@ class _FuriganaPainter extends CustomPainter {
       lastRight = x + tp.width;
       tp.dispose();
     }
+    layout.dispose();
   }
 
   @override
   bool shouldRepaint(covariant _FuriganaPainter old) =>
       old.text != text ||
       old.base != base ||
+      old.scaler != scaler ||
       old.maxWidth != maxWidth ||
       old.color != color ||
       old.revision != revision;

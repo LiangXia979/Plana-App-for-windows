@@ -86,12 +86,13 @@ final visiblePublicTagsProvider =
 
 /// 灵感页「我的」的完整来源 = 本地条目 + 公共库里我发布的(本地没副本的补进来,
 /// 标 created、去掉打码;对齐 web mineAll)。归属判定优先 owner_id,与服务端一致。
-/// 纯函数:灵感页、它的筛选弹层、选角色面板都拿读来的值喂进来。
+/// 纯函数:灵感页和筛选弹层都使用读来的值。
 List<TagEntry> mergeMineTags(
   List<TagEntry> local,
   String? myId,
-  List<TagEntry>? pub,
-) {
+  List<TagEntry>? pub, {
+  TagEntry Function(TagEntry)? personalize,
+}) {
   if (myId == null || pub == null) return local;
   final haveId = {for (final e in local) e.publicId};
   final haveName = {for (final e in local) e.name};
@@ -101,11 +102,14 @@ List<TagEntry> mergeMineTags(
       if (p.createdBy == myId &&
           !haveId.contains(p.publicId) &&
           !haveName.contains(p.name))
-        p.copyWith(origin: TagOrigin.created, mosaic: false),
+        (personalize?.call(p) ?? p).copyWith(
+          origin: TagOrigin.created,
+          mosaic: false,
+        ),
   ];
 }
 
-/// 同一公共编号在「我的」、公共库和选角色面板使用同一张封面。
+/// 同一公共编号在「我的」、公共库与创作角色头像中使用同一张封面。
 /// 自己保存的封面随本地库更新，收藏及缺失的本机文件沿用当前后端的地址。
 final tagCoverPreviewsProvider = Provider.autoDispose
     .family<Map<String, String>, TagCategory>((ref, category) {

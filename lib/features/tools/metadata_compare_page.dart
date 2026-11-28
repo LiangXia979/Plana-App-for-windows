@@ -13,6 +13,7 @@ import '../../l10n/l10n.dart';
 import '../gallery/widgets/gallery_grid_sheet.dart';
 import '../import/image_metadata.dart';
 import '../import/import_panel.dart';
+import 'desktop_tool_header.dart';
 import 'metadata_diff.dart';
 
 part 'metadata_compare_preview.dart';
@@ -87,8 +88,14 @@ class _Comparison {
 }
 
 class MetadataCompareView extends ConsumerStatefulWidget {
-  const MetadataCompareView({super.key, this.desktopViewportHeight});
+  const MetadataCompareView({
+    super.key,
+    this.desktopViewportHeight,
+    this.desktopTabs,
+  });
+
   final double? desktopViewportHeight;
+  final Widget? desktopTabs;
   @override
   ConsumerState<MetadataCompareView> createState() =>
       _MetadataCompareViewState();
@@ -245,6 +252,9 @@ class _MetadataCompareViewState extends ConsumerState<MetadataCompareView> {
         ),
       ],
     );
+    final toolbar = desktop
+        ? DesktopToolHeader(tabs: widget.desktopTabs, actions: actions)
+        : actions;
     return Padding(
       padding: desktop
           ? EdgeInsets.zero
@@ -258,7 +268,7 @@ class _MetadataCompareViewState extends ConsumerState<MetadataCompareView> {
           final gap = SizedBox(height: desktop ? 16 : 8);
           if (!wide) {
             final children = [
-              actions,
+              toolbar,
               gap,
               if (_loading) const LinearProgressIndicator(minHeight: 2),
               SizedBox(height: 450 * scale, child: preview),
@@ -281,7 +291,7 @@ class _MetadataCompareViewState extends ConsumerState<MetadataCompareView> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                actions,
+                toolbar,
                 gap,
                 if (_loading) const LinearProgressIndicator(minHeight: 2),
                 Expanded(

@@ -125,14 +125,22 @@ Future<void> _quarantineJournal(List<File> files) async {
 
 /// 在索引载入之前恢复。旧版没有日志，仅接纳目标缺失且验证完整的 JSON /
 /// PNG / 内容寻址 blob；已有正式文件优先，半截临时文件原样保留。
-Future<int> recoverPendingWrites(Directory root) async {
+Future<int> recoverPendingWrites(Directory root, {Directory? exclude}) async {
   if (!await root.exists()) return 0;
   var recovered = 0;
-  final files = await root
-      .list(recursive: true, followLinks: false)
-      .where((entry) => entry is File)
-      .cast<File>()
-      .toList();
+  final files = <File>[];
+  final pending = [root];
+  while (pending.isNotEmpty) {
+    final directory = pending.removeLast();
+    await for (final entry in directory.list(followLinks: false)) {
+      if (entry is Directory && entry.absolute.path != exclude?.absolute.path) {
+        pending.add(entry);
+      } else if (entry is File &&
+          (entry.path.endsWith('.pending') || entry.path.endsWith('.tmp'))) {
+        files.add(entry);
+      }
+    }
+  }
   for (final file in files.where((f) => f.path.endsWith('.pending'))) {
     try {
       if (await _recoverJournal(

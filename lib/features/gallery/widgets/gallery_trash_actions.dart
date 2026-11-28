@@ -73,7 +73,8 @@ Future<Set<String>> purgeGalleryTrash(
   if (!await confirmDialog(
         context,
         title: '彻底删除 ${present.length} 张作品？',
-        message: l10nNow.desktopPermanentlyDeleteTheOriginalsGenerationSettingsAndApp,
+        message: l10nNow
+            .desktopPermanentlyDeleteTheOriginalsGenerationSettingsAndApp,
         confirmLabel: '彻底删除',
       ) ||
       !context.mounted) {
@@ -93,7 +94,11 @@ Future<Set<String>> purgeGalleryTrash(
     return removed;
   } catch (_) {
     if (context.mounted) {
-      hintSnack(context, l10nNow.desktopCleanupIsIncompleteCheckYourDiskAndTry, icon: Icons.error_outline);
+      hintSnack(
+        context,
+        l10nNow.desktopCleanupIsIncompleteCheckYourDiskAndTry,
+        icon: Icons.error_outline,
+      );
     }
     return {};
   }
@@ -137,12 +142,22 @@ Future<void> toggleGalleryFavorite(BuildContext context, String id) async {
       .firstOrNull;
   if (image == null) return;
   final on = !image.favorite;
-  container.read(galleryProvider.notifier).setFavorite(id, on);
+  final temp = container.read(appStoresProvider).temporaryGallery;
+  final gallery = container.read(galleryProvider.notifier);
   try {
+    if (temp.contains(id)) {
+      await gallery.retainTemporary(id, favorite: on);
+    } else {
+      gallery.setFavorite(id, on);
+    }
     await container.read(appStoresProvider).gallery.flushIndex();
   } catch (_) {
     if (context.mounted) {
-      hintSnack(context, l10nNow.desktopCouldNotSaveFavoritesCheckYourDiskAnd, icon: Icons.error_outline);
+      hintSnack(
+        context,
+        l10nNow.desktopCouldNotSaveFavoritesCheckYourDiskAnd,
+        icon: Icons.error_outline,
+      );
     }
     return;
   }
@@ -155,7 +170,17 @@ Future<void> toggleGalleryFavorite(BuildContext context, String id) async {
     onAction: on
         ? null
         : () {
-            container.read(galleryProvider.notifier).setFavorite(id, true);
+            if (temp.contains(id)) {
+              unawaited(
+                gallery.retainTemporary(id, favorite: true).catchError((
+                  Object e,
+                ) {
+                  if (context.mounted) hintSnack(context, '恢复收藏失败：$e');
+                }),
+              );
+              return;
+            }
+            gallery.setFavorite(id, true);
             unawaited(
               container
                   .read(appStoresProvider)

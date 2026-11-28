@@ -1,32 +1,40 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-/// Shared desktop workspace for a prompt or a folded block's contents.
-/// Preserve the caller's provider scope so block edits stay in that session.
-Future<void> showPromptFullscreenDialog(
+import '../editor_state.dart';
+import '../prompt_studio.dart';
+
+/// Open a window-filling route above the creation page and its navigation.
+Future<void> openPromptStudio(
   BuildContext context, {
-  required WidgetBuilder builder,
+  String? charId,
+  String? sectionId,
+  String? foldName,
+  bool positive = true,
 }) {
-  final container = ProviderScope.containerOf(context);
+  final container = ProviderScope.containerOf(context, listen: false);
+  container.read(editorSessionsProvider).flushPending();
   FocusManager.instance.primaryFocus?.unfocus();
-  return showDialog<void>(
-    context: context,
-    builder: (context) {
-      final size = MediaQuery.sizeOf(context);
-      return UncontrolledProviderScope(
+  return Navigator.of(context, rootNavigator: true).push<void>(
+    MaterialPageRoute<void>(
+      fullscreenDialog: true,
+      builder: (_) => UncontrolledProviderScope(
         container: container,
-        child: Dialog(
-          key: const ValueKey('prompt-fullscreen-dialog'),
-          insetPadding: const EdgeInsets.all(24),
-          constraints: const BoxConstraints(),
-          clipBehavior: Clip.antiAlias,
-          child: SizedBox(
-            width: size.width - 48,
-            height: size.height - 48,
-            child: Builder(builder: builder),
+        child: ProviderScope(
+          overrides: [
+            editorProvider.overrideWith(
+              () => EditorNotifier(immediateWriteBack: true),
+            ),
+          ],
+          child: PromptStudio(
+            key: const ValueKey('prompt-fullscreen-dialog'),
+            charId: charId,
+            sectionId: sectionId,
+            foldName: foldName,
+            positive: positive,
           ),
         ),
-      );
-    },
+      ),
+    ),
   );
 }

@@ -24,11 +24,27 @@ class PromptFoldLink {
     this.sourceEntryId,
     this.temporaryCategory,
     this.temporaryIcon,
+    this.positiveWeightOrigin = '',
+    this.negativeWeightOrigin = '',
   });
 
   static final _random = math.Random.secure();
   factory PromptFoldLink.forEntry(
     String sourceEntryId, {
+    String positiveName = '',
+    String positiveBody = '',
+    String negativeName = '',
+    String negativeBody = '',
+  }) => PromptFoldLink.placed(
+    sourceEntryId: sourceEntryId,
+    positiveName: positiveName,
+    positiveBody: positiveBody,
+    negativeName: negativeName,
+    negativeBody: negativeBody,
+  );
+
+  factory PromptFoldLink.placed({
+    String? sourceEntryId,
     String positiveName = '',
     String positiveBody = '',
     String negativeName = '',
@@ -50,6 +66,11 @@ class PromptFoldLink {
   final String? temporaryCategory;
   final String? temporaryIcon;
   final String positiveName, positiveBody, negativeName, negativeBody;
+
+  /// Original member weights while the studio applies a whole-block override.
+  final String positiveWeightOrigin, negativeWeightOrigin;
+  bool get hasWeightOrigin =>
+      positiveWeightOrigin.isNotEmpty || negativeWeightOrigin.isNotEmpty;
   bool get paired => positiveName.isNotEmpty && negativeName.isNotEmpty;
 
   PromptFoldLink copyWith({
@@ -59,7 +80,19 @@ class PromptFoldLink {
     String? positiveBody,
     String? negativeName,
     String? negativeBody,
+    String? positiveWeightOrigin,
+    String? negativeWeightOrigin,
   }) => PromptFoldLink(
+    positiveWeightOrigin:
+        positiveWeightOrigin ??
+        (positiveBody == null || positiveBody == this.positiveBody
+            ? this.positiveWeightOrigin
+            : ''),
+    negativeWeightOrigin:
+        negativeWeightOrigin ??
+        (negativeBody == null || negativeBody == this.negativeBody
+            ? this.negativeWeightOrigin
+            : ''),
     id: id ?? this.id,
     sourceEntryId: sourceEntryId ?? this.sourceEntryId,
     temporaryCategory: sourceEntryId == null ? temporaryCategory : null,
@@ -75,6 +108,10 @@ class PromptFoldLink {
     'sourceEntryId': ?sourceEntryId,
     'temporaryCategory': ?temporaryCategory,
     'temporaryIcon': ?temporaryIcon,
+    if (positiveWeightOrigin.isNotEmpty)
+      'positiveWeightOrigin': positiveWeightOrigin,
+    if (negativeWeightOrigin.isNotEmpty)
+      'negativeWeightOrigin': negativeWeightOrigin,
     'positiveName': positiveName,
     'positiveBody': positiveBody,
     'negativeName': negativeName,
@@ -98,9 +135,17 @@ class PromptFoldLink {
                 (nn.isNotEmpty || nb.isEmpty) &&
                 ((pn.isNotEmpty && nn.isNotEmpty) ||
                     item['sourceEntryId'] is String ||
-                    item['temporaryCategory'] is String))
+                    item['temporaryCategory'] is String ||
+                    item['positiveWeightOrigin'] is String ||
+                    item['negativeWeightOrigin'] is String))
           PromptFoldLink(
             id: id,
+            positiveWeightOrigin: item['positiveWeightOrigin'] is String
+                ? item['positiveWeightOrigin'] as String
+                : '',
+            negativeWeightOrigin: item['negativeWeightOrigin'] is String
+                ? item['negativeWeightOrigin'] as String
+                : '',
             temporaryIcon: item['temporaryIcon'] is String
                 ? item['temporaryIcon'] as String
                 : null,
@@ -124,6 +169,8 @@ class PromptFoldLink {
       sourceEntryId == other.sourceEntryId &&
       temporaryCategory == other.temporaryCategory &&
       temporaryIcon == other.temporaryIcon &&
+      positiveWeightOrigin == other.positiveWeightOrigin &&
+      negativeWeightOrigin == other.negativeWeightOrigin &&
       positiveName == other.positiveName &&
       positiveBody == other.positiveBody &&
       negativeName == other.negativeName &&
@@ -135,6 +182,8 @@ class PromptFoldLink {
     sourceEntryId,
     temporaryCategory,
     temporaryIcon,
+    positiveWeightOrigin,
+    negativeWeightOrigin,
     positiveName,
     positiveBody,
     negativeName,
@@ -163,6 +212,7 @@ List<PromptFoldLink> validPromptFoldLinks(
       .where(
         (link) =>
             (link.paired ||
+                link.hasWeightOrigin ||
                 ((link.sourceEntryId?.isNotEmpty == true ||
                         link.temporaryCategory?.isNotEmpty == true) &&
                     (link.positiveName.isNotEmpty ||
@@ -1149,6 +1199,75 @@ int tokIndexAt(String text, int offset, [List<Tok>? toks]) {
   return -1;
 }
 
+/// Name prefix to the left of the caret, excluding weight/disable markers.
+String completionWordAt(String text, int caret) {
+  final tokens = parseToks(text);
+  final i = tokIndexAt(text, caret, tokens);
+  if (i < 0) return '';
+  final t = tokens[i];
+  return text.substring(t.nameStart, caret.clamp(t.nameStart, t.nameEnd));
+}
+
+(String, int) withPromptTrailingComma(
+  String text,
+  int at, {
+  required bool autoComma,
+}) {
+  if (!autoComma) return (text, at);
+  var k = at;
+  while (k < text.length && (text[k] == ' ' || text[k] == '\t')) {
+    k++;
+  }
+  final sep =
+      k < text.length && (text[k] == ',' || text[k] == '，' || text[k] == '\n');
+  if (sep) return (text, at);
+  return (text.replaceRange(at, at, ', '), at + 2);
+}
+
+/// Replace a typed prefix while retaining the surrounding prompt syntax.
+(String, int) completePromptAt(
+  String text,
+  int caret,
+  String Function(bool plainSlot) insert, {
+  required bool autoComma,
+}) {
+  final off = caret.clamp(0, text.length);
+  final toks = parseToks(text);
+  final i = tokIndexAt(text, off, toks);
+  if (i < 0) {
+    // 光标在逗号/空隙上:落点干净
+    final ins = insert(true);
+    final replaced = text.replaceRange(off, off, ins);
+    return withPromptTrailingComma(
+      replaced,
+      off + ins.length,
+      autoComma: autoComma,
+    );
+  }
+  final t = toks[i];
+  // 光标右侧的名字残余:两 tag 间插入时后一个 tag 被并入了当前 token,
+  // 拆开成「ins, 后一tag」;否则(残余为空)= 常规整词替换 + 尾部补逗号。
+  final cut = off.clamp(t.nameStart, t.nameEnd);
+  final rightName = text.substring(cut, t.nameEnd).trimLeft();
+  if (rightName.isEmpty) {
+    // 整枚替换:被替换的词条本身没有权重/禁用语法时,落点才算干净
+    final ins = insert(t.segStart == t.nameStart && t.segEnd == t.nameEnd);
+    final newText = text.replaceRange(t.nameStart, t.nameEnd, ins);
+    final end = t.segEnd + (ins.length - (t.nameEnd - t.nameStart));
+    return withPromptTrailingComma(newText, end, autoComma: autoComma);
+  } else {
+    // 拆分现有 token:落点夹在半截词里,不折
+    final ins = insert(false);
+    final newText = text.replaceRange(
+      t.nameStart,
+      t.nameEnd,
+      '$ins, $rightName',
+    );
+    // 光标落到「ins, 」之后、后一 tag 之前,便于继续插入
+    return (newText, t.nameStart + ins.length + 2);
+  }
+}
+
 /// 倍率显示:去掉尾随 0(1.30→"1.3"、1.00→"1"、1.05→"1.05")
 String fmtMult(double m) {
   var s = m.toStringAsFixed(2);
@@ -1949,6 +2068,39 @@ List<FoldRef> parseFoldRefs(String text, Map<String, String> bodies) => [
   for (final m in _foldRefRe.allMatches(text))
     if (bodies.containsKey(m.group(1)!)) FoldRef(m.start, m.end, m.group(1)!),
 ];
+
+/// A collapsed block is one editable unit, including its hidden delimiters.
+int snapFoldCaret(String text, Map<String, String> bodies, int offset) {
+  if (offset < 0 || bodies.isEmpty) return offset;
+  for (final fold in parseFoldRefs(text, bodies)) {
+    if (offset > fold.start && offset < fold.end) {
+      return offset - fold.start < fold.end - offset ? fold.start : fold.end;
+    }
+  }
+  return offset;
+}
+
+(String, int)? deleteFoldOnSingleEdit(
+  String previous,
+  String next,
+  int offset,
+  Map<String, String> bodies,
+) {
+  if (bodies.isEmpty ||
+      next.length != previous.length - 1 ||
+      offset < 0 ||
+      offset >= previous.length) {
+    return null;
+  }
+  for (final fold in parseFoldRefs(previous, bodies)) {
+    if (offset >= fold.start &&
+        offset < fold.end &&
+        previous.replaceRange(offset, offset + 1, '') == next) {
+      return deleteFoldRef(previous, fold);
+    }
+  }
+  return null;
+}
 
 /// 草稿(完整语法)→ (正文, 折叠表)。完整折叠 `<#名字: 内容#>` 收成占位符,
 /// 内容进表;重名且内容不同 → 追加「 2」「 3」去重(名字是表键,必须唯一)。

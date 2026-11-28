@@ -550,47 +550,38 @@ class _CodexCatalogState extends ConsumerState<CodexCatalog> {
   Widget _toolbar() => LayoutBuilder(
     builder: (context, box) {
       final t = context.l10n;
-      final views = Material(
-        color: context.scheme.surfaceContainerHigh,
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            for (final mode in _View.values)
-              IconButton(
-                key: ValueKey('codex-view-${mode.name}'),
-                isSelected: _view == mode,
-                tooltip: [
-                  t.codexGalleryView,
-                  t.codexGroupedView,
-                  t.codexListView,
+      final views = SegmentedButton<_View>(
+        segments: [
+          for (final mode in _View.values)
+            ButtonSegment(
+              value: mode,
+              tooltip: [
+                t.codexGalleryView,
+                t.codexGroupedView,
+                t.codexListView,
+              ][mode.index],
+              icon: Icon(
+                [
+                  Icons.grid_view_outlined,
+                  Icons.view_agenda_outlined,
+                  Icons.view_list_outlined,
                 ][mode.index],
-                icon: Icon(
-                  [
-                    Icons.grid_view_outlined,
-                    Icons.view_agenda_outlined,
-                    Icons.view_list_outlined,
-                  ][mode.index],
-                  size: 18,
-                ),
-                style: IconButton.styleFrom(
-                  fixedSize: const Size.square(40),
-                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                  padding: EdgeInsets.zero,
-                  shape: const RoundedRectangleBorder(),
-                  backgroundColor: _view == mode
-                      ? context.scheme.primaryContainer
-                      : null,
-                  foregroundColor: _view == mode
-                      ? context.scheme.onPrimaryContainer
-                      : null,
-                ),
-                onPressed: () => setState(() {
-                  _view = mode;
-                  _selected = null;
-                }),
+                key: ValueKey('codex-view-${mode.name}'),
+                size: 18,
               ),
-          ],
+            ),
+        ],
+        selected: {_view},
+        showSelectedIcon: false,
+        style: SegmentedButton.styleFrom(
+          minimumSize: const Size(40, 32),
+          padding: const EdgeInsets.symmetric(horizontal: 10),
+          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
         ),
+        onSelectionChanged: (selected) => setState(() {
+          _view = selected.single;
+          _selected = null;
+        }),
       );
       final controls = Wrap(
         spacing: 8,

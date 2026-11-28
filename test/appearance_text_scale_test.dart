@@ -141,6 +141,28 @@ void main() {
     await tester.pumpAndSettle();
   }
 
+  Future<GlobalKey> mountAppearance(WidgetTester tester) async {
+    final capture = GlobalKey();
+    await mount(
+      tester,
+      home: RepaintBoundary(
+        key: capture,
+        child: Builder(
+          builder: (context) {
+            final theme = Theme.of(context);
+            return Theme(
+              data: theme.copyWith(
+                textTheme: theme.textTheme.apply(fontFamily: 'Microsoft YaHei'),
+              ),
+              child: const AppearancePage(),
+            );
+          },
+        ),
+      ),
+    );
+    return capture;
+  }
+
   testWidgets(
     'font setting updates the app, keeps drafts and survives reload',
     (tester) async {
@@ -156,7 +178,15 @@ void main() {
       expect(container.read(themeSettingsProvider).textScale, 1.4);
       expect(tester.getSize(key('outside-text')).height, greaterThan(before));
       expect(
-        tester.widget<EditableText>(find.byType(EditableText)).controller.text,
+        tester
+            .widget<EditableText>(
+              find.descendant(
+                of: key('draft'),
+                matching: find.byType(EditableText),
+              ),
+            )
+            .controller
+            .text,
         'cat, outdoors',
       );
       final restored = await reloadTheme(tester);
@@ -225,6 +255,52 @@ void main() {
   );
 
   testWidgets(
+    'prompt completion placement uses a two-way control and survives restart',
+    (tester) async {
+      final capture = await mountAppearance(tester);
+      final setting = key('appearance-completion-placement');
+      await tester.scrollUntilVisible(
+        setting,
+        250,
+        scrollable: find
+            .descendant(
+              of: find.byType(AppearancePage),
+              matching: find.byType(Scrollable),
+            )
+            .first,
+      );
+      await tester.pumpAndSettle();
+      expect(tester.widget<SegmentedButton<bool>>(setting).selected, {false});
+      await tester.tap(
+        find.descendant(of: setting, matching: find.text('固定侧面')),
+      );
+      await tester.pumpAndSettle();
+      expect((await reloadTheme(tester)).completionFixedToSide, isTrue);
+      await captureDesktop(tester, capture, 'sidebar-completion-setting');
+      await tester.tap(find.descendant(of: setting, matching: find.text('跟随')));
+      await tester.pumpAndSettle();
+      expect((await reloadTheme(tester)).completionFixedToSide, isFalse);
+      expect(ThemeSettings.fromJson({}).completionFixedToSide, isFalse);
+      final studio = key('appearance-studio-completion-placement');
+      await tester.ensureVisible(studio);
+      await tester.pumpAndSettle();
+      expect(tester.widget<SegmentedButton<bool>>(studio).selected, {true});
+      await tester.tap(find.descendant(of: studio, matching: find.text('跟随')));
+      await tester.pumpAndSettle();
+      expect((await reloadTheme(tester)).studioCompletionFixedToSide, isFalse);
+      await tester.tap(
+        find.descendant(of: setting, matching: find.text('固定侧面')),
+      );
+      await tester.pumpAndSettle();
+      expect((await reloadTheme(tester)).completionFixedToSide, isTrue);
+      expect((await reloadTheme(tester)).studioCompletionFixedToSide, isFalse);
+      expect(ThemeSettings.fromJson({}).studioCompletionFixedToSide, isTrue);
+      await captureDesktop(tester, capture, 'studio-completion-settings');
+      await tester.pumpWidget(const SizedBox());
+    },
+  );
+
+  testWidgets(
     'auto-fold after saving an inspiration persists from the creation settings',
     (tester) async {
       await mount(tester);
@@ -258,26 +334,7 @@ void main() {
   testWidgets(
     'album drag settings align with adjacent rows and keep their control usable when narrow',
     (tester) async {
-      final capture = GlobalKey();
-      await mount(
-        tester,
-        home: RepaintBoundary(
-          key: capture,
-          child: Builder(
-            builder: (context) {
-              final theme = Theme.of(context);
-              return Theme(
-                data: theme.copyWith(
-                  textTheme: theme.textTheme.apply(
-                    fontFamily: 'Microsoft YaHei',
-                  ),
-                ),
-                child: const AppearancePage(),
-              );
-            },
-          ),
-        ),
-      );
+      final capture = await mountAppearance(tester);
       final controls = key('gallery-drag-feel');
       Future<void> revealControl() async {
         await tester.scrollUntilVisible(

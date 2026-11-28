@@ -412,6 +412,7 @@ class _InspirationPageState extends ConsumerState<InspirationPage>
           lib.of(_cat),
           ref.watch(botSessionProvider).value?.botUserId,
           ref.watch(visiblePublicTagsProvider(_cat)).value,
+          personalize: (e) => lib.publicCard(e, null),
         )
       : lib.of(_cat);
 
@@ -469,9 +470,9 @@ class _InspirationPageState extends ConsumerState<InspirationPage>
     final list = <TagEntry>[];
     for (final remote in all) {
       final copy = findCopy?.call(remote);
-      final entry = copy == null
+      final entry = findCopy == null
           ? remote
-          : remote.copyWith(tags: copy.tags, favorite: copy.isFavorite);
+          : library.publicCard(remote, copy);
       if (!(_matches(entry, q) ||
               (widget.manageBlocks &&
                   (entry.publicId?.toLowerCase().contains(q) ?? false))) ||
@@ -602,7 +603,7 @@ class _InspirationPageState extends ConsumerState<InspirationPage>
   }
 
   /// 角色「主提示词」/ 画风/场景/其他「确认选择」:先为每个条目新建命名分区,
-  /// 再完整写入正负向(同提示词卡头的「灵感库」)。
+  /// 再完整写入正负向。
   Future<void> _confirmToPrompt(
     TagLibraryState lib, [
     List<TagEntry>? external,
@@ -1665,6 +1666,7 @@ class _InspirationPageState extends ConsumerState<InspirationPage>
                       lib.of(_cat),
                       ref.read(botSessionProvider).value?.botUserId,
                       pub,
+                      personalize: (e) => lib.publicCard(e, null),
                     )
                   : lib.of(_cat),
               search.trim().toLowerCase(),
@@ -2143,12 +2145,6 @@ class _InspirationPageState extends ConsumerState<InspirationPage>
                             onSelect: select,
                             onReveal: () =>
                                 setState(() => _revealed.add(_revealKey(e))),
-                            onSecondaryTapDown: library && !widget.manageBlocks
-                                ? (details) => _showSelectionMenu(
-                                    details.globalPosition,
-                                    e,
-                                  )
-                                : null,
                             onFavorite: widget.manageBlocks
                                 ? null
                                 : () => _toggleFavorite(e, isPublic),
@@ -2391,28 +2387,38 @@ class _InspirationPageState extends ConsumerState<InspirationPage>
   }
 
   /// 批量贴标签:选一个标签(可现场新建)并入所有选中条目。
-  Future<void> _batchTag(TagLibraryState lib) async {
-    final entries = _resolveSelected(lib);
-    if (entries.isEmpty) return;
-    final tag = await pickTagSheet(context, ref, _cat);
-    if (tag == null || !mounted) return;
-    await _runBatch(() async {
-      final notifier = ref.read(tagLibraryProvider.notifier);
-      await notifier.addPoolTag(_cat, tag);
-      var n = 0;
-      for (final e in entries) {
-        if (e.tags.contains(tag)) continue;
-        await notifier.upsert(e.copyWith(tags: [...e.tags, tag]..sort()));
-        n++;
-      }
-      if (mounted) {
-        hintSnack(context, '已给 $n 项加上「$tag」', icon: Icons.sell_outlined);
-      }
-    });
+  Future<void> _batchTag(TagLibraryState lib) {
+    final localIds = {
+      for (final e in lib.of(_cat))
+        if (_sel.contains(e.id)) e.id,
+    };
+    final publicEntries = _def.hasPublic
+        ? ref.read(visiblePublicTagsProvider(_cat)).value
+        : null;
+    final publicCards = [
+      for (final e in publicEntries ?? const <TagEntry>[])
+        if (_sel.contains(e.id) && !localIds.contains(e.id)) e,
+    ];
+    if (localIds.isEmpty && publicCards.isEmpty) return Future.value();
+    return _runBatch(
+      () => tagInspirationSelection(
+        context,
+        ref,
+        _cat,
+        localIds: localIds,
+        publicCards: publicCards,
+      ),
+    );
   }
 
-  Future<void> _batchDelete(TagLibraryState lib) =>
-      _deleteEntries(_resolveSelected(lib));
+  Future<void> _batchDelete(TagLibraryState lib) {
+    final mine = mergeMineTags(
+      lib.of(_cat),
+      ref.read(botSessionProvider).value?.botUserId,
+      _def.hasPublic ? ref.read(visiblePublicTagsProvider(_cat)).value : null,
+    );
+    return _deleteEntries(mine.where((e) => _sel.contains(e.id)).toList());
+  }
 
   /// 删除条目:已发布的(created + publicId)连同公共库条目一并删。
   ///
@@ -2537,92 +2543,6 @@ class _InspirationPageState extends ConsumerState<InspirationPage>
 
   // ---- 底部操作条 ----
 
-  List<PopupMenuEntry<String>> _desktopSelectionItems() {
-    final model = ref.read(generateProvider).params.model;
-    final modules =
-        ref.read(genModulesProvider).value ?? const GenModuleSettings();
-    final public = _def.hasPublic && _tabIndex == 1;
-    return [
-      PopupMenuItem(enabled: false, child: Text('已选择 ${_sel.length} 项')),
-      const PopupMenuDivider(),
-      const PopupMenuItem(
-        value: 'prompt',
-        child: _MenuRow(Icons.bolt_outlined, '主提示词'),
-      ),
-      if (_cat == TagCategory.character &&
-          modules.isVisibleFor(GenModule.character, model))
-        const PopupMenuItem(
-          value: 'characters',
-          child: _MenuRow(Icons.person_add_alt, '加入角色'),
-        ),
-      if (public)
-        const PopupMenuItem(
-          value: 'collect',
-          child: _MenuRow(Icons.favorite_border, '收藏'),
-        )
-      else ...[
-        const PopupMenuItem(
-          value: 'tags',
-          child: _MenuRow(Icons.sell_outlined, '标签'),
-        ),
-        const PopupMenuItem(
-          value: 'delete',
-          child: _MenuRow(Icons.delete_outline, '删除', danger: true),
-        ),
-      ],
-      const PopupMenuDivider(),
-      const PopupMenuItem(
-        value: 'clear',
-        child: _MenuRow(Icons.deselect, '取消选择'),
-      ),
-    ];
-  }
-
-  Future<void> _desktopSelectionAction(String action) async {
-    if (_busy) return;
-    final lib = ref.read(tagLibraryProvider).value;
-    if (lib == null) return;
-    switch (action) {
-      case 'prompt':
-        await _confirmToPrompt(lib);
-      case 'characters':
-        await _confirmAsCharacters(lib);
-      case 'collect':
-        await _batchCollect(lib);
-      case 'tags':
-        await _batchTag(lib);
-      case 'delete':
-        await _batchDelete(lib);
-      case 'clear':
-        setState(() => _sel.clear());
-    }
-  }
-
-  Future<void> _showSelectionMenu(Offset position, TagEntry entry) async {
-    if (_busy) return;
-    // Right-clicking a selected card keeps the whole selection. A different
-    // card becomes the new selection, matching desktop file browsers.
-    if (!_sel.contains(entry.id)) {
-      setState(() {
-        _sel
-          ..clear()
-          ..add(entry.id);
-      });
-    }
-    final overlay =
-        Navigator.of(context).overlay!.context.findRenderObject()! as RenderBox;
-    final point = overlay.globalToLocal(position);
-    final action = await showMenu<String>(
-      context: context,
-      position: RelativeRect.fromRect(
-        Rect.fromLTWH(point.dx, point.dy, 0, 0),
-        Offset.zero & overlay.size,
-      ),
-      items: _desktopSelectionItems(),
-    );
-    if (mounted && action != null) await _desktopSelectionAction(action);
-  }
-
   Widget _desktopSelectionBar(TagLibraryState lib) =>
       DesktopInspirationSelectionBar(
         count: _sel.length,
@@ -2632,24 +2552,10 @@ class _InspirationPageState extends ConsumerState<InspirationPage>
             ? () => _confirmAsCharacters(lib)
             : null,
         onClear: () => setState(_sel.clear),
-        menu: PopupMenuButton<String>(
-          key: const ValueKey('inspiration-selection-menu'),
-          tooltip: l10nNow.desktopBatchActionsOrRightClickACard,
-          enabled: !_busy,
-          onSelected: _desktopSelectionAction,
-          itemBuilder: (_) => _desktopSelectionItems(),
-          child: Padding(
-            padding: EdgeInsets.symmetric(horizontal: 8, vertical: 10),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(l10nNow.desktopMoreActions),
-                SizedBox(width: 4),
-                Icon(Icons.expand_more, size: 18),
-              ],
-            ),
-          ),
-        ),
+        onTag: () => _batchTag(lib),
+        onDelete: _def.hasPublic && _tabIndex == 1
+            ? null
+            : () => _batchDelete(lib),
       );
 
   /// 角色模块对当前模型是否可见 —— 决定「加入角色」这个去处存不存在。

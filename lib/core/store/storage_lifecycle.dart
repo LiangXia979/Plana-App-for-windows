@@ -10,19 +10,16 @@ import 'app_stores.dart';
 AppLifecycleListener createStorageLifecycleListener(
   AppStores stores, {
   VoidCallback? beforeFlush,
-}) => AppLifecycleListener(
-  onStateChange: (state) {
-    if (state == AppLifecycleState.inactive ||
-        state == AppLifecycleState.paused) {
-      beforeFlush?.call();
-      stores.flushNow();
-    }
-  },
-  onExitRequested: () async {
-    RuntimeDiagnostics.current?.event('exit-requested');
+  Future<bool> Function()? beforeExit,
+}) {
+  Future<AppExitResponse>? pending;
+  Future<AppExitResponse> exitRequest() async {
     try {
       beforeFlush?.call();
       await stores.flushForExit();
+      if (beforeExit != null && !await beforeExit()) {
+        return AppExitResponse.cancel;
+      }
       RuntimeDiagnostics.current?.event('exit-storage-flushed');
       return AppExitResponse.exit;
     } catch (error, stack) {
@@ -30,5 +27,17 @@ AppLifecycleListener createStorageLifecycleListener(
       stores.reportSaveError('保存未完成，应用已保留打开，请检查磁盘后重试');
       return AppExitResponse.cancel;
     }
-  },
-);
+  }
+
+  return AppLifecycleListener(
+    onStateChange: (state) {
+      if (state == AppLifecycleState.inactive ||
+          state == AppLifecycleState.paused) {
+        beforeFlush?.call();
+        stores.flushNow();
+      }
+    },
+    onExitRequested: () =>
+        pending ??= exitRequest().whenComplete(() => pending = null),
+  );
+}

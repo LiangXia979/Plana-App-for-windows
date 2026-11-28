@@ -245,26 +245,21 @@ void main() {
     await tester.pumpAndSettle();
   }
 
-  testWidgets('法典三个视图平铺为连续方格，点击边角也能切换', (tester) async {
+  testWidgets('法典的三个布局共用一个圆角分段按钮', (tester) async {
     await mount(tester);
-    Rect? previous;
+    final group = find.ancestor(
+      of: key('codex-view-gallery'),
+      matching: find.byWidgetPredicate((w) => w is SegmentedButton),
+    );
     for (final mode in ['gallery', 'grouped', 'list']) {
-      final finder = key('codex-view-$mode');
-      final rect = tester.getRect(finder);
-      expect(rect.size, const Size.square(40));
-      if (previous != null) expect(rect.topLeft, previous.topRight);
-      await tester.tapAt(rect.topLeft + const Offset(2, 2));
+      final control = key('codex-view-$mode');
+      await tester.tap(control);
       await tester.pumpAndSettle();
-      final button = tester.widget<IconButton>(finder);
-      expect(button.isSelected, isTrue);
-      final shape = button.style!.shape!.resolve({WidgetState.selected});
-      expect(
-        (shape! as RoundedRectangleBorder).borderRadius,
-        BorderRadius.zero,
-      );
-      previous = rect;
+      final segmented = tester.widget<SegmentedButton<dynamic>>(group);
+      expect((segmented.selected.single as Enum).name, mode);
+      expect(segmented.showSelectedIcon, isFalse);
     }
-    await captureDesktop(tester, capture, 'codex-square-view-switch');
+    await captureDesktop(tester, capture, 'codex-rounded-view-switch');
     await finish(tester);
   });
 

@@ -98,6 +98,8 @@ class ThemeSettings {
     this.compactCharCards = false,
     this.collapsiblePromptCards = true,
     this.foldAfterInspirationSave = true,
+    this.completionFixedToSide = false,
+    this.studioCompletionFixedToSide = true,
     this.codexHoverPreview = true,
     this.galleryDragFeel = GalleryDragFeel.smooth,
     this.inspirationRowSnap = false,
@@ -138,6 +140,8 @@ class ThemeSettings {
   /// 桌面主体、分区和角色提示词卡允许手动折叠，默认开启。
   final bool collapsiblePromptCards;
   final bool foldAfterInspirationSave;
+  final bool completionFixedToSide;
+  final bool studioCompletionFixedToSide;
   final bool codexHoverPreview;
   final GalleryDragFeel galleryDragFeel;
   final bool inspirationRowSnap;
@@ -159,6 +163,8 @@ class ThemeSettings {
     bool? compactCharCards,
     bool? collapsiblePromptCards,
     bool? foldAfterInspirationSave,
+    bool? completionFixedToSide,
+    bool? studioCompletionFixedToSide,
     bool? codexHoverPreview,
     GalleryDragFeel? galleryDragFeel,
     bool? inspirationRowSnap,
@@ -178,6 +184,9 @@ class ThemeSettings {
         collapsiblePromptCards ?? this.collapsiblePromptCards,
     foldAfterInspirationSave:
         foldAfterInspirationSave ?? this.foldAfterInspirationSave,
+    completionFixedToSide: completionFixedToSide ?? this.completionFixedToSide,
+    studioCompletionFixedToSide:
+        studioCompletionFixedToSide ?? this.studioCompletionFixedToSide,
     codexHoverPreview: codexHoverPreview ?? this.codexHoverPreview,
     galleryDragFeel: galleryDragFeel ?? this.galleryDragFeel,
     inspirationRowSnap: inspirationRowSnap ?? this.inspirationRowSnap,
@@ -200,6 +209,8 @@ class ThemeSettings {
     compactCharCards: j['compactCharCards'] == true,
     collapsiblePromptCards: j['collapsiblePromptCards'] != false,
     foldAfterInspirationSave: j['foldAfterInspirationSave'] != false,
+    completionFixedToSide: j['completionFixedToSide'] == true,
+    studioCompletionFixedToSide: j['studioCompletionFixedToSide'] != false,
     codexHoverPreview: j['codexHoverPreview'] != false,
     galleryDragFeel:
         GalleryDragFeel.values.asNameMap()[j['galleryDragFeel']] ??
@@ -220,6 +231,8 @@ class ThemeSettings {
     'compactCharCards': compactCharCards,
     'collapsiblePromptCards': collapsiblePromptCards,
     'foldAfterInspirationSave': foldAfterInspirationSave,
+    'completionFixedToSide': completionFixedToSide,
+    'studioCompletionFixedToSide': studioCompletionFixedToSide,
     'codexHoverPreview': codexHoverPreview,
     'galleryDragFeel': galleryDragFeel.name,
     'inspirationRowSnap': inspirationRowSnap,
@@ -240,6 +253,8 @@ class ThemeSettings {
       other.compactCharCards == compactCharCards &&
       other.collapsiblePromptCards == collapsiblePromptCards &&
       other.foldAfterInspirationSave == foldAfterInspirationSave &&
+      other.completionFixedToSide == completionFixedToSide &&
+      other.studioCompletionFixedToSide == studioCompletionFixedToSide &&
       other.codexHoverPreview == codexHoverPreview &&
       other.galleryDragFeel == galleryDragFeel &&
       other.inspirationRowSnap == inspirationRowSnap &&
@@ -258,6 +273,8 @@ class ThemeSettings {
     compactCharCards,
     collapsiblePromptCards,
     foldAfterInspirationSave,
+    completionFixedToSide,
+    studioCompletionFixedToSide,
     codexHoverPreview,
     galleryDragFeel,
     inspirationRowSnap,

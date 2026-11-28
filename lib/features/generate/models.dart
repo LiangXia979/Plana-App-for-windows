@@ -45,7 +45,7 @@ class CharacterPrompt {
   final String negative;
 
   /// 头像:从灵感角色库选来时带上的预览图(http URL 或本机文件路径)。
-  /// 只在角色卡上显示,不进载荷;null = 没有(手写 / AI 写的 / 导入的角色)。
+  /// 只在角色卡上显示。外部库和旧 AI 画布也可在显示时按来源查封面。
   final String? avatar;
 
   /// 从灵感角色库选来时的条目 id,不进载荷;图库按角色归类认它。
@@ -523,6 +523,8 @@ const models = <String>[
 /// 已支持 V5 载荷(仍用 v4_prompt,仅 params_version 3→4、centers 放开连续),
 /// bot 线载荷由后端 convert 构造 —— 弹层两线都列(top_bar `nai5: true`)。
 const nai5Models = <String>['NAI 5.0 Full', 'NAI 5.0 Curated'];
+
+const nai5FullMediumLabel = 'NAI 5.0 Full Medium';
 
 bool isNai5Model(String displayModel) => displayModel.startsWith('NAI 5.0');
 

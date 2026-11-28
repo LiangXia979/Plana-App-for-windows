@@ -125,9 +125,7 @@ class _CharRefCardState extends ConsumerState<CharRefCard> {
 
     final card = SectionCard(
       icon: Icons.face_retouching_natural,
-      title: v5
-          ? context.l10n.v5PreciseReference
-          : context.l10n.preciseReference,
+      title: context.l10n.preciseReference,
       reorderIndex: widget.reorderIndex,
       badge: refs.isEmpty ? null : CountBadge('${refs.length}'),
       actions: [
@@ -157,7 +155,7 @@ class _CharRefCardState extends ConsumerState<CharRefCard> {
             const SizedBox(height: 12),
           ],
           ReferenceStrip(
-            previewTitle: v5 ? context.l10n.v5PreciseReference : '角色参考图',
+            previewTitle: context.l10n.preciseReference,
             items: [
               for (final r in refs)
                 (id: r.id, image: r.image, enabled: r.enabled),

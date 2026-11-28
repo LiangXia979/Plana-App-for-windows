@@ -12,6 +12,132 @@ import '../editor_models.dart';
 import '../../../core/util/haptics.dart';
 import '../../../l10n/l10n.dart';
 
+/// 跳系统浏览器开 Danbooru wiki(web openDanbooru 同款,空格转下划线)。
+Future<void> openTagWiki(BuildContext context, String name) async {
+  final tag = name.trim().replaceAll(' ', '_');
+  final uri = Uri.https('danbooru.donmai.us', '/wiki_pages/$tag');
+  var ok = false;
+  try {
+    ok = await launchUrl(uri, mode: LaunchMode.externalApplication);
+  } catch (_) {}
+  if (!ok && context.mounted) {
+    hintSnack(context, context.l10n.cantOpenBrowser, icon: Icons.error_outline);
+  }
+}
+
+class DesktopTagAction extends StatelessWidget {
+  const DesktopTagAction({
+    super.key,
+    required this.icon,
+    required this.label,
+    required this.onPressed,
+    this.showLabel = false,
+    this.color,
+  });
+  final IconData icon;
+  final String label;
+  final VoidCallback? onPressed;
+  final bool showLabel;
+  final Color? color;
+
+  @override
+  Widget build(BuildContext context) {
+    if (showLabel) {
+      return TextButton.icon(
+        style: TextButton.styleFrom(
+          foregroundColor: color ?? context.scheme.onSurfaceVariant,
+          visualDensity: VisualDensity.compact,
+          minimumSize: const Size(0, 28),
+          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+          padding: const EdgeInsets.symmetric(horizontal: 6),
+        ),
+        onPressed: onPressed,
+        icon: Icon(icon, size: 15),
+        label: Text(label),
+      );
+    }
+    return SizedBox.square(
+      dimension: 28,
+      child: IconButton(
+        tooltip: label,
+        color: color ?? context.scheme.onSurfaceVariant,
+        onPressed: onPressed,
+        constraints: const BoxConstraints.tightFor(width: 28, height: 28),
+        padding: EdgeInsets.zero,
+        iconSize: 16,
+        icon: Icon(icon),
+      ),
+    );
+  }
+}
+
+class DesktopWeightControl extends StatelessWidget {
+  const DesktopWeightControl({
+    super.key,
+    required this.multiplier,
+    required this.onStep,
+    this.enabled = true,
+    this.prefix = '',
+    this.expanded = false,
+    this.mixed = false,
+  });
+  final double multiplier;
+  final ValueChanged<bool> onStep;
+  final bool enabled, mixed, expanded;
+  final String prefix;
+
+  @override
+  Widget build(BuildContext context) {
+    Widget step(bool up) => Tooltip(
+      message: up
+          ? context.l10n.increaseTagWeight
+          : context.l10n.decreaseTagWeight,
+      child: RepeatBtn(
+        icon: up ? Icons.add : Icons.remove,
+        enabled: enabled,
+        size: 26,
+        plain: true,
+        step: () => onStep(up),
+      ),
+    );
+    final readout = Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 2),
+      child: Text(
+        '$prefix×${mixed ? '—' : fmtMult(multiplier)}',
+        textAlign: TextAlign.center,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: context.texts.labelMedium?.copyWith(fontWeight: FontWeight.w700),
+      ),
+    );
+    final border = BorderSide(color: context.scheme.outlineVariant);
+    return DecoratedBox(
+      decoration: ShapeDecoration(
+        shape: expanded
+            ? RoundedRectangleBorder(
+                side: border,
+                borderRadius: BorderRadius.circular(8),
+              )
+            : StadiumBorder(side: border),
+      ),
+      child: Row(
+        mainAxisSize: expanded ? MainAxisSize.max : MainAxisSize.min,
+        children: [
+          step(false),
+          if (expanded)
+            const VerticalDivider(width: 1, indent: 4, endIndent: 4),
+          if (expanded) Expanded(child: readout) else readout,
+          if (expanded)
+            const VerticalDivider(width: 1, indent: 4, endIndent: 4),
+          step(true),
+        ],
+      ),
+    );
+  }
+}
+
+enum DesktopTagStrip { floating, member }
+
 /// 词条栏 / 权重面板 —— 光标右邻是本标签正文时吸在键盘上方。
 /// 头部(名字·热度·翻译·维基·复制·收藏·关闭)+ 权重(括号快捷键 · 数值加减,长按持续)
 /// + 清除/关联/禁用/删除 + 关联标签(点「关联」才展开)。改动都由页面改文本落地。
@@ -34,8 +160,6 @@ class TagPanel extends StatefulWidget {
     required this.onAddRelated,
     required this.onClose,
     this.onRename,
-    this.favorited = false,
-    this.onToggleFavorite,
     this.content,
     this.contentHeader,
     this.titleSpan,
@@ -48,8 +172,12 @@ class TagPanel extends StatefulWidget {
     this.copyText,
     this.showWiki = true,
     this.mixedWeight = false,
+    this.strip,
+    this.tapGroupId,
   });
 
+  final DesktopTagStrip? strip;
+  final Object? tapGroupId;
   final InlineSpan? titleSpan;
   final Tok tok;
 
@@ -64,12 +192,6 @@ class TagPanel extends StatefulWidget {
   final bool showWiki, mixedWeight;
   final int? count;
   final List<String> related;
-
-  /// 这枚标签已在收藏里(头部星标实心)。
-  final bool favorited;
-
-  /// 收 / 取消收藏;null = 不给星标。
-  final VoidCallback? onToggleFavorite;
 
   /// 行内改名入口，供标签视图和块内词条操作使用。
   /// null = 文本模式,点标题不进编辑态——直接点正文里那个词就行。
@@ -191,7 +313,6 @@ class _TagPanelState extends State<TagPanel> {
     final scheme = context.scheme;
     final pal = context.editor;
     final tok = widget.tok;
-    final on = !tok.disabled;
 
     // 读数/名字色以 +/− 与清除改的那份权重为准([Tok.tagMult]):自身写的,
     // 或包着它的数值组 —— 读数与操作对象一致才不跳变。括号组单独一行展示。
@@ -203,7 +324,7 @@ class _TagPanelState extends State<TagPanel> {
         ? pal.weightDown
         : scheme.onSurface;
 
-    final hasRelated = widget.related.isNotEmpty;
+    if (widget.strip != null) return _desktopStrip(context);
 
     if (widget.compact) {
       return Material(
@@ -217,6 +338,120 @@ class _TagPanelState extends State<TagPanel> {
       );
     }
 
+    return _fullPanel(context, wc);
+  }
+
+  Widget _desktopStrip(BuildContext context) {
+    final tok = widget.tok;
+    final member = widget.strip == DesktopTagStrip.member;
+    final l10n = context.l10n;
+    return LayoutBuilder(
+      builder: (context, bounds) {
+        final labels =
+            member &&
+            bounds.maxWidth >=
+                530 * MediaQuery.textScalerOf(context).scale(14) / 14;
+        final actions = Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            DesktopWeightControl(
+              multiplier: tok.tagMult,
+              enabled: !tok.disabled,
+              onStep: (up) => widget.onSetMult(
+                tok.numWeight + (up ? widget.weightStep : -widget.weightStep),
+              ),
+            ),
+            const SizedBox(height: 14, child: VerticalDivider(width: 10)),
+            DesktopTagAction(
+              icon: tok.disabled
+                  ? Icons.visibility_outlined
+                  : Icons.visibility_off_outlined,
+              label: tok.disabled ? l10n.enable : l10n.disableTag,
+              showLabel: labels,
+              onPressed: widget.onToggleDisabled,
+            ),
+            DesktopTagAction(
+              icon: Icons.delete_outline,
+              label: l10n.delete,
+              color: context.scheme.error,
+              showLabel: labels,
+              onPressed: widget.onDelete,
+            ),
+            DesktopTagAction(
+              icon: Icons.language,
+              label: l10n.danbooruWiki,
+              color: context.scheme.primary,
+              showLabel: labels,
+              onPressed: () => openTagWiki(context, tok.name),
+            ),
+            DesktopTagAction(
+              key: const ValueKey('tag-reset-weight'),
+              icon: Icons.restart_alt,
+              label: l10n.studioResetWeight,
+              onPressed: widget.onClear,
+            ),
+            DesktopTagAction(
+              key: const ValueKey('tag-copy'),
+              icon: Icons.content_copy,
+              label: l10n.copy,
+              onPressed: () => Clipboard.setData(
+                ClipboardData(text: widget.copyText ?? tok.name),
+              ),
+            ),
+          ],
+        );
+        return Padding(
+          padding: EdgeInsets.symmetric(
+            horizontal: member ? 12 : 4,
+            vertical: 3,
+          ),
+          child: member && bounds.maxWidth >= 315
+              ? Row(
+                  children: [
+                    Expanded(
+                      child: Text.rich(
+                        TextSpan(
+                          children: [
+                            TextSpan(
+                              text: tok.name,
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                            if (tok.trans case final String t when t.isNotEmpty)
+                              TextSpan(
+                                text: '  $t',
+                                style: context.texts.bodySmall?.copyWith(
+                                  color: context.scheme.onSurfaceVariant,
+                                ),
+                              ),
+                          ],
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                    const SizedBox(width: 6),
+                    ConstrainedBox(
+                      constraints: BoxConstraints(
+                        maxWidth: (bounds.maxWidth - 24) * .74,
+                      ),
+                      child: FittedBox(fit: BoxFit.scaleDown, child: actions),
+                    ),
+                  ],
+                )
+              : FittedBox(fit: BoxFit.scaleDown, child: actions),
+        );
+      },
+    );
+  }
+
+  Widget _fullPanel(BuildContext context, Color wc) {
+    final scheme = context.scheme;
+    final pal = context.editor;
+    final tok = widget.tok;
+    final on = !tok.disabled;
+    final hasRelated = widget.related.isNotEmpty;
     return Material(
       color: context.editorDock,
       shape: Border(top: BorderSide(color: context.editorDockLine)),
@@ -230,8 +465,6 @@ class _TagPanelState extends State<TagPanel> {
               tok: tok,
               count: widget.count,
               wc: wc,
-              favorited: widget.favorited,
-              onToggleFavorite: widget.onToggleFavorite,
               onClose: widget.onClose,
               renaming: _renaming,
               nameCtrl: _nameCtrl,
@@ -805,8 +1038,6 @@ class _Header extends StatelessWidget {
     required this.tok,
     required this.count,
     required this.wc,
-    required this.favorited,
-    required this.onToggleFavorite,
     required this.onClose,
     required this.renaming,
     required this.nameCtrl,
@@ -831,8 +1062,6 @@ class _Header extends StatelessWidget {
   final bool temporaryInspiration;
   final int? count;
   final Color wc;
-  final bool favorited;
-  final VoidCallback? onToggleFavorite;
   final VoidCallback onClose;
 
   /// 标题处于行内改名态:整行换成输入框 + 确认/取消。
@@ -916,7 +1145,7 @@ class _Header extends StatelessWidget {
           _circleIcon(
             context,
             icon: Icons.travel_explore,
-            onTap: () => _openWiki(context, tok.name),
+            onTap: () => openTagWiki(context, tok.name),
           ),
           const SizedBox(width: 4),
         ],
@@ -956,20 +1185,6 @@ class _Header extends StatelessWidget {
             );
           },
         ),
-        if (onToggleFavorite != null && tok.name.isNotEmpty) ...[
-          const SizedBox(width: 4),
-          _circleIcon(
-            context,
-            icon: favorited ? Icons.star_rounded : Icons.star_outline_rounded,
-            color: favorited ? scheme.primary : null,
-            // 星形只占图标框七成,22 才和旁边 18 的图标看着一样大
-            size: 22,
-            onTap: () {
-              Haptics.selection();
-              onToggleFavorite!();
-            },
-          ),
-        ],
         const SizedBox(width: 4),
         _circleIcon(context, icon: Icons.close, onTap: onClose),
       ],
@@ -1014,23 +1229,6 @@ class _Header extends StatelessWidget {
         _circleIcon(context, icon: Icons.close, onTap: onCancelRename),
       ],
     );
-  }
-
-  /// 跳系统浏览器开 Danbooru wiki(web openDanbooru 同款,空格转下划线)。
-  Future<void> _openWiki(BuildContext context, String name) async {
-    final tag = name.trim().replaceAll(' ', '_');
-    final uri = Uri.https('danbooru.donmai.us', '/wiki_pages/$tag');
-    var ok = false;
-    try {
-      ok = await launchUrl(uri, mode: LaunchMode.externalApplication);
-    } catch (_) {}
-    if (!ok && context.mounted) {
-      hintSnack(
-        context,
-        context.l10n.cantOpenBrowser,
-        icon: Icons.error_outline,
-      );
-    }
   }
 
   static String _formatCount(int n) {
@@ -1572,6 +1770,7 @@ class RepeatBtn extends StatefulWidget {
     required this.enabled,
     required this.step,
     this.size = 38,
+    this.plain = false,
   });
 
   final IconData icon;
@@ -1580,6 +1779,7 @@ class RepeatBtn extends StatefulWidget {
 
   /// 圆钮直径。精简版收到 32(图标跟着缩)。
   final double size;
+  final bool plain;
 
   @override
   State<RepeatBtn> createState() => _RepeatBtnState();
@@ -1638,7 +1838,9 @@ class _RepeatBtnState extends State<RepeatBtn> {
         behavior: HitTestBehavior.opaque,
         onTap: widget.enabled ? widget.step : null,
         child: Material(
-          color: scheme.surfaceContainerHighest,
+          color: widget.plain
+              ? Colors.transparent
+              : scheme.surfaceContainerHighest,
           shape: const CircleBorder(),
           clipBehavior: Clip.antiAlias,
           child: SizedBox(

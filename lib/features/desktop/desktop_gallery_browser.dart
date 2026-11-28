@@ -208,6 +208,7 @@ class _DesktopGalleryBrowserState extends ConsumerState<DesktopGalleryBrowser>
         createdAt: all.firstOrNull?.createdAt ?? 0,
       ),
       (id: favoritesId, name: context.l10n.favorites, createdAt: 0),
+      (id: savedGalleryId, name: context.l10n.statusSaved, createdAt: 0),
       for (final album in albums.albums)
         (id: album.id, name: album.name, createdAt: album.createdAt),
       (id: trashId, name: context.l10n.trashName, createdAt: 0),
@@ -389,6 +390,8 @@ class _GalleryTile extends StatelessWidget {
                 Icon(
                   albumId == favoritesId
                       ? Icons.favorite_border
+                      : albumId == savedGalleryId
+                      ? Icons.download_done
                       : albumId == trashId
                       ? Icons.delete_outline
                       : Icons.folder_outlined,

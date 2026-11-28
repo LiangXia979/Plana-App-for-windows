@@ -45,7 +45,8 @@ class TagLibraryState {
 
   final List<TagEntry> entries;
 
-  /// Local tag choices for a source card. An empty list hides all source tags.
+  /// External OC cards store their effective tags. Public cards without a local
+  /// copy store personal additions under a category-qualified key.
   final Map<String, List<String>> externalTags;
   final Map<TagCategory, List<String>> pools;
   final Map<TagCategory, List<String>> usage;
@@ -119,6 +120,19 @@ class TagLibraryState {
     return (entry) => byId[entry.publicId] ?? legacyByName[entry.name];
   }
 
+  static String _publicTagKey(TagEntry entry) =>
+      'public:${entry.category.name}:${entry.publicId ?? entry.id}';
+
+  TagEntry publicCard(TagEntry remote, TagEntry? copy) {
+    if (copy != null) {
+      return remote.copyWith(tags: copy.tags, favorite: copy.isFavorite);
+    }
+    final added = externalTags[_publicTagKey(remote)];
+    return added == null
+        ? remote
+        : remote.copyWith(tags: {...remote.tags, ...added}.toList());
+  }
+
   /// 筛选行可用标签 = 标签池 ∪ 条目在用标签(对齐 web CompactPanel 并集)。
   /// 池里的按池的顺序,只挂在条目上、不在池里的按字母序排在后面。
   List<String> knownTags(TagCategory c) {
@@ -129,6 +143,12 @@ class TagLibraryState {
         if (!pool.contains(t)) extra.add(t);
       }
     }
+    for (final record in externalTags.entries) {
+      if (record.key.startsWith('public:${c.name}:')) {
+        extra.addAll(record.value);
+      }
+    }
+    extra.removeAll(pool);
     return [...pool, ...(extra.toList()..sort())];
   }
 
@@ -371,7 +391,14 @@ class TagLibrary extends AsyncNotifier<TagLibraryState> {
     } else {
       list.add(e);
     }
-    final next = previous.copyWith(entries: list);
+    // Once a private copy is edited or collected, its tags become authoritative.
+    final key = TagLibraryState._publicTagKey(e);
+    final next = previous.copyWith(
+      entries: list,
+      externalTags: e.publicId != null && previous.externalTags.containsKey(key)
+          ? ({...previous.externalTags}..remove(key))
+          : previous.externalTags,
+    );
     await _set(next, requirePersistence: requirePersistence);
     if (i >= 0) {
       _gcPreviewFiles(
@@ -379,6 +406,61 @@ class TagLibrary extends AsyncNotifier<TagLibraryState> {
         keep: [for (final entry in _s.entries) ...entry.previews],
       );
     }
+  }
+
+  Future<int> addSelectionTag(
+    TagCategory category,
+    String label, {
+    Iterable<String> localIds = const [],
+    Iterable<TagEntry> publicCards = const [],
+    Iterable<TagEntry> externalCards = const [],
+  }) async {
+    final tag = label.trim();
+    if (tag.isEmpty) return 0;
+    await future;
+    final library = _s;
+    final ids = localIds.toSet();
+    final overrides = {...library.externalTags};
+    final findCopy = library.publicCopyLookup(category);
+    var changed = 0;
+    for (final card in publicCards) {
+      final copy = findCopy(card);
+      if (copy != null) {
+        ids.add(copy.id);
+        continue;
+      }
+      final key = TagLibraryState._publicTagKey(card);
+      final added = overrides[key] ?? const <String>[];
+      if (card.tags.contains(tag) || added.contains(tag)) continue;
+      overrides[key] = [...added, tag]..sort();
+      changed++;
+    }
+    for (final card in externalCards) {
+      final current = overrides[card.id] ?? card.tags;
+      if (current.contains(tag)) continue;
+      overrides[card.id] = [...current, tag]..sort();
+      changed++;
+    }
+    final entries = [...library.entries];
+    for (var i = 0; i < entries.length; i++) {
+      final entry = entries[i];
+      if (entry.category == category &&
+          ids.contains(entry.id) &&
+          !entry.tags.contains(tag)) {
+        entries[i] = entry.copyWith(tags: [...entry.tags, tag]..sort());
+        changed++;
+      }
+    }
+    if (changed == 0) return 0;
+    final pools = {...library.pools};
+    if (externalCards.isEmpty && !library.poolOf(category).contains(tag)) {
+      pools[category] = [...library.poolOf(category), tag];
+    }
+    await _set(
+      library.copyWith(entries: entries, externalTags: overrides, pools: pools),
+      requirePersistence: true,
+    );
+    return changed;
   }
 
   Future<void> saveExternalTags(TagEntry source, List<String> tags) async {
@@ -592,6 +674,9 @@ class TagLibrary extends AsyncNotifier<TagLibraryState> {
         positive: publicEntry.positive,
         negative: publicEntry.negative,
         aliases: publicEntry.aliases,
+        tags:
+            _s.externalTags[TagLibraryState._publicTagKey(publicEntry)] ??
+            const [],
         models: publicEntry.models,
         recipe: publicEntry.recipe,
         origin: TagOrigin.favorited,
@@ -761,6 +846,13 @@ class TagLibrary extends AsyncNotifier<TagLibraryState> {
               if (t != tag) t,
           ],
         },
+        externalTags: {
+          for (final record in _s.externalTags.entries)
+            if (!record.key.startsWith('public:${c.name}:'))
+              record.key: record.value
+            else if (record.value.any((t) => t != tag))
+              record.key: record.value.where((t) => t != tag).toList(),
+        },
         entries: [
           for (final e in _s.entries)
             e.category == c && e.tags.contains(tag)
@@ -781,7 +873,14 @@ class TagLibrary extends AsyncNotifier<TagLibraryState> {
     for (final e in _s.of(c)) {
       if (e.tags.contains(tag)) n++;
     }
-    return n;
+    return n +
+        _s.externalTags.entries
+            .where(
+              (record) =>
+                  record.key.startsWith('public:${c.name}:') &&
+                  record.value.contains(tag),
+            )
+            .length;
   }
 
   // ---- 最近使用(确认插入时记,前插去重截 50,对齐 web) ----

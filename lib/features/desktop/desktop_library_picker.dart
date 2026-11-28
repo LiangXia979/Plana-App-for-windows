@@ -7,15 +7,23 @@ import '../gallery/albums/album_state.dart';
 import '../gallery/albums/album_ui.dart' show AlbumCoverImage, showAlbumName;
 import '../gallery/albums/album_models.dart';
 import 'desktop_album_menu.dart';
+import '../gallery/temporary_gallery.dart';
+import '../gallery/temporary_gallery_state.dart';
+import '../generate/canvas_state.dart';
+import '../../core/store/app_stores.dart';
 import 'desktop_library_state.dart';
 
 Future<DesktopLibrarySelection?> showLibraryChoiceDialog(
   BuildContext context, {
+  bool allowTemporary = false,
+  DesktopLibrarySelection? initialSelection,
   bool browseOnly = false,
   String? browseAlbumId,
 }) => showDialog<DesktopLibrarySelection>(
   context: context,
   builder: (_) => _DesktopLibraryPicker(
+    allowTemporary: allowTemporary,
+    initialSelection: initialSelection,
     browseOnly: browseOnly,
     browseAlbumId: browseAlbumId,
   ),
@@ -23,10 +31,14 @@ Future<DesktopLibrarySelection?> showLibraryChoiceDialog(
 
 class _DesktopLibraryPicker extends ConsumerStatefulWidget {
   const _DesktopLibraryPicker({
+    required this.allowTemporary,
+    required this.initialSelection,
     required this.browseOnly,
     required this.browseAlbumId,
   });
 
+  final bool allowTemporary;
+  final DesktopLibrarySelection? initialSelection;
   final bool browseOnly;
   final String? browseAlbumId;
 
@@ -49,8 +61,21 @@ class _DesktopLibraryPickerState extends ConsumerState<_DesktopLibraryPicker> {
     final counts = ref.watch(albumSummariesProvider);
     final selection = widget.browseOnly
         ? null
-        : ref.watch(desktopLibraryProvider);
-    final activeChoice = selection?.choice ?? widget.browseAlbumId ?? '';
+        : widget.initialSelection ?? ref.watch(desktopLibraryProvider);
+    final temp =
+        widget.allowTemporary && ref.watch(temporaryCanvasProvider) != null;
+    final activeChoice = temp
+        ? temporaryLibraryId
+        : selection?.choice ?? widget.browseAlbumId ?? '';
+    final temporaryCount = widget.allowTemporary
+        ? ref
+              .read(appStoresProvider)
+              .temporaryGallery
+              .images(
+                ref.watch(canvasWorkspaceProvider.select((w) => w.activeId)),
+              )
+              .length
+        : 0;
     final choices = [
       if (selection != null)
         (
@@ -60,6 +85,13 @@ class _DesktopLibraryPickerState extends ConsumerState<_DesktopLibraryPicker> {
           scope: 'day_${selection.day}',
         ),
       (id: '', name: allPhotosName, detail: '查看所有图片', scope: null),
+      if (widget.allowTemporary)
+        (
+          id: temporaryLibraryId,
+          name: context.l10n.temporaryName,
+          detail: context.l10n.temporaryScope,
+          scope: temporaryLibraryId,
+        ),
       for (final a in albums.albums)
         (id: a.id, name: a.name, detail: '浏览并保存到这里', scope: a.id),
     ];
@@ -124,7 +156,9 @@ class _DesktopLibraryPickerState extends ConsumerState<_DesktopLibraryPicker> {
                   itemCount: choices.length,
                   itemBuilder: (_, i) {
                     final entry = choices[i];
-                    final count = counts[entry.scope]?.count ?? 0;
+                    final count = entry.id == temporaryLibraryId
+                        ? temporaryCount
+                        : counts[entry.scope]?.count ?? 0;
                     final active = activeChoice == entry.id;
                     return Material(
                       color: active
@@ -142,7 +176,9 @@ class _DesktopLibraryPickerState extends ConsumerState<_DesktopLibraryPicker> {
                       child: InkWell(
                         key: ValueKey('desktop-album-${entry.id}'),
                         onSecondaryTapDown:
-                            widget.browseOnly || entry.id == 'auto'
+                            widget.browseOnly ||
+                                entry.id == 'auto' ||
+                                entry.id == temporaryLibraryId
                             ? null
                             : (details) => _albumMenu.show(
                                 context,
@@ -156,10 +192,15 @@ class _DesktopLibraryPickerState extends ConsumerState<_DesktopLibraryPicker> {
                             crossAxisAlignment: CrossAxisAlignment.stretch,
                             children: [
                               Expanded(
-                                child:
-                                    entry.id == 'auto' &&
-                                        count == 0 &&
-                                        albums.cover(entry.scope) == null
+                                child: entry.id == temporaryLibraryId
+                                    ? Icon(
+                                        Icons.hourglass_empty,
+                                        size: 36,
+                                        color: context.scheme.primary,
+                                      )
+                                    : entry.id == 'auto' &&
+                                          count == 0 &&
+                                          albums.cover(entry.scope) == null
                                     ? Icon(
                                         Icons.calendar_month_outlined,
                                         size: 36,

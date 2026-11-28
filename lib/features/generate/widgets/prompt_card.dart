@@ -15,20 +15,14 @@ import '../../editor/editor_models.dart'
 import '../../editor/editor_page.dart';
 import '../../editor/widgets/fold_icon.dart';
 import '../../editor/editor_state.dart' show editorSessionsProvider;
-import '../../inspiration/codex/codex_favorites.dart' show CodexFavorite;
-import '../../inspiration/codex/codex_models.dart' show CodexMeta, CodexType;
-import '../../inspiration/codex/codex_providers.dart' show codexIndexProvider;
-import '../../inspiration/codex/codex_sheets.dart' show codexAddToPrompt;
-import '../../inspiration/tag_models.dart' show TagCategory, TagEntry;
-import '../../inspiration/widgets/char_pick_sheet.dart'
-    show showLibraryPickSheet;
+import '../../editor/widgets/editor_settings_sheet.dart'
+    show showDesktopEditorSettings;
+import '../../editor/widgets/prompt_preset_menu_button.dart';
 import '../canvas_state.dart';
 import '../generate_state.dart';
-import '../models.dart'
-    show kMainSectionId, PromptSection, maxCharactersOf, tokenLimitOf;
+import '../models.dart' show kMainSectionId, PromptSection, tokenLimitOf;
 import '../prompt_presets.dart';
 import '../prompt_sections.dart';
-import '../style_recipes.dart';
 import 'common.dart';
 import 'section_save.dart';
 import 'prompt_inline_name.dart';
@@ -36,7 +30,7 @@ import 'prompt_header_target.dart';
 import 'prompt_reorder_scroll.dart';
 
 /// 提示词卡:头部 token 进度条 + 正文 + 负面单行(带 +N 溢出与独立计数)。
-/// 常驻展开。卡头按钮与角色卡同序:清空正向(可撤销)/ 灵感库 / 添加分区。
+/// 桌面标题行提供预设切换和编辑器设置。
 ///
 /// 没分区时正文是两行段落预览;分了区就一格一行,操作照角色卡:点行编辑这一格、
 /// 点名字改名、⏻ 停用、删除(可撤销)。
@@ -133,6 +127,12 @@ class _PromptCardState extends ConsumerState<PromptCard> {
     final barColor = over ? scheme.error : scheme.primary;
     // 窄屏只收紧公共圆形按钮尺寸,与角色卡头同一口径。
     final actionSize = MediaQuery.sizeOf(context).width < 350 ? 32.0 : 36.0;
+    Widget editorTool(Widget button) => TapRegion(
+      groupId: EditorPage.mainPromptTapGroup(
+        ref.watch(canvasWorkspaceProvider.select((s) => s.activeId)),
+      ),
+      child: TextFieldTapRegion(child: button),
+    );
     final headerActions = <Widget>[
       if (desktop && sections.isNotEmpty)
         RoundIconBtn(
@@ -153,13 +153,18 @@ class _PromptCardState extends ConsumerState<PromptCard> {
           color: scheme.onSurfaceVariant,
           onTap: () => _clearPositive(context, ref),
         ),
-      RoundIconBtn(
-        Icons.grid_view,
-        size: actionSize,
-        tooltip: l10nNow.inspirationLibrary,
-        color: scheme.onSurfaceVariant,
-        onTap: () => _importFromLibrary(context, ref),
-      ),
+      if (desktop) editorTool(const PromptPresetMenuButton()),
+      if (desktop)
+        editorTool(
+          RoundIconBtn(
+            Icons.settings_outlined,
+            key: const ValueKey('desktop-editor-settings'),
+            tooltip: context.l10n.editorSettings,
+            size: actionSize,
+            color: scheme.onSurfaceVariant,
+            onTap: () => showDesktopEditorSettings(context),
+          ),
+        ),
       RoundIconBtn(
         Icons.add,
         size: actionSize,
@@ -167,6 +172,61 @@ class _PromptCardState extends ConsumerState<PromptCard> {
         onTap: notifier.addSection,
       ),
     ];
+
+    final header = Row(
+      children: [
+        IgnorePointer(
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.subject, size: 20, color: scheme.onSurfaceVariant),
+              const SizedBox(width: 9),
+              Text(
+                context.l10n.prompt,
+                style: context.texts.bodyLarge!.copyWith(
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
+          ),
+        ),
+        if (desktop) ...[
+          const SizedBox(width: 8),
+          Expanded(
+            child: Wrap(
+              alignment: WrapAlignment.end,
+              crossAxisAlignment: WrapCrossAlignment.center,
+              spacing: 2,
+              runSpacing: 4,
+              children: headerActions,
+            ),
+          ),
+        ] else ...[
+          const SizedBox(width: 9),
+          Text(
+            '$promptTokens',
+            style: mono(
+              context,
+              size: 11,
+              weight: FontWeight.w700,
+            ).copyWith(color: over ? scheme.error : scheme.onSurface),
+          ),
+          Expanded(
+            child: Text(
+              ' / $limit',
+              maxLines: 1,
+              softWrap: false,
+              overflow: TextOverflow.fade,
+              style: mono(context, size: 11).copyWith(color: scheme.outline),
+            ),
+          ),
+          for (var i = 0; i < headerActions.length; i++) ...[
+            if (i > 0) const SizedBox(width: 6),
+            headerActions[i],
+          ],
+        ],
+      ],
+    );
 
     final card = Material(
       color: scheme.surfaceContainerLow,
@@ -180,9 +240,10 @@ class _PromptCardState extends ConsumerState<PromptCard> {
             child: selecting
                 ? _selectHeader(context, sections, state.prompt, actionSize)
                 : desktop && sections.isEmpty
-                ? Row(
+                ? Stack(
+                    alignment: Alignment.centerLeft,
                     children: [
-                      Expanded(
+                      Positioned.fill(
                         child: PromptHeaderTarget(
                           identifier: 'prompt-section-header-main',
                           label: !collapsible
@@ -198,88 +259,15 @@ class _PromptCardState extends ConsumerState<PromptCard> {
                                   toggleMain();
                                 }
                               : null,
-                          child: Row(
-                            children: [
-                              Icon(
-                                Icons.subject,
-                                size: 20,
-                                color: scheme.onSurfaceVariant,
-                              ),
-                              const SizedBox(width: 9),
-                              Text(
-                                context.l10n.prompt,
-                                style: context.texts.bodyLarge!.copyWith(
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              ),
-                            ],
-                          ),
                         ),
                       ),
-                      Wrap(
-                        spacing: 2,
-                        crossAxisAlignment: WrapCrossAlignment.center,
-                        children: headerActions,
+                      ConstrainedBox(
+                        constraints: const BoxConstraints(minHeight: 40),
+                        child: header,
                       ),
                     ],
                   )
-                : Row(
-                    children: [
-                      Icon(
-                        Icons.subject,
-                        size: 20,
-                        color: scheme.onSurfaceVariant,
-                      ),
-                      const SizedBox(width: 9),
-                      Text(
-                        context.l10n.prompt,
-                        style: context.texts.bodyLarge!.copyWith(
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                      if (!desktop) ...[
-                        const SizedBox(width: 9),
-                        Text(
-                          '$promptTokens',
-                          style:
-                              mono(
-                                context,
-                                size: 11,
-                                weight: FontWeight.w700,
-                              ).copyWith(
-                                color: over ? scheme.error : scheme.onSurface,
-                              ),
-                        ),
-                        Expanded(
-                          child: Text(
-                            ' / $limit',
-                            maxLines: 1,
-                            softWrap: false,
-                            overflow: TextOverflow.fade,
-                            style: mono(
-                              context,
-                              size: 11,
-                            ).copyWith(color: scheme.outline),
-                          ),
-                        ),
-                        for (var i = 0; i < headerActions.length; i++) ...[
-                          if (i > 0) const SizedBox(width: 6),
-                          headerActions[i],
-                        ],
-                      ] else ...[
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: Wrap(
-                            alignment: WrapAlignment.end,
-                            crossAxisAlignment: WrapCrossAlignment.center,
-                            spacing: 2,
-                            runSpacing: 4,
-                            children: headerActions,
-                          ),
-                        ),
-                      ],
-                    ],
-                  ),
+                : header,
           ),
           // token 用量进度条
           if (!desktop)
@@ -702,58 +690,6 @@ class _PromptCardState extends ConsumerState<PromptCard> {
       ),
     );
   }
-
-  /// 卡头「灵感库」:角色、画风、场景与法典收藏都能挑。选完每条自成一格、
-  /// 不折叠,格子名是条目编号／名称(角色也进分区,角色卡有自己的选择器),按勾选顺序
-  /// 接在最后;法典收藏同法典页的「使用」(角色段照旧拆成角色卡),画师串词典
-  /// 里收的算画风。
-  Future<void> _importFromLibrary(BuildContext context, WidgetRef ref) async {
-    final canvasId = ref.read(canvasWorkspaceProvider).activeId;
-    final picks = await showLibraryPickSheet(context);
-    if (picks == null || !context.mounted) return;
-    // 面板是模态的,开着时切不了画布;真切了(不该发生)就不写,免得写错地方
-    if (ref.read(canvasWorkspaceProvider).activeId != canvasId) return;
-    final index = ref.read(codexIndexProvider).value ?? const <CodexMeta>[];
-    bool artistString(CodexFavorite f) =>
-        f.entry.tags.trim().isNotEmpty &&
-        index.any((m) => m.id == f.codexId && m.type == CodexType.string);
-    // 一条一条按勾选顺序加:新格子都接在最后,顺序就是勾的先后
-    final notifier = ref.read(generateProvider.notifier);
-    var dropped = 0;
-    for (final p in picks) {
-      final t = p.tag, f = p.codex;
-      if (t != null) {
-        notifier.addEntrySections([t.entry]);
-      } else if (f != null && artistString(f)) {
-        notifier.addEntrySections([
-          TagEntry(
-            id: 'codex_${f.entry.id}',
-            category: TagCategory.artist,
-            name: f.entry.title,
-            positive: f.entry.tags,
-          ),
-        ]);
-      } else if (f != null) {
-        dropped += codexAddToPrompt(ref, f.entry, asSection: true).dropped;
-      }
-    }
-    if (dropped > 0) {
-      final cap = maxCharactersOf(ref.read(generateProvider).params.model);
-      hintSnack(
-        context,
-        context.l10n.charactersFull(cap, dropped),
-        icon: Icons.block_outlined,
-      );
-    }
-    // 带推荐参数、且对得上当前模型的,弹窗问套不套(点了才写,不切模型)
-    final artists = [
-      for (final p in picks)
-        if (p.tag?.entry.category == TagCategory.artist) p.tag!.entry,
-    ];
-    if (artists.isNotEmpty && context.mounted) {
-      await offerStyleRecipe(context, ref, artists, canvasId: canvasId);
-    }
-  }
 }
 
 /// 分区正文：桌面拖动卡头排序、单击空白折叠；移动布局保留长按多选与把手。
@@ -918,6 +854,9 @@ class _SectionRowState extends ConsumerState<_SectionRow> {
     final notifier = ref.read(generateProvider.notifier);
     final scheme = context.scheme;
     final s = section;
+    final limit = ref.watch(
+      generateProvider.select((g) => tokenLimitOf(g.params.model)),
+    );
     final links = s.isMain
         ? ref.watch(generateProvider.select((g) => g.promptFoldLinks))
         : s.foldLinks;
@@ -1125,6 +1064,7 @@ class _SectionRowState extends ConsumerState<_SectionRow> {
                           ),
                           const SizedBox(width: 8),
                           PromptTokenCounts(
+                            limit: limit,
                             positive: tokens,
                             negative: negTokens,
                           ),
@@ -1191,7 +1131,11 @@ class _SectionRowState extends ConsumerState<_SectionRow> {
               child: _Preview(draft: draft, enabled: on, links: links),
             ),
             const SizedBox(width: 8),
-            PromptTokenCounts(positive: tokens, negative: negTokens),
+            PromptTokenCounts(
+              limit: limit,
+              positive: tokens,
+              negative: negTokens,
+            ),
             const SizedBox(width: 6),
             if (selecting)
               // 勾选圈放在删除钮那一格,和卡头最右那颗对齐

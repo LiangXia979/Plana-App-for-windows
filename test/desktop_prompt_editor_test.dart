@@ -7,9 +7,12 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:plana_app/core/store/app_stores.dart';
+import 'package:plana_app/core/ui/desktop_text_selection.dart';
+import 'package:plana_app/core/platform/desktop.dart';
 import 'package:plana_app/core/theme/app_theme.dart';
 import 'package:plana_app/core/theme/editor_theme.dart';
 import 'package:plana_app/features/editor/editor_page.dart';
+import 'package:plana_app/features/editor/data/tag_translation_service.dart';
 import 'package:plana_app/features/editor/editor_models.dart';
 import 'package:plana_app/features/editor/editor_settings.dart';
 import 'package:plana_app/features/editor/widgets/annotated_field.dart';
@@ -18,8 +21,13 @@ import 'package:plana_app/features/editor/widgets/editor_settings_sheet.dart';
 import 'package:plana_app/features/editor/widgets/tag_panel.dart';
 import 'package:plana_app/features/generate/generate_state.dart';
 import 'package:plana_app/features/generate/widgets/desktop_prompt_card.dart';
+import 'package:plana_app/features/generate/widgets/prompt_card.dart';
+
+import 'support/desktop_capture.dart';
 
 void main() {
+  final capture = GlobalKey();
+  setUpAll(loadDesktopCaptureFonts);
   late ProviderContainer container;
   late AppStores stores;
   late GenerateNotifier gen;
@@ -35,7 +43,15 @@ void main() {
       ),
     );
     container = ProviderContainer(
-      overrides: [appStoresProvider.overrideWithValue(stores)],
+      overrides: [
+        appStoresProvider.overrideWithValue(stores),
+        desktopModeProvider.overrideWithValue(true),
+        tagTranslationServiceProvider.overrideWith((ref) {
+          final service = TagTranslationService(enabled: false, baseUrl: '');
+          ref.onDispose(service.dispose);
+          return service;
+        }),
+      ],
     );
     gen = container.read(generateProvider.notifier);
   });
@@ -49,31 +65,43 @@ void main() {
     of: key('$prefix-text'),
     matching: find.byType(TextField),
   );
-  Future<void> mount(WidgetTester tester) async {
+  Future<void> mount(WidgetTester tester, {bool promptHeader = false}) async {
+    final theme = AppTheme.light();
     await tester.pumpWidget(
       UncontrolledProviderScope(
         container: container,
-        child: MaterialApp(
-          theme: AppTheme.light(),
-          home: Scaffold(
-            body: Align(
-              alignment: Alignment.topLeft,
-              child: SizedBox(
-                width: 310,
-                child: SingleChildScrollView(
-                  child: Consumer(
-                    builder: (context, ref, _) => Column(
-                      children: [
-                        const DesktopPromptCard(),
-                        for (final c in ref.watch(generateProvider).characters)
-                          Padding(
-                            padding: const EdgeInsets.all(12),
-                            child: DesktopPromptCard(
-                              key: ValueKey(c.id),
-                              charId: c.id,
+        child: RepaintBoundary(
+          key: capture,
+          child: MaterialApp(
+            debugShowCheckedModeBanner: false,
+            builder: (_, child) => DesktopTextSelection(child: child!),
+            theme: theme.copyWith(
+              textTheme: theme.textTheme.apply(fontFamily: 'Microsoft YaHei'),
+            ),
+            home: Scaffold(
+              body: Align(
+                alignment: Alignment.topLeft,
+                child: SizedBox(
+                  width: 310,
+                  child: SingleChildScrollView(
+                    child: Consumer(
+                      builder: (context, ref, _) => Column(
+                        children: [
+                          if (promptHeader)
+                            const PromptCard()
+                          else
+                            const DesktopPromptCard(),
+                          for (final c
+                              in ref.watch(generateProvider).characters)
+                            Padding(
+                              padding: const EdgeInsets.all(12),
+                              child: DesktopPromptCard(
+                                key: ValueKey(c.id),
+                                charId: c.id,
+                              ),
                             ),
-                          ),
-                      ],
+                        ],
+                      ),
                     ),
                   ),
                 ),
@@ -223,7 +251,7 @@ void main() {
   );
 
   testWidgets(
-    'text actions anchor on selection and stay fixed when the prompt scrolls',
+    'single-tag strip follows its token through caret movement and scrolling',
     (tester) async {
       gen.setPrompts(
         positive: List.generate(70, (i) => 'mountain $i').join(', '),
@@ -244,21 +272,26 @@ void main() {
       text.controller!.selection = const TextSelection.collapsed(offset: 5);
       await tester.pumpAndSettle();
       Rect panel() => tester.getRect(key('desktop-tag-popover'));
-      expect(panel().top, closeTo(field.selectionAnchor()!.bottom + 8, .01));
+      final token = parseToks(text.controller!.text).first;
+      expect(panel().bottom, closeTo(field.tokenAnchor(token)!.top - 6, .1));
       final first = panel();
+      expect(first.height, lessThanOrEqualTo(40));
       text.controller!.selection = const TextSelection.collapsed(offset: 8);
       await tester.pumpAndSettle();
-      expect(panel().left, greaterThan(first.left));
+      expect(
+        panel(),
+        first,
+        reason: 'The strip belongs to the word, not to each letter',
+      );
       expect(scroll.maxScrollExtent, closeTo(extent, .01));
       expect(tester.getSize(key('desktop-prompt-text')).height, height);
 
-      final beforeScroll = panel();
-      scroll.jumpTo(20);
+      scroll.jumpTo(8);
       await tester.pumpAndSettle();
-      expect(panel(), beforeScroll);
+      expect(panel().top, closeTo(first.top - 8, .1));
       scroll.jumpTo(500);
       await tester.pumpAndSettle();
-      expect(panel(), beforeScroll);
+      expect(key('desktop-tag-popover'), findsNothing);
       scroll.jumpTo(0);
       await tester.pumpAndSettle();
       expect(key('desktop-tag-popover'), findsOneWidget);
@@ -286,6 +319,44 @@ void main() {
       expect(key('desktop-tag-popover'), findsNothing);
       await finish(tester);
       expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets(
+    'a long sentence has direct copy and reset actions in its micro toolbar',
+    (tester) async {
+      const sentence = 'a cat is sitting in the warm sun by the sea';
+      gen.setPrompts(positive: '1.3::$sentence::, blue sky');
+      await mount(tester);
+      final editable = tester.state<EditableTextState>(
+        find.descendant(
+          of: input('desktop-prompt'),
+          matching: find.byType(EditableText),
+        ),
+      );
+      final render = editable.renderEditable;
+      final point = render.localToGlobal(
+        render.getLocalRectForCaret(const TextPosition(offset: 11)).center,
+      );
+      await tester.tapAt(point, kind: PointerDeviceKind.mouse);
+      await tester.pumpAndSettle();
+      final panel = key('desktop-tag-popover');
+      expect(tester.getSize(panel).height, lessThanOrEqualTo(40));
+      await captureDesktop(tester, capture, 'sidebar-tag-strip');
+      expect(
+        find.descendant(of: panel, matching: find.byIcon(Icons.language)),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(of: panel, matching: find.byIcon(Icons.more_horiz)),
+        findsNothing,
+      );
+      expect(key('tag-copy'), findsOneWidget);
+      expect(key('desktop-prompt-favorites'), findsNothing);
+      await tester.tap(key('tag-reset-weight'));
+      await tester.pumpAndSettle();
+      expect(gen.state.prompt, '$sentence, blue sky');
+      await finish(tester);
     },
   );
 
@@ -528,6 +599,114 @@ void main() {
     },
   );
 
+  testWidgets('Ctrl-drag adds a chip range without moving tags', (
+    tester,
+  ) async {
+    const original = 'alpha, beta, gamma, delta';
+    gen.setPrompts(positive: original);
+    await mount(tester);
+    await tap(tester, 'desktop-prompt-mode');
+    final flow = tester.state<ChipFlowViewState>(find.byType(ChipFlowView));
+    await tester.tapAt(flow.chipAnchor(0)!.center);
+    await tester.pumpAndSettle();
+    await tester.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);
+    await tester.pumpAndSettle();
+    final mouse = await tester.startGesture(
+      flow.chipAnchor(3)!.center,
+      kind: PointerDeviceKind.mouse,
+    );
+    await mouse.moveTo(flow.chipAnchor(2)!.center);
+    await tester.pump();
+    await mouse.up();
+    await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
+    await tester.pumpAndSettle();
+    expect(flow.widget.selection, {0, 2, 3});
+    expect(key('desktop-chip-drag-feedback'), findsNothing);
+    expect(gen.state.prompt, original);
+    await finish(tester);
+  });
+
+  for (final target in ['main', 'character', 'fullscreen']) {
+    testWidgets('disjoint prompt drags affect only touched tokens ($target)', (
+      tester,
+    ) async {
+      const prompt = 'alpha, beta, gamma';
+      gen.setPrompts(positive: prompt);
+      var prefix = 'desktop-prompt';
+      if (target == 'character') {
+        gen.addCharacter();
+        final id = gen.state.characters.single.id;
+        gen.updateCharacter(id, positive: prompt);
+        prefix = 'desktop-character-$id';
+      }
+      await mount(tester, promptHeader: target == 'fullscreen');
+      Finder inputField = input(prefix);
+      if (target == 'fullscreen') {
+        await tap(tester, 'prompt-fullscreen-main');
+        inputField = key('studio-text-true');
+      }
+      await tester.ensureVisible(inputField);
+      await tester.pumpAndSettle();
+      final field = tester.state<EditableTextState>(
+        find.descendant(of: inputField, matching: find.byType(EditableText)),
+      );
+      Future<void> select(int from, int to) async {
+        await tester.pump(const Duration(milliseconds: 600));
+        final render = field.renderEditable;
+        Offset point(int i) => render.localToGlobal(
+          render.getLocalRectForCaret(TextPosition(offset: i)).center,
+        );
+        final mouse = await tester.startGesture(
+          point(from),
+          kind: PointerDeviceKind.mouse,
+        );
+        await mouse.moveTo(Offset.lerp(point(from), point(to), .6)!);
+        await tester.pump();
+        await mouse.moveTo(point(to));
+        await tester.pump();
+        await mouse.up();
+        await tester.pumpAndSettle();
+      }
+
+      await select(0, 5);
+      await tester.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);
+      await select(13, 18);
+      await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
+      await tester.pumpAndSettle();
+      final isStudio = target == 'fullscreen';
+      if (isStudio && find.text('已选 2 项').evaluate().isEmpty) {
+        await tester.tap(find.byTooltip('词条与块检视器'));
+        await tester.pumpAndSettle();
+      }
+      final panel = isStudio
+          ? find
+                .ancestor(of: key('studio-reset'), matching: find.byType(Card))
+                .first
+          : find.byType(BatchPanel);
+      if (isStudio) {
+        expect(find.text('已选 2 项'), findsOneWidget);
+      } else {
+        expect(tester.widget<BatchPanel>(panel).count, 2);
+      }
+      await tester.tap(
+        find.descendant(of: panel, matching: find.byIcon(Icons.add)),
+      );
+      await tester.pumpAndSettle();
+      final tokens = parseToks(field.widget.controller.text);
+      expect(tokens[0].effMult, greaterThan(1));
+      expect(tokens[1].effMult, 1);
+      expect(tokens[2].effMult, tokens[0].effMult);
+      await tester.tap(
+        find.descendant(of: panel, matching: find.byIcon(Icons.delete_outline)),
+      );
+      await tester.pumpAndSettle();
+      expect(parseToks(field.widget.controller.text).map((t) => t.name), [
+        'beta',
+      ]);
+      await finish(tester);
+    });
+  }
+
   testWidgets(
     'mouse movement previews and drops a tag without waiting, with one undo',
     (tester) async {
@@ -750,10 +929,10 @@ void main() {
   );
 
   testWidgets(
-    'settings live in main prompt, apply inline, and narrow tag tools fit',
+    'settings open from the header, apply inline, and narrow tag tools fit',
     (tester) async {
       gen.setPrompts(positive: '1.2::sunrise::, 0.7::mist::');
-      await mount(tester);
+      await mount(tester, promptHeader: true);
       expect(find.text('标签编辑器'), findsNothing);
       expect(
         tester.widget<EditorPage>(find.byType(EditorPage)).embedded,

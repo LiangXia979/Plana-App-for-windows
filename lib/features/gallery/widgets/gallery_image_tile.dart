@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../../../core/theme/app_theme.dart';
+import '../../../l10n/l10n.dart';
 import '../../../core/widgets/primary_mouse_drag.dart';
 import '../gallery_dates.dart';
 import '../models.dart';
@@ -142,6 +143,28 @@ class GalleryImageTile extends StatelessWidget {
                                       fit: BoxFit.scaleDown,
                                       child: ResultBadgeChip(
                                         badge: result.badge,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              if (result.saved)
+                                Positioned(
+                                  left: 5,
+                                  bottom: 5,
+                                  child: Tooltip(
+                                    message: context.l10n.statusSaved,
+                                    child: DecoratedBox(
+                                      decoration: const BoxDecoration(
+                                        color: Colors.black54,
+                                        shape: BoxShape.circle,
+                                      ),
+                                      child: const Padding(
+                                        padding: EdgeInsets.all(3),
+                                        child: Icon(
+                                          Icons.download_done,
+                                          size: 14,
+                                          color: Colors.white,
+                                        ),
                                       ),
                                     ),
                                   ),

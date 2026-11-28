@@ -538,11 +538,16 @@ void main() {
   ) async {
     late ResultImage cat;
     late ResultImage forest;
+    late String album;
     await tester.runAsync(() async {
-      cat = await addImage(seed: 2201, prompt: 'cat, outdoors');
-      forest = await addImage(seed: 2202, prompt: 'forest, landscape');
+      album = await container.read(albumsProvider.notifier).create('作品目录');
+      cat = await addImage(seed: 2201, albumId: album, prompt: 'cat, outdoors');
+      forest = await addImage(seed: 2202, albumId: album, prompt: 'forest, landscape');
     });
     await mount(tester);
+    expect(key('desktop-gallery-folder'), findsNothing);
+    container.read(desktopLibraryProvider.notifier).choose(album);
+    await tester.pumpAndSettle();
     final search = tester.getRect(key('quick-gallery-search'));
     final folder = tester.getRect(key('desktop-gallery-folder'));
     final library = tester.getRect(key('quick-gallery-library'));
@@ -622,11 +627,12 @@ void main() {
       expect(find.text('「样图图库」· 已选 1 张'), findsOneWidget);
       await requestCleanup(tester, 'keepSamples');
       expect(find.text('导出所选 1 张；从「样图图库」删除 2 张。'), findsOneWidget);
-      expect(find.text('其中 1 张未选择导出，也会被删除。'), findsOneWidget);
+      expect(find.text('其中 2 张未选择导出，也会被删除。'), findsOneWidget);
       await confirmExport(tester);
       expectOneExport(selected);
-      expect(liveIds(), {newest.id, outside.id});
-      expect(container.read(albumsProvider).contains(album, newest.id), isTrue);
+      expect(liveIds(), {selected.id, outside.id});
+      expect(container.read(albumsProvider).contains(album, selected.id), isTrue);
+      expect(container.read(galleryProvider).results.singleWhere((r) => r.id == selected.id).saved, isTrue);
       expect(
         container.read(albumsProvider).contains(otherAlbum, outside.id),
         isTrue,

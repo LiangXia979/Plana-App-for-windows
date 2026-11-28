@@ -9,10 +9,12 @@ import '../../inspiration/public_tags.dart';
 import '../../inspiration/tag_editor_page.dart';
 import '../../inspiration/tag_library.dart';
 import '../../inspiration/tag_models.dart';
-import '../../inspiration/widgets/char_pick_sheet.dart' show panelTagCats;
 import '../generate_state.dart';
 import '../models.dart' show PromptSection;
 import 'common.dart';
+
+List<TagCategory> sectionSaveCategories(TagLibraryState library) =>
+    library.visibleCategories.where((c) => c != TagCategory.other).toList();
 
 /// 这一格存进灵感库的词:实际出图的那份(停用的不算、折叠展开)。主体只存正向,
 /// 卡上负面那行是整张卡的。
@@ -103,7 +105,7 @@ Future<bool> saveSectionToLibrary(
   if (text.positive.isEmpty) return false;
   final lib = await container.read(tagLibraryProvider.future);
   if (!anchor.mounted) return false;
-  final cats = panelTagCats(lib);
+  final cats = sectionSaveCategories(lib);
   if (cats.isEmpty) return false;
   final cat =
       sectionSaveCategory(section, cats) ?? _fallbackCategory(container, cats);
@@ -164,7 +166,7 @@ Future<({int saved, int skipped})> saveSectionsToLibrary(
   final prompt = container.read(generateProvider).prompt;
   final notifier = container.read(tagLibraryProvider.notifier);
   var lib = await container.read(tagLibraryProvider.future);
-  final cats = panelTagCats(lib);
+  final cats = sectionSaveCategories(lib);
   if (cats.isEmpty) return (saved: 0, skipped: 0);
   final fallback = _fallbackCategory(container, cats);
   final occupied = _artistNames(container, lib);
