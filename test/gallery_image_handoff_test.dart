@@ -120,7 +120,10 @@ void main() {
           capture.currentContext!.findRenderObject()! as RenderRepaintBoundary;
       final image = await boundary.toImage();
       final data = await image.toByteData(format: ui.ImageByteFormat.rawRgba);
-      final at = (250 * image.width + 450) * 4;
+      final center = boundary.globalToLocal(
+        tester.getCenter(find.byType(PageView)),
+      );
+      final at = (center.dy.floor() * image.width + center.dx.floor()) * 4;
       final rgb = data!.buffer.asUint8List().sublist(at, at + 3);
       image.dispose();
       return rgb;
