@@ -136,12 +136,15 @@ void main() {
       Navigator.of(tester.element(find.byType(Dialog))).pop();
       await tester.pumpAndSettle();
 
-      final header = tester.getRect(key('desktop-history-header'));
-      await tester.tapAt(Offset(header.right - 2, header.center.dy));
+      final browse = tester.getRect(key('desktop-history-browse'));
+      final save = tester.getRect(key('canvas-save'));
+      expect(save.left, greaterThan(browse.right));
+      final blank = Offset((browse.right + save.left) / 2, browse.center.dy);
+      await tester.tapAt(blank);
       await tester.pumpAndSettle();
       expect(key('history-thumb-image-0'), findsOneWidget);
       // Expanded whitespace is not a new accidental collapse target.
-      await tester.tapAt(Offset(header.right - 2, header.center.dy));
+      await tester.tapAt(blank);
       await tester.pumpAndSettle();
       expect(key('history-thumb-image-0'), findsOneWidget);
       expect(selected(), before);
